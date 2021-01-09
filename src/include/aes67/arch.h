@@ -56,7 +56,7 @@ typedef int32_t   s32_t;
 
 
 #ifndef PACK_STRUCT
-#define PACK_STRUCT __attributes__((packed))
+#define PACK_STRUCT __attribute__((packed))
 #endif
 
 #endif //AES67_ARCH_H
