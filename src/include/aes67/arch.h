@@ -51,6 +51,20 @@ typedef int16_t   s16_t;
 typedef uint32_t  u32_t;
 typedef int32_t   s32_t;
 
+#if !defined(AES67_HAVE_INT64) && defined(UINT64_MAX)
+#define AES67_HAVE_INT64 1
+#endif
+
+
+typedef struct {
+    u32_t msb;
+    u32_t lsb;
+} u64_t;
+
+#define u64_eq(lhs, rhs)    ((lhs).msb == (rhs).msb && (lhs).lsb == (rhs).lsb)
+#define u64_le(lhs, rhs)    ((lhs).msb < (rhs).msb || ((lhs).msb == (rhs).msb && (lhs).lsb < (rhs).lsb))
+#define u64_gr(lhs, rhs)    ((lhs).msb > (rhs).msb || ((lhs).msb == (rhs).msb && (lhs).lsb > (rhs).lsb))
+
 
 #include <limits.h>
 

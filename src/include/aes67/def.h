@@ -86,6 +86,18 @@ u32_t aes67_htonl(u32_t x);
 //#define ntohl(x) aes67_ntohl(x)
 //#endif
 
+#define AES67_STRING(__len__) \
+struct { \
+    u16_t length; \
+    u8_t data[__len__]; \
+}
+
+typedef AES67_STRING() aes67_str;
+
+typedef struct {
+    u16_t length;
+    u8_t * data;
+} aes67_str_ref;
 
 #ifndef aes67_memcmp
 int aes67_memcmp( const void * lhs, const void * rhs, size_t count );
