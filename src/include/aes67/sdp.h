@@ -33,6 +33,13 @@
 #include "aes67/net.h"
 #include "aes67/ptp.h"
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#define AES67_SDP_MIMETYPE "application/sdp"
+
 /**
  *
  */
@@ -84,12 +91,12 @@ struct aes67_sdp {
 /**
  * Generate SDP string from struct.
  */
-u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp);
+u32_t aes67_sdp_tostr(u8_t *str, u32_t maxlen, struct aes67_sdp *sdp);
 
 /**
  * Parse SDP string into struct.
  */
-u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len);
+u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len);
 
 /**
  * Compares two SDP structs w.r.t. originator (not considering the (ever increasing) session version)
@@ -102,7 +109,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len);
  *
  * Also see aes67_sdp_cmpversion
  */
-u8_t aes67_sdp_cmporigin(struct aes67_sdp * lhs, struct aes67_sdp * rhs);
+u8_t aes67_sdp_cmporigin(struct aes67_sdp *lhs, struct aes67_sdp *rhs);
 
 /**
  * Compares two SDP structs denoting the same originator w.r.t. the version.
@@ -113,6 +120,12 @@ u8_t aes67_sdp_cmporigin(struct aes67_sdp * lhs, struct aes67_sdp * rhs);
  *
  * Note: only compares version. Requires prior originator match (see aes67_sdp_cmporigin)
  */
-s32_t aes67_sdp_cmpversion(struct aes67_sdp * lhs, struct aes67_sdp * rhs);
+s32_t aes67_sdp_cmpversion(struct aes67_sdp *lhs, struct aes67_sdp *rhs);
+
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif //AES67_SDP_H

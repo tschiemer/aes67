@@ -61,5 +61,4 @@
 #define AES67_SDP_MAXCONNECTIONDATA 1
 #endif
 
-
 #endif //AES67_OPT_H

@@ -1,4 +1,9 @@
 /**
+ * @file ptp.h
+ * PTP relevant defines and types.
+ */
+
+/**
  * AES67 Framework
  * Copyright (C) 2021  Philip Tschiemer, https://github.com/tschiemer/aes67
  *
@@ -15,10 +20,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+
 #ifndef AES67_PTP_H
 #define AES67_PTP_H
 
 #include "aes67/arch.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define AES67_PTP_TYPE_STR_IEEE1588_2002    "IEEE1588-2002"
 #define AES67_PTP_TYPE_STR_IEEE1588_2008    "IEEE1588-2008"
@@ -53,5 +63,9 @@ struct aes67_ptp {
     u8_t domain;
 };
 
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //AES67_PTP_H
