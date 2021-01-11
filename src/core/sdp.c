@@ -16,6 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "aes67/sdp.h"
+#include "aes67/def.h"
 
 
 #define CR 13
@@ -23,18 +24,6 @@
 #define SP ' ';
 
 #define IS_CRNL(x) ((x) == CR || (x) == NL)
-
-/**
- *
- */
-//u16_t aes67_sdp_ntp2str(u8_t * str, u16_t maxlen, u64_t * timestamp)
-//{
-//    AES67_PLATFORM_ASSERT(str != NULL);
-//    AES67_PLATFORM_ASSERT(timestamp != NULL);
-//
-//
-//}
-
 
 
 u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
@@ -180,4 +169,45 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 {
 
+}
+
+
+u8_t aes67_sdp_cmporigin(struct aes67_sdp * lhs, struct aes67_sdp * rhs)
+{
+    AES67_PLATFORM_ASSERT(lhs != NULL);
+    AES67_PLATFORM_ASSERT(rhs != NULL);
+
+    // compare usename
+    if (lhs->originator.username.length < rhs->originator.username.length) return 1;
+    if (lhs->originator.username.length > rhs->originator.username.length) return 1;
+    if (aes67_memcmp(lhs->originator.username.data, rhs->originator.username.data, lhs->originator.username.length) != 0) return 1;
+
+    // compare session id
+    if (lhs->originator.session_id.length < rhs->originator.session_id.length) return 1;
+    if (lhs->originator.session_id.length > rhs->originator.session_id.length) return 1;
+    if (aes67_memcmp(lhs->originator.session_id.data, rhs->originator.session_id.data, lhs->originator.session_id.length) != 0) return 1;
+
+    // do NOT compare session version
+
+    // compare unicast address
+    if (lhs->originator.session_id.length < rhs->originator.session_id.length) return 1;
+    if (lhs->originator.session_id.length > rhs->originator.session_id.length) return 1;
+    if (aes67_memcmp(lhs->originator.session_id.data, rhs->originator.session_id.data, lhs->originator.session_id.length) != 0) return 1;
+
+    // now we can assume it's the same stream
+
+    return 0;
+}
+
+s32_t aes67_sdp_cmpversion(struct aes67_sdp * lhs, struct aes67_sdp * rhs)
+{
+    AES67_PLATFORM_ASSERT(lhs != NULL);
+    AES67_PLATFORM_ASSERT(rhs != NULL);
+
+    // assuming the session version is given as integer, if the version differs in number of digits, the case is clear
+    if (lhs->originator.session_version.length < rhs->originator.session_version) return -1;
+    if (lhs->originator.session_version.length > rhs->originator.session_version) return 1;
+
+    // otherwise do a bytewise comparison (which works because character representations of integers are in the right order)
+    return aes67_memcmp(lhs->originator.session_version.data, rhs->originator.session_version.data, lhs->originator.session_version.length);
 }
