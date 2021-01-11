@@ -31,39 +31,7 @@
 
 #include "aes67/arch.h"
 #include "aes67/net.h"
-
-#define AES67_PTP_TYPE_IEEE1588_2002    "IEEE1588-2002"
-#define AES67_PTP_TYPE_IEEE1588_2008    "IEEE1588-2008"
-#define AES67_PTP_TYPE_IEEE1588_2019    "IEEE1588-2019"
-#define AES67_PTP_TYPE_IEEE802AS_2011   "IEEE802.1AS-2011"
-
-/**
- * PTP clock type
- */
-enum aes67_ptp_type {
-    aes67_ptp_type_IEEE1588_2002 = 1,
-    aes67_ptp_type_IEEE1588_2008 = 2,
-    aes67_ptp_type_IEEE1588_2019 = 3,
-    aes67_ptp_type_IEEE802AS_2011 = 4,
-};
-
-/**
- * EUI64 as used for PTP clock identifiers
- */
-union aes67_eui64 {
-    u8_t u8[8];
-    u32_t u32[2];
-//    u64_t u64;
-};
-
-/**
- * PTP clock datastruct
- */
-struct aes67_ptp {
-    enum aes67_ptp_type type;
-    union aes67_eu64 gmid;
-    u8_t domain;
-};
+#include "aes67/ptp.h"
 
 /**
  *
