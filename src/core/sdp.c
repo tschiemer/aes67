@@ -172,7 +172,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 }
 
 
-u8_t aes67_sdp_cmporigin(struct aes67_sdp * lhs, struct aes67_sdp * rhs)
+u8_t aes67_sdp_origin_cmp(struct aes67_sdp * lhs, struct aes67_sdp * rhs)
 {
     AES67_PLATFORM_ASSERT(lhs != NULL);
     AES67_PLATFORM_ASSERT(rhs != NULL);
@@ -199,7 +199,7 @@ u8_t aes67_sdp_cmporigin(struct aes67_sdp * lhs, struct aes67_sdp * rhs)
     return 0;
 }
 
-s32_t aes67_sdp_cmpversion(struct aes67_sdp * lhs, struct aes67_sdp * rhs)
+s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp * lhs, struct aes67_sdp * rhs)
 {
     AES67_PLATFORM_ASSERT(lhs != NULL);
     AES67_PLATFORM_ASSERT(rhs != NULL);

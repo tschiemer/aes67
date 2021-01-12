@@ -83,14 +83,15 @@ void hash_clear(struct aes67_sap_service * sap, u16_t hash)
 
 void aes67_sap_service_init(
         struct aes67_sap_service * sap,
+
         u16_t hash_table_sz,
         u16_t * hash_table,
-        aes67_sap_authenticate_callback authenticate_callback,
-        aes67_sap_event_callback event_callback)
+
+        aes67_sap_event_callback event_callback
+)
 {
     AES67_PLATFORM_ASSERT(sap != NULL);
     AES67_PLATFORM_ASSERT(hash_table_sz == 0 || hash_table != NULL);
-    // Note authenticate_callback can be NULL (ie not used)
     AES67_PLATFORM_ASSERT(event_callback != NULL);
 
     sap->hash_table_sz = hash_table_sz;
@@ -99,11 +100,10 @@ void aes67_sap_service_init(
     // make sure to clear hash table
     aes67_memset(sap->hash_table, 0, sizeof(u16_t) * hash_table_sz);
 
-    sap->authenticate_callback = authenticate_callback;
     sap->event_callback = event_callback;
 }
 
-void aes67_sap_service_parse_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen)
+void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen)
 {
     AES67_PLATFORM_ASSERT(sap != NULL);
     AES67_PLATFORM_ASSERT(msg != NULL);
@@ -138,25 +138,43 @@ void aes67_sap_service_parse_msg(struct aes67_sap_service * sap, u8_t * msg, u16
         return;
     }
 
-    // TODO proper authentication
-    // when announced,
+
 
     // if there is an authenticator callback..
-    if (sap->authenticate_callback != NULL){
+    if (sap->auth_validate_callback != NULL){
+
+        // TODO proper authentication
 
         // ..try to authenticate the message..
-        if (aes67_auth_not_ok == sap->authenticate_callback()){
+        if (aes67_auth_not_ok == sap->auth_validate_callback()){
 
             // ..and discard if not authenticated
             return;
         }
     }
 
+    // introduce new variable that can be modified by zlib uncompressor
+    u8_t * data = &msg[pos];
+    u16_t datalen = msglen - pos;
 
+    // reset position according actual payload data
+    pos = 0;
 
-    // TODO compressed payloads are not handled at this point in time.
+    // uncompress content
     if ( (msg[0] & AES67_SAP_STATUS_COMPRESSED_MASK) == AES67_SAP_STATUS_COMPRESSED_ZLIB ) {
-        return;
+
+        if (sap->uncompress_callback == NULL){
+            // zlib compression not supported, discard message
+            return;
+        }
+
+        // TODO compressed payloads are not handled at this point in time.
+        datalen = sap->uncompress_callback(&data, data, datalen);
+
+        // treat a zero length as error
+        if (datalen == 0){
+            return;
+        }
     }
 
 
@@ -164,19 +182,19 @@ void aes67_sap_service_parse_msg(struct aes67_sap_service * sap, u8_t * msg, u16
     u16_t typelen = 0;
 
     // check if there is a SDP content start ("v=0") because if there is, there will not be a mimetype payload
-    // apparently, older SAP versions did not specify payload types but always assumed SDP payloads
-    if (msg[pos] != 'v' && msg[pos+1] != '=' && msg[pos+2] != '0'){
+    // apparently, older SAP versions did not specify payload types but required SDP payloads
+    if ((msg[0] & AES67_SAP_STATUS_VERSION_MASK) == AES67_SAP_STATUS_VERSION_1 | (data[0] != 'v' && data[1] != '=' && data[2] != '0')){
 
         // set payload type string start to current position
-        type = pos;
+        type = data;
 
         //search for NULL-termination of payload-type string
-        for (; pos < msglen && msg[pos] != '\0'; pos++, typelen++){
+        for (; pos < datalen && data[pos] != '\0'; pos++, typelen++){
             // pogo logo
         }
 
         // (silently) discard message if no payload type termination found until end of msg
-        if ( pos + 1 < msglen ){
+        if ( pos + 1 < datalen ){
             return;
         }
 
@@ -189,8 +207,8 @@ void aes67_sap_service_parse_msg(struct aes67_sap_service * sap, u8_t * msg, u16
     }
 
 
-    u8_t * payload = &msg[pos + 1];
-    u16_t payloadlen = msglen - pos;
+    u8_t * payload = &data[pos + 1];
+    u16_t payloadlen = datalen - pos;
 
     enum aes67_sap_event event;
 
@@ -201,7 +219,7 @@ void aes67_sap_service_parse_msg(struct aes67_sap_service * sap, u8_t * msg, u16
 
             if (hash_add(sap, hash) == ERROR){
                 //TODO uh oh make traceable
-                return;
+                //return; // do NOT silently discard, could be relevant
             }
 
             event = aes67_sap_event_new;
@@ -216,6 +234,91 @@ void aes67_sap_service_parse_msg(struct aes67_sap_service * sap, u8_t * msg, u16
         event = aes67_sap_event_deleted;
     }
 
-    // propagate event
+    // publish event
     sap->event_callback(event, hash, type, typelen, payload, payloadlen);
+}
+
+
+u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp)
+{
+    AES67_PLATFORM_ASSERT(sap != NULL);
+    AES67_PLATFORM_ASSERT(msg != NULL);
+    AES67_PLATFORM_ASSERT(maxlen > 64); // a somewhat meaningful min size
+    AES67_PLATFORM_ASSERT((opt & !(AES67_SAP_STATUS_MSGTYPE_MASK | AES67_SAP_STATUS_COMPRESSED_MASK)) == 0); // only allowed options
+    AES67_PLATFORM_ASSERT( (opt & AES67_SAP_STATUS_COMPRESSED_MASK) == AES67_SAP_STATUS_COMPRESSED_NONE || sap->compress_callback != NULL); // if asking for compression, require callback
+    AES67_PLATFORM_ASSERT(hash != 0);
+    AES67_PLATFORM_ASSERT(ip != NULL);
+    AES67_PLATFORM_ASSERT(sdp != NULL);
+
+    u8_t is_ipv4 = (ip->ipver == aes67_net_ipver_4);
+
+    msg[0] = AES67_SAP_STATUS_VERSION_2;
+    msg[0] |= (opt & (AES67_SAP_STATUS_MSGTYPE_MASK | AES67_SAP_STATUS_COMPRESSED_MASK));
+    msg[0] |= is_ipv4 ? AES67_SAP_STATUS_ADDRTYPE_IPv4 : AES67_SAP_STATUS_ADDRTYPE_IPv6;
+
+    // auth data len = 0 for now
+    msg[1] = 0;
+
+    *(u16_t*)&msg[2] = aes67_htons(hash);
+
+    memcpy(&msg[4], ip->addr, (is_ipv4 ? 4 : 16));
+
+    u16_t len = 4 + (is_ipv4 ? 4 : 16);
+
+    // always add payload type which MUST be supported by all SAPv2 capable recipients
+    msg[len++] = 'a';
+    msg[len++] = 'p';
+    msg[len++] = 'p';
+    msg[len++] = 'l';
+    msg[len++] = 'i';
+    msg[len++] = 'c';
+    msg[len++] = 'a';
+    msg[len++] = 't';
+    msg[len++] = 'i';
+    msg[len++] = 'o';
+    msg[len++] = 'n';
+    msg[len++] = '/';
+    msg[len++] = 's';
+    msg[len++] = 'd';
+    msg[len++] = 'p';
+    msg[len++] = '0';
+
+
+    if ( (opt & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE ){
+
+        u16_t l = aes67_sdp_tostr(&msg[len], maxlen - len, sdp);
+
+        if (l == 0){
+            // error
+            return 0;
+        }
+        len += l;
+
+    } else { // AES67_SAP_STATUS_MSGTYPE_DELETE
+
+        u16_t l = aes67_sdp_origin_tostr(&msg[len], maxlen - len, sdp);
+
+        if (l == 0){
+            // error
+            return 0;
+        }
+        len += l;
+    }
+
+    // if called for compression
+    if ( (opt & AES67_SAP_STATUS_COMPRESSED_MASK) == AES67_SAP_STATUS_COMPRESSED_ZLIB ){
+
+        // and if compression callback set (if not just send uncompressed)
+        if (sap->compress_callback != NULL){
+            //TODO inline compression
+        }
+
+    }
+
+    if ( sap->auth_enticate_callback != NULL){
+        //TODO add authentication data
+    }
+
+
+    return len;
 }

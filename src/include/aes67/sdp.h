@@ -40,6 +40,15 @@ extern "C" {
 
 #define AES67_SDP_MIMETYPE "application/sdp"
 
+struct aes67_sdp_originator {
+#if 0 < AES67_SDP_MAXUSERNAME
+    AES67_STRING(AES67_SDP_MAXUSERNAME) username;
+#endif
+    AES67_STRING(AES67_SDP_MAXSESSIONID) session_id;
+    AES67_STRING(AES67_SDP_MAXSESSIONVERSION) session_version;
+    AES67_STRING(AES67_SDP_MAXADDRESS) address;
+};
+
 /**
  *
  */
@@ -58,14 +67,9 @@ struct aes67_sdp_connection_data {
 struct aes67_sdp {
     // leave out version
     // always assume v=0
-    struct {
-#if 0 < AES67_SDP_MAXUSERNAME
-        AES67_STRING(AES67_SDP_MAXUSERNAME) username;
-#endif
-        AES67_STRING(AES67_SDP_MAXSESSIONID) session_id;
-        AES67_STRING(AES67_SDP_MAXSESSIONVERSION) session_version;
-        AES67_STRING(AES67_SDP_MAXADDRESS) address;
-    } originator;
+
+    struct aes67_sdp_originator originator;
+
 #if 0 < AES67_SDP_MAXSESSIONNAME
     AES67_STRING(AES67_SDP_MAXSESSIONNAME) session_name;
 #endif
@@ -107,9 +111,9 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len);
  * Note: the unicast address is compared bytewise, ie if one is given as IP and the other as hostname it will
  * not be considered equal even if it may indeed be the same device.
  *
- * Also see aes67_sdp_cmpversion
+ * Also see aes67_sdp_origin_cmpversion
  */
-u8_t aes67_sdp_cmporigin(struct aes67_sdp *lhs, struct aes67_sdp *rhs);
+u8_t aes67_sdp_origin_cmp(struct aes67_sdp *lhs, struct aes67_sdp *rhs);
 
 /**
  * Compares two SDP structs denoting the same originator w.r.t. the version.
@@ -118,9 +122,9 @@ u8_t aes67_sdp_cmporigin(struct aes67_sdp *lhs, struct aes67_sdp *rhs);
  * If the version is identical  -> 0
  * If the version is later      -> 1
  *
- * Note: only compares version. Requires prior originator match (see aes67_sdp_cmporigin)
+ * Note: only compares version. Requires prior originator match (see aes67_sdp_origin_cmp)
  */
-s32_t aes67_sdp_cmpversion(struct aes67_sdp *lhs, struct aes67_sdp *rhs);
+s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp *lhs, struct aes67_sdp *rhs);
 
 
 #ifdef __cplusplus

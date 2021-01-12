@@ -28,6 +28,7 @@
 #define AES67_SAP_H
 
 #include "aes67/arch.h"
+#include "aes67/net.h"
 
 
 #ifdef __cplusplus
@@ -66,7 +67,8 @@ extern "C" {
 #define AES67_SAP_STATUS_ENCRYPTED_MASK     0b00000010
 #define AES67_SAP_STATUS_COMPRESSED_MASK    0b00000001
 
-#define AES67_SAP_STATUS_VERSION_OFFSET     5
+#define AES67_SAP_STATUS_VERSION_1          0b00000000
+#define AES67_SAP_STATUS_VERSION_2          0b00100000
 
 #define AES67_SAP_STATUS_ADDRTYPE_IPv4      0b00000000
 #define AES67_SAP_STATUS_ADDRTYPE_IPv6      0b00010000
@@ -106,15 +108,6 @@ extern "C" {
 //    u8_t subhdr[];
 //};
 
-enum aes67_auth_result {
-    aes67_auth_ok = 0,
-    aes67_auth_not_ok = ~aes67_auth_ok
-};
-
-// TODO proper authenticator (if needed
-typedef enum aes67_auth_result (*aes67_sap_authenticate_callback)(void);
-
-
 enum aes67_sap_event {
     aes67_sap_event_new,
     aes67_sap_event_refreshed,
@@ -123,23 +116,49 @@ enum aes67_sap_event {
 
 typedef void (*aes67_sap_event_callback)(enum aes67_sap_event event, u16_t hash, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen);
 
+// TODO
+typedef u16_t (*aes67_sap_zlib_compress_callback)(u8_t ** dst, u8_t * src, u16_t len);
+typedef u16_t (*aes67_sap_zlib_uncompress_callback)(u8_t ** dst, u8_t * src, u16_t len);
+
+enum aes67_auth_result {
+    aes67_auth_ok = 0,
+    aes67_auth_not_ok = ~aes67_auth_ok
+};
+
+// TODO proper authenticator (if needed)
+typedef enum aes67_auth_result (*aes67_sap_auth_validate_callback)(void);
+typedef u16_t (*aes67_sap_auth_enticate_callback)(void);
+
+
 struct aes67_sap_service {
     u16_t hash_table_sz;
     u16_t * hash_table;
-    aes67_sap_authenticate_callback authenticate_callback;
+
     aes67_sap_event_callback event_callback;
+
+    aes67_sap_zlib_compress_callback compress_callback;
+    aes67_sap_zlib_uncompress_callback uncompress_callback;
+
+    aes67_sap_auth_validate_callback auth_validate_callback;
+    aes67_sap_auth_enticate_callback auth_enticate_callback;
 };
 
 
 void aes67_sap_service_init(
         struct aes67_sap_service * sap,
+
         u16_t hash_table_sz,
         u16_t * hash_table,
-        aes67_sap_authenticate_callback authenticate_callback,
-        aes67_sap_event_callback event_callback);
+
+        aes67_sap_event_callback event_callback
+);
 
 
-void aes67_sap_service_parse_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
+void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
+
+// TODO how to add authentication info? -> callback?
+// TODO how to compress? -> callback?
+u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp);
 
 #ifdef __cplusplus
 }
