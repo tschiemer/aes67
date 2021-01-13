@@ -85,7 +85,7 @@ void * aes67_memchr( const void * ptr, int ch, size_t count )
 {
     for(size_t i = 0; i < count; i++){
         if ( ((u8_t*)ptr)[i] == (u8_t)ch ){
-            return (void*)(((u8_t*)ptr)[i]);
+            return (void*)&(((u8_t*)ptr)[i]);
         }
     }
     return NULL;
