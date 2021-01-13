@@ -47,11 +47,18 @@ void aes67_sap_service_init(
 
     sap->event_callback = event_callback;
 
+
     // make sure to clear session table
     aes67_memset(session_table, 0, session_table_size * sizeof(struct aes67_sap_session));
 
+
+    sap->announcement_size = 0;
+
     // init timer
     aes67_timer_init(&sap->announcement_timer);
+
+    sap->compress_callback = NULL;
+    sap->uncompress_callback = NULL;
 }
 
 void aes67_sap_service_deinit(struct aes67_sap_service * sap)
@@ -144,18 +151,25 @@ void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t m
         return;
     }
 
-    // if there is an authenticator callback..
-    if (sap->auth_validate_callback != NULL){
 
-        // TODO proper authentication
+    struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ipver, &msg[4]);
 
-        // ..try to authenticate the message..
-        if (aes67_auth_not_ok == sap->auth_validate_callback()){
 
-            // ..and discard if not authenticated
+#if AES67_SAP_AUTH_ENABLED == 1
+
+    // if new session or authenticated session pass through validator
+    //
+    // Note: even if message does not contain any auth data it will be passed. Thus the implementation may choose
+    // to require authentication or not
+
+    if ( (session == NULL) || session->authenticated == aes67_sap_auth_result_ok){
+
+        if (aes67_sap_auth_result_ok != aes67_sap_service_auth_validate(msg, msglen)){
             return;
         }
     }
+
+#endif //AES67_SAP_AUTH_ENABLED == 1
 
     // introduce new variable that can be modified by zlib uncompressor
     u8_t * data = &msg[pos];
@@ -215,9 +229,8 @@ void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t m
     u16_t payloadlen = datalen - pos;
 
     enum aes67_sap_event event;
-    struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ipver, &msg[4]);
 
-    // update internal hash table according to
+    // update internal session table according to
     if ( (msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE ){
 
         if (session == NULL){
@@ -227,21 +240,36 @@ void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t m
             // if the session is newly registered, make sure to increase the session count accordingly.
             // (but only if we're actually adding it to the active session table)
             if (session != NULL && sap->session_table.active < UINT16_MAX - 1){
+
                 sap->session_table.active++;
             }
 
             event = aes67_sap_event_new;
+
         } else {
+
             event = aes67_sap_event_refreshed;
         }
 
         // safety guard
         if (session != NULL){
+
+#if AES67_SAP_AUTH_ENABLED == 1
+            // remember that the session was authenticated at some point and will require authentication in the
+            // future
+            session->authenticated = msg[AES67_SAP_AUTH_LEN] > 0 ? aes67_sap_auth_result_ok : aes67_sap_auth_result_not_ok;
+#endif
+
             aes67_timestamp_now(&session->last_announcement);
         }
 
     } else {
 
+#if AES67_SAP_AUTH_ENABLED == 1
+        if (session != NULL){
+
+        }
+#endif
         // decrease active session count
         // (if was before actually registered)
         if (session != NULL && sap->session_table.active > 1){
@@ -277,16 +305,16 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
 
     u8_t is_ipv4 = (ip->ipver == aes67_net_ipver_4);
 
-    msg[0] = AES67_SAP_STATUS_VERSION_2;
-    msg[0] |= (opt & (AES67_SAP_STATUS_MSGTYPE_MASK | AES67_SAP_STATUS_COMPRESSED_MASK));
-    msg[0] |= is_ipv4 ? AES67_SAP_STATUS_ADDRTYPE_IPv4 : AES67_SAP_STATUS_ADDRTYPE_IPv6;
+    msg[AES67_SAP_STATUS] = AES67_SAP_STATUS_VERSION_2;
+    msg[AES67_SAP_STATUS] |= (opt & (AES67_SAP_STATUS_MSGTYPE_MASK | AES67_SAP_STATUS_COMPRESSED_MASK));
+    msg[AES67_SAP_STATUS] |= is_ipv4 ? AES67_SAP_STATUS_ADDRTYPE_IPv4 : AES67_SAP_STATUS_ADDRTYPE_IPv6;
 
     // auth data len = 0 for now
-    msg[1] = 0;
+    msg[AES67_SAP_AUTH_LEN] = 0;
 
-    *(u16_t*)&msg[2] = aes67_htons(hash);
+    *(u16_t*)&msg[AES67_SAP_MSG_ID_HASH] = aes67_htons(hash);
 
-    aes67_memcpy(&msg[4], ip->addr, (is_ipv4 ? 4 : 16));
+    aes67_memcpy(&msg[AES67_SAP_ORIGIN_SRC], ip->addr, (is_ipv4 ? 4 : 16));
 
     u16_t len = 4 + (is_ipv4 ? 4 : 16);
 
@@ -321,6 +349,7 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
 
     } else { // AES67_SAP_STATUS_MSGTYPE_DELETE
 
+        // when deleting a session, just add first line (after version) of SDP message
         u16_t l = aes67_sdp_origin_tostr(&msg[len], maxlen - len, &sdp->originator);
 
         if (l == 0){
@@ -340,9 +369,20 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
 
     }
 
-    if ( sap->auth_enticate_callback != NULL){
-        //TODO add authentication data
+
+#if AES67_SAP_AUTH_ENABLED == 1
+
+    // if returns other value than 0 is an error
+    if (aes67_sap_service_auth_add(msg, len, maxlen) != 0){
+
+        // but we are ment to return the msglen, ie 0 indicates an error.
+        return 0;
     }
+
+    // add authentication data len to total message length
+    len += 4 * msg[AES67_SAP_AUTH_LEN];
+
+#endif
 
 
     return len;

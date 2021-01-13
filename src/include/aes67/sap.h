@@ -115,6 +115,15 @@ extern "C" {
 //    u8_t subhdr[];
 //};
 
+#if AES67_SAP_AUTH_ENABLED == 1
+
+enum aes67_sap_auth_result {
+    aes67_sap_auth_result_ok = 0,
+    aes67_sap_auth_result_not_ok = ~aes67_sap_auth_result_ok
+};
+
+#endif //AES67_SAP_AUTH_ENABLED
+
 enum aes67_sap_event {
     aes67_sap_event_new,
     aes67_sap_event_refreshed,
@@ -122,16 +131,17 @@ enum aes67_sap_event {
     aes67_sap_event_timeout
 };
 
-enum aes67_auth_result {
-    aes67_auth_ok = 0,
-    aes67_auth_not_ok = ~aes67_auth_ok
-};
-
 
 struct aes67_sap_session {
     u16_t hash;
     struct aes67_net_addr src;
     aes67_timestamp_t last_announcement;
+
+#if AES67_SAP_AUTH_ENABLED == 1
+    // these are not quite thought through yet, but show an the idea
+    enum aes67_sap_auth_result authenticated;
+#endif
+
     void * data;
 };
 
@@ -148,10 +158,6 @@ typedef void (*aes67_sap_event_callback)(enum aes67_sap_event event, struct aes6
 typedef u16_t (*aes67_sap_zlib_compress_callback)(u8_t ** dst, u8_t * src, u16_t len);
 typedef u16_t (*aes67_sap_zlib_uncompress_callback)(u8_t ** dst, u8_t * src, u16_t len);
 
-// TODO proper authenticator (if needed)
-typedef enum aes67_auth_result (*aes67_sap_auth_validate_callback)(void);
-typedef u16_t (*aes67_sap_auth_enticate_callback)(void);
-
 
 struct aes67_sap_service {
 
@@ -164,9 +170,6 @@ struct aes67_sap_service {
 
     aes67_sap_zlib_compress_callback compress_callback;
     aes67_sap_zlib_uncompress_callback uncompress_callback;
-
-    aes67_sap_auth_validate_callback auth_validate_callback;
-    aes67_sap_auth_enticate_callback auth_enticate_callback;
 };
 
 
@@ -179,6 +182,34 @@ void aes67_sap_service_init(
 
 void aes67_sap_service_deinit(struct aes67_sap_service * sap);
 
+#if AES67_SAP_AUTH_ENABLED == 1
+
+/**
+ * (Optionally) validates messages
+ *
+ * Note: ALL messages are passed to this function, thus the validator may choose to allow for authenticated and/or
+ * non-authenticated messages.
+ *
+ * SECURITY NOTICE (if authenticated AND non-authenticated messages are accepted)
+ * Attackers could flood the device with enough SAP announcements as to fill up the (limited) session memory BEFORE any
+ * actually authenticated messages are received, thus the session would not be remembered as to having been authenticated.
+ * Following up, attackers might change set up and authenticated sessions by simply leaving out authentication data.
+ */
+extern enum aes67_sap_auth_result aes67_sap_service_auth_validate(u8_t * msg, u16_t msglen);
+
+/**
+ * (optionally) Adds authentication data to message and return total msg length
+ *
+ * NOTE function is responsible for
+ * - respecting maximum msg length
+ * - inserting the authentication data between the header and the payload (ie, moving the payload accordingly)
+ * - setting the <auth_len> header field correctly (from which the total msglen will be deduced)
+ *
+ * Return value: 0 on success, error otherwise
+ */
+extern u8_t aes67_sap_service_auth_add(u8_t * msg, u16_t msglen, u16_t maxlen);
+
+#endif
 
 
 struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
@@ -197,7 +228,6 @@ inline uint8_t aes67_sap_service_announce_now(struct aes67_sap_service * sap)
 
 void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
 
-// TODO how to add authentication info? -> callback?
 // TODO how to compress? -> callback?
 u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp);
 
