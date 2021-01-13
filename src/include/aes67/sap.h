@@ -167,9 +167,6 @@ struct aes67_sap_service {
     struct aes67_timer announcement_timer;
 
     aes67_sap_event_callback event_callback;
-
-    aes67_sap_zlib_compress_callback compress_callback;
-    aes67_sap_zlib_uncompress_callback uncompress_callback;
 };
 
 
@@ -182,34 +179,6 @@ void aes67_sap_service_init(
 
 void aes67_sap_service_deinit(struct aes67_sap_service * sap);
 
-#if AES67_SAP_AUTH_ENABLED == 1
-
-/**
- * (Optionally) validates messages
- *
- * Note: ALL messages are passed to this function, thus the validator may choose to allow for authenticated and/or
- * non-authenticated messages.
- *
- * SECURITY NOTICE (if authenticated AND non-authenticated messages are accepted)
- * Attackers could flood the device with enough SAP announcements as to fill up the (limited) session memory BEFORE any
- * actually authenticated messages are received, thus the session would not be remembered as to having been authenticated.
- * Following up, attackers might change set up and authenticated sessions by simply leaving out authentication data.
- */
-extern enum aes67_sap_auth_result aes67_sap_service_auth_validate(u8_t * msg, u16_t msglen);
-
-/**
- * (optionally) Adds authentication data to message and return total msg length
- *
- * NOTE function is responsible for
- * - respecting maximum msg length
- * - inserting the authentication data between the header and the payload (ie, moving the payload accordingly)
- * - setting the <auth_len> header field correctly (from which the total msglen will be deduced)
- *
- * Return value: 0 on success, error otherwise
- */
-extern u8_t aes67_sap_service_auth_add(u8_t * msg, u16_t msglen, u16_t maxlen);
-
-#endif
 
 
 struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
@@ -228,8 +197,81 @@ inline uint8_t aes67_sap_service_announce_now(struct aes67_sap_service * sap)
 
 void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
 
-// TODO how to compress? -> callback?
 u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp);
+
+
+#if AES67_SAP_AUTH_ENABLED == 1
+
+/**
+ * (Optionally) validates messages
+ *
+ * Note: ALL messages are passed to this function, thus the validator may choose to allow for authenticated and/or
+ * non-authenticated messages.
+ *
+ * SECURITY NOTICE (if authenticated AND non-authenticated messages are accepted)
+ * Attackers could flood the device with enough SAP announcements as to fill up the (limited) session memory BEFORE any
+ * actually authenticated messages are received, thus the session would not be remembered as to having been authenticated.
+ * Following up, attackers might change set up and authenticated sessions by simply leaving out authentication data.
+ */
+extern enum aes67_sap_auth_result aes67_sap_service_auth_validate(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
+
+#endif //AES67_SAP_AUTH_ENABLED == 1
+
+
+#if AES67_SAP_AUTH_SELF == 1
+
+/**
+ * (optionally) Adds authentication data to message and return total msg length
+ *
+ * NOTE function is responsible for
+ * - respecting maximum msg length
+ * - inserting the authentication data between the header and the payload (ie, moving the payload accordingly)
+ * - setting the <auth_len> header field correctly (from which the total msglen will be deduced)
+ *
+ * Return value: 0 on success, error otherwise
+ */
+extern u8_t aes67_sap_service_auth_add(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen, u16_t maxlen);
+
+#endif //AES67_SAP_AUTH_SELF == 1
+
+
+#if AES67_SAP_DECOMPRESS_AVAILABLE == 1
+
+/**
+ * Decompress payload.
+ *
+ * NOTE in case function uses dynamic memory allocation, make sure to also implement aes67_sap_zlib_decompress_free()
+ *
+ * Return value:
+ *  - pointer to decompressed payload -> set payloadlen to decompressed payload length
+ *  - NULL on error -> set payloadlen to 0
+ */
+extern u8_t * aes67_sap_zlib_decompress(struct aes67_sap_service * sap, u8_t * payload, u16_t * payloadlen);
+
+extern void aes67_sap_zlib_decompress_free(u8_t * payload);
+
+#endif //AES67_SAP_DECOMPRESS_AVAILABLE == 1
+
+
+#if AES67_SAP_COMPRESS_ENABLED == 1
+
+/**
+ * (optionally) Compresses payload data with given length.
+ *
+ * NOTE function is responsible for writing the compressed data to the exact same location and returning the final
+ * payload length. It may make use of the maxlen - payloadlen bytes available, use stack memory, or whatever.
+ *
+ * NOTE when enabling compression there is no guarantee that all recipients can actually decompress packets (well, the
+ * standard considers compression a feature, but you know, skipping the implementation might be meaningful and if no
+ * implementation actually uses compression there's no loss - but you never know!
+ *
+ * Return value: 0 on error, (new) length of payload on success
+ */
+extern u16_t aes67_sap_zlib_compress(struct aes67_sap_service * sap, u8_t * payload, u16_t payloadlen, u16_t maxlen);
+
+#endif //AES67_SAP_COMPRESS_ENABLED == 1
+
+
 
 #ifdef __cplusplus
 }

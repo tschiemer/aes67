@@ -31,8 +31,24 @@
 #define AES67_USE_IPv6 1
 #endif
 
+// tmp set to 1
 #ifndef AES67_SAP_AUTH_ENABLED
 #define AES67_SAP_AUTH_ENABLED 1
+#endif
+
+// tmp set to 1
+#ifndef AES67_SAP_AUTH_SELF
+#define AES67_SAP_AUTH_SELF 1
+#endif
+
+// tmp set to 1
+#ifndef AES67_SAP_DECOMPRESS_AVAILABLE
+#define AES67_SAP_DECOMPRESS_AVAILABLE 1
+#endif
+
+// tmp set to 1
+#ifndef AES67_SAP_COMPRESS_ENABLED
+#define AES67_SAP_COMPRESS_ENABLED 1
 #endif
 
 #ifndef AES67_SDP_MAXUSERNAME
