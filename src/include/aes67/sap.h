@@ -29,6 +29,9 @@
 
 #include "aes67/arch.h"
 #include "aes67/net.h"
+#include "aes67/sdp.h"
+#include "aes67/host/timer.h"
+#include "aes67/host/time.h"
 
 
 #ifdef __cplusplus
@@ -50,7 +53,7 @@ extern "C" {
  * is the 4-bit scope value.
  * ff02 := link local (identical to mdns multicast scope)
  */
-#define AES67_SAP_IPv6_LL       {0xff02, 0, 0, 0, 0, 0, 2, 0x7ffe}
+#define AES67_SAP_IPv6_LL       {0xff,0x02, 0,0, 0,0, 0,0, 0,0, 0,0, 0,2, 0x7f,0xfe}
 #define AES67_SAP_IPv6_LL_STR   "FF02:0:0:0:0:0:2:7FFE"
 
 
@@ -59,6 +62,10 @@ extern "C" {
 #define AES67_SAP_BANDWITH  4000
 #endif
 
+#define AES67_SAP_STATUS                    0
+#define AES67_SAP_AUTH_LEN                  1
+#define AES67_SAP_MSG_ID_HASH               2
+#define AES67_SAP_ORIGIN_SRC                4
 
 #define AES67_SAP_STATUS_VERSION_MASK       0b11100000
 #define AES67_SAP_STATUS_ADDRTYPE_MASK      0b00010000
@@ -111,19 +118,35 @@ extern "C" {
 enum aes67_sap_event {
     aes67_sap_event_new,
     aes67_sap_event_refreshed,
-    aes67_sap_event_deleted
+    aes67_sap_event_deleted,
+    aes67_sap_event_timeout
 };
-
-typedef void (*aes67_sap_event_callback)(enum aes67_sap_event event, u16_t hash, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen);
-
-// TODO
-typedef u16_t (*aes67_sap_zlib_compress_callback)(u8_t ** dst, u8_t * src, u16_t len);
-typedef u16_t (*aes67_sap_zlib_uncompress_callback)(u8_t ** dst, u8_t * src, u16_t len);
 
 enum aes67_auth_result {
     aes67_auth_ok = 0,
     aes67_auth_not_ok = ~aes67_auth_ok
 };
+
+
+struct aes67_sap_session {
+    u16_t hash;
+    struct aes67_net_addr src;
+    aes67_timestamp_t last_announcement;
+    void * data;
+};
+
+struct aes67_sap_session_table {
+    u16_t active; // no_of_ads (used for interval computation)
+    u16_t size;
+    struct aes67_sap_session * table;
+};
+
+
+typedef void (*aes67_sap_event_callback)(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen);
+
+// TODO
+typedef u16_t (*aes67_sap_zlib_compress_callback)(u8_t ** dst, u8_t * src, u16_t len);
+typedef u16_t (*aes67_sap_zlib_uncompress_callback)(u8_t ** dst, u8_t * src, u16_t len);
 
 // TODO proper authenticator (if needed)
 typedef enum aes67_auth_result (*aes67_sap_auth_validate_callback)(void);
@@ -131,8 +154,11 @@ typedef u16_t (*aes67_sap_auth_enticate_callback)(void);
 
 
 struct aes67_sap_service {
-    u16_t hash_table_sz;
-    u16_t * hash_table;
+
+    struct aes67_sap_session_table session_table;
+
+    u16_t announcement_size; // ad_size (used for interval computation)
+    struct aes67_timer announcement_timer;
 
     aes67_sap_event_callback event_callback;
 
@@ -146,12 +172,27 @@ struct aes67_sap_service {
 
 void aes67_sap_service_init(
         struct aes67_sap_service * sap,
-
-        u16_t hash_table_sz,
-        u16_t * hash_table,
-
+        u16_t session_table_size,
+        struct aes67_sap_session * session_table,
         aes67_sap_event_callback event_callback
 );
+
+void aes67_sap_service_deinit(struct aes67_sap_service * sap);
+
+
+
+struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
+struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
+void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
+
+
+/**
+ * Query SAP service wether an announcement can or should be done now;
+ */
+inline uint8_t aes67_sap_service_announce_now(struct aes67_sap_service * sap)
+{
+    return sap->announcement_timer.state == aes67_timer_state_expired;
+}
 
 
 void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
