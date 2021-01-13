@@ -57,7 +57,7 @@ void aes67_memcpy( void * dst, const void * src, size_t count )
         ((u8_t*)dst)[i] = ((u8_t*)src)[i];
     }
 }
-#endif
+#endif //aes67_memcpy
 
 #ifndef aes67_memset
 void* aes67_memset( void * dst, int ch, size_t count )
@@ -67,7 +67,7 @@ void* aes67_memset( void * dst, int ch, size_t count )
     }
     return dst;
 }
-#endif
+#endif //aes67_memset
 
 #ifndef aes67_memcmp
 int aes67_memcmp( const void * lhs, const void * rhs, size_t count )
@@ -78,8 +78,29 @@ int aes67_memcmp( const void * lhs, const void * rhs, size_t count )
     }
     return 0;
 }
-#endif
+#endif //aes67_memcmp
 
+#ifndef aes67_memchr
+void * aes67_memchr( const void * ptr, int ch, size_t count )
+{
+    for(size_t i = 0; i < count; i++){
+        if ( ((u8_t*)ptr)[i] == (u8_t)ch ){
+            return (void*)(((u8_t*)ptr)[i]);
+        }
+    }
+    return NULL;
+}
+#endif //aes67_memchr
+
+#ifndef aes67_memmove
+void * aes67_memmove(void* dest, const void* src, size_t count)
+{
+    for(size_t i = 0; i < count; i++){
+        ((u8_t*)dest)[i] = ((u8_t*)src)[i];
+    }
+    return dest;
+}
+#endif
 
 
 /**
@@ -163,83 +184,6 @@ s32_t aes67_atoi(u8_t * str, size_t len, s32_t base, u16_t * readlen)
     return  sign * result;
 }
 
-u16_t aes67_atou64(u8_t * str, size_t len, u64_t * value, s32_t base);
-
-u16_t aes67_u64toa(u64_t * value, u8_t * str, s32_t base)
-{
-    u8_t *front = str;
-    u8_t *back = str;
-    u32_t len;
-
-    // Validate base
-    if (base < 2 || base > 35){
-//        *back = '\0';
-        return 0;
-    }
-
-    u32_t v = value->lsb;
-
-    // Conversion. Number is reversed.
-    do {
-        *back++ = "0123456789abcdefghijklmnopqrstuvwxyz"[v % base];
-    } while(v /= base);
-
-
-    // Conversion. Number is reversed.
-    do {
-        *back++ = "0123456789abcdefghijklmnopqrstuvwxyz"[v % base];
-    } while(v /= base);
-
-    len = back - front;
-//    *back-- = '\0';
-    back--;
-
-    // reverse
-    u8_t swap;
-    while( back > front) {
-        swap = *back;
-        *back --= *front;
-        *front++ = swap;
-    }
-
-    return len;
-}
-
-u32_t aes67_atou(u8_t * str, size_t len, s32_t base, u16_t * readlen)
-{
-    if (base < 2 || 35 < base){
-        if (readlen != NULL){
-            *readlen = 0;
-        }
-        return 0;
-    }
-
-    u32_t result = 0;
-    u16_t i;
-
-    for(i = 0; i < len; i++){
-        u32_t m;
-        if ('0' <= str[i] && str[i] <= '9') m = str[i] - '0';
-        else if ('a' <= str[i] && str[i] <= 'z') m = str[i] - 'a' + 10;
-        else if ('A' <= str[i] && str[i] <= 'Z') m = str[i] - 'A' + 10;
-        else break;
-
-        // validate
-        if (m >= base){
-//            *readlen = 100;
-//            exit(m);
-            break;
-        }
-
-        result = result * base + m;
-    }
-
-    if (readlen != NULL){
-        *readlen = i;
-    }
-
-    return  result;
-}
 
 //#ifndef aes67_strcpy
 //u16_t aes67_strcpy( u8_t * dst, const u8_t * src, u8_t bterminate  )

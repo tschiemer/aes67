@@ -104,11 +104,19 @@ int aes67_memcmp( const void * lhs, const void * rhs, size_t count );
 #endif
 
 #ifndef aes67_memset
-void* aes67_memset( void * dst, int ch, size_t count );
+void * aes67_memset( void * dst, int ch, size_t count );
 #endif
 
 #ifndef aes67_memcpy
 void aes67_memcpy( void * dst, const void * src, size_t count );
+#endif
+
+#ifndef aes67_memchr
+void * aes67_memchr( const void * ptr, int ch, size_t count );
+#endif
+
+#ifndef aes67_memmove
+void * aes67_memmove(void* dest, const void* src, size_t count);
 #endif
 
 
