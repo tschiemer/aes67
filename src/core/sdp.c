@@ -15,8 +15,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
+#include <src/include/aes67/sdp.h>
 #include "aes67/sdp.h"
+
 #include "aes67/def.h"
+#include "aes67/debug.h"
 
 
 #define CR 13
@@ -26,23 +29,13 @@
 #define IS_CRNL(x) ((x) == CR || (x) == NL)
 
 
-u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
+u32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin)
 {
-    AES67_PLATFORM_ASSERT(maxlen > 32);
-    AES67_PLATFORM_ASSERT(sdp != NULL);
-    AES67_PLATFORM_ASSERT(AES67_NET_IPVER_ISVALID(sdp->originator.addr.ipver));
+    AES67_ASSERT("str != NULL", str != NULL);
+    AES67_ASSERT("maxlen > 32", maxlen > 32);
+    AES67_ASSERT("origin != NULL", origin != NULL);
 
     u32_t len = 0;
-
-
-    //v=0
-    str[len++] = 'v';
-    str[len++] = '=';
-    str[len++] = '0';
-    str[len++] = CR;
-    str[len++] = NL;
-
-
 
     //o=<username> <sess-id> <sess-version> <nettype> <addrtype> <unicast-address>
     str[len++] = 'o';
@@ -50,14 +43,14 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
     //<username>
 #if 0 == AES67_SDP_MAXUSERNAME
-   str[len++] = '-';
+    str[len++] = '-';
 
 #elif 0 < AES67_SDP_MAXUSERNAME
-    if (sdp->originator.username.length == 0) {
+    if (origin->username.length == 0) {
         str[len++] = '-';
     } else {
-        aes67_memcpy(&str[len], sdp->originator.username.data, sdp->originator.username.length);
-        len += sdp->originator.username.length;
+        aes67_memcpy(&str[len], origin->username.data, origin->username.length);
+        len += origin->username.length;
     }
 #endif // 0 < AES67_SDP_MAXUSERNAME
 
@@ -65,15 +58,15 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     str[len++] = ' ';
 
     //<sess-id>
-    aes67_memcpy(&str[len], sdp->originator.session_id.data, sdp->originator.session_id.length);
-    len += sdp->originator.session_id.length;
+    aes67_memcpy(&str[len], origin->session_id.data, origin->session_id.length);
+    len += origin->session_id.length;
 
     // separator
     str[len++] = ' ';
 
     //<sess-version>
-    aes67_memcpy(&str[len], sdp->originator.session_version.data, sdp->originator.session_version.length);
-    len += sdp->originator.session_version.length;
+    aes67_memcpy(&str[len], origin->session_version.data, origin->session_version.length);
+    len += origin->session_version.length;
 
     // separator
     str[len++] = ' ';
@@ -87,7 +80,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
     str[len++] = 'I';
     str[len++] = 'P';
-    if (sdp->originator.addr.ipver == aes67_net_ipver_4){
+    if (origin->address_type == aes67_net_ipver_4){
         str[len++] = '4';
     } else {
         str[len++] = '6';
@@ -96,6 +89,78 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
     //<address>
     //TODO
+
+    return len;
+}
+
+u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str, u32_t len)
+{
+    return 0;
+}
+
+
+u8_t aes67_sdp_origin_cmp(struct aes67_sdp_originator * lhs, struct aes67_sdp_originator * rhs)
+{
+    AES67_ASSERT("lhs != NULL", lhs != NULL);
+    AES67_ASSERT("rhs != NULL", rhs != NULL);
+
+    // compare usename
+    if (lhs->username.length < rhs->username.length) return 1;
+    if (lhs->username.length > rhs->username.length) return 1;
+    if (aes67_memcmp(lhs->username.data, rhs->username.data, lhs->username.length) != 0) return 1;
+
+    // compare session id
+    if (lhs->session_id.length < rhs->session_id.length) return 1;
+    if (lhs->session_id.length > rhs->session_id.length) return 1;
+    if (aes67_memcmp(lhs->session_id.data, rhs->session_id.data, lhs->session_id.length) != 0) return 1;
+
+    // do NOT compare session version
+
+    // do NOT compare nettype + addrtype (do implicitly through unicast address)
+
+    // compare unicast address
+    if (lhs->session_id.length < rhs->session_id.length) return 1;
+    if (lhs->session_id.length > rhs->session_id.length) return 1;
+    if (aes67_memcmp(lhs->session_id.data, rhs->session_id.data, lhs->session_id.length) != 0) return 1;
+
+    // now we can assume it's the same stream
+
+    return 0;
+}
+
+s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp_originator * lhs, struct aes67_sdp_originator * rhs)
+{
+    AES67_ASSERT("lhs != NULL", lhs != NULL);
+    AES67_ASSERT("rhs != NULL", rhs != NULL);
+
+    // assuming the session version is given as integer, if the version differs in number of digits, the case is clear
+    if (lhs->session_version.length < rhs->session_version.length) return -1;
+    if (lhs->session_version.length > rhs->session_version.length) return 1;
+
+    // otherwise do a bytewise comparison (which works because character representations of integers are in the right order)
+    return aes67_memcmp(lhs->session_version.data, rhs->session_version.data, lhs->session_version.length);
+}
+
+
+u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
+{
+    AES67_ASSERT("str != NULL", str != NULL);
+    AES67_ASSERT("maxlen > 32", maxlen > 32);
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+
+    // length of sdp packet
+    u32_t len = 0;
+
+
+    //v=0
+    str[len++] = 'v';
+    str[len++] = '=';
+    str[len++] = '0';
+    str[len++] = CR;
+    str[len++] = NL;
+
+    // originator (o=..)
+    len += aes67_sdp_origin_tostr(&str[len], maxlen - 5, &sdp->originator);
 
     str[len++] = CR;
     str[len++] = NL;
@@ -134,7 +199,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         str[len++] = ' ';
         str[len++] = 'I';
         str[len++] = 'P';
-        if (sdp->originator.addr.ipver == aes67_net_ipver_4){
+        if (sdp->originator.address_type == aes67_net_ipver_4){
             str[len++] = '4';
         } else {
             str[len++] = '6';
@@ -162,52 +227,12 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     str[len++] = CR;
     str[len++] = NL;
 
-
+    return len;
 }
 
 
 u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 {
-
-}
-
-
-u8_t aes67_sdp_origin_cmp(struct aes67_sdp * lhs, struct aes67_sdp * rhs)
-{
-    AES67_PLATFORM_ASSERT(lhs != NULL);
-    AES67_PLATFORM_ASSERT(rhs != NULL);
-
-    // compare usename
-    if (lhs->originator.username.length < rhs->originator.username.length) return 1;
-    if (lhs->originator.username.length > rhs->originator.username.length) return 1;
-    if (aes67_memcmp(lhs->originator.username.data, rhs->originator.username.data, lhs->originator.username.length) != 0) return 1;
-
-    // compare session id
-    if (lhs->originator.session_id.length < rhs->originator.session_id.length) return 1;
-    if (lhs->originator.session_id.length > rhs->originator.session_id.length) return 1;
-    if (aes67_memcmp(lhs->originator.session_id.data, rhs->originator.session_id.data, lhs->originator.session_id.length) != 0) return 1;
-
-    // do NOT compare session version
-
-    // compare unicast address
-    if (lhs->originator.session_id.length < rhs->originator.session_id.length) return 1;
-    if (lhs->originator.session_id.length > rhs->originator.session_id.length) return 1;
-    if (aes67_memcmp(lhs->originator.session_id.data, rhs->originator.session_id.data, lhs->originator.session_id.length) != 0) return 1;
-
-    // now we can assume it's the same stream
-
     return 0;
 }
 
-s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp * lhs, struct aes67_sdp * rhs)
-{
-    AES67_PLATFORM_ASSERT(lhs != NULL);
-    AES67_PLATFORM_ASSERT(rhs != NULL);
-
-    // assuming the session version is given as integer, if the version differs in number of digits, the case is clear
-    if (lhs->originator.session_version.length < rhs->originator.session_version) return -1;
-    if (lhs->originator.session_version.length > rhs->originator.session_version) return 1;
-
-    // otherwise do a bytewise comparison (which works because character representations of integers are in the right order)
-    return aes67_memcmp(lhs->originator.session_version.data, rhs->originator.session_version.data, lhs->originator.session_version.length);
-}
