@@ -50,8 +50,8 @@ struct aes67_net_addr {
 
 
 
-s32_t aes67_net_str2addr(struct aes67_net_addr * addr, AES67_STRING() * str);
-s32_t aes67_net_addr2str(AES67_STRING() * str, struct aes67_net_addr * addr);
+s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen);
+u16_t aes67_net_addr2str(u8_t * str, struct aes67_net_addr * addr);
 
 u8_t aes67_net_ipeq(const struct aes67_net_addr * lhs, const struct aes67_net_addr * rhs);
 
