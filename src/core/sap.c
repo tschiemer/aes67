@@ -463,7 +463,7 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
     msg[len++] = 's';
     msg[len++] = 'd';
     msg[len++] = 'p';
-    msg[len++] = '0';
+    msg[len++] = '\0'; // null termination
 
     struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ip->ipver, ip->addr);
 
