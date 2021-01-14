@@ -154,10 +154,6 @@ struct aes67_sap_session_table {
 
 typedef void (*aes67_sap_event_callback)(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen);
 
-// TODO
-typedef u16_t (*aes67_sap_zlib_compress_callback)(u8_t ** dst, u8_t * src, u16_t len);
-typedef u16_t (*aes67_sap_zlib_uncompress_callback)(u8_t ** dst, u8_t * src, u16_t len);
-
 
 struct aes67_sap_service {
 
@@ -166,10 +162,16 @@ struct aes67_sap_service {
     u16_t announcement_size; // ad_size (used for interval computation)
     struct aes67_timer announcement_timer;
 
+    u32_t timeout_interval;
+    struct aes67_timer timeout_timer;
+
     aes67_sap_event_callback event_callback;
 };
 
 
+/**
+ * Initializes service data
+ */
 void aes67_sap_service_init(
         struct aes67_sap_service * sap,
         u16_t session_table_size,
@@ -177,26 +179,56 @@ void aes67_sap_service_init(
         aes67_sap_event_callback event_callback
 );
 
+/**
+ * Deinitalizes service data
+ */
 void aes67_sap_service_deinit(struct aes67_sap_service * sap);
 
 
 
-struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
-struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
-void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
-
+/**
+ * Sets and enables announcement timer to trigger when next announcement can/should be sent.
+ *
+ * TODO static?
+ */
+void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap);
 
 /**
- * Query SAP service wether an announcement can or should be done now;
+ * Query service wether an announcement can or should be done now.
+ *
+ * Assumes the announcement timer was triggered.
+ * (Comfort) function does not have to be used, but rather can if timer handler does not already handle everything.
  */
 inline uint8_t aes67_sap_service_announce_now(struct aes67_sap_service * sap)
 {
     return sap->announcement_timer.state == aes67_timer_state_expired;
 }
 
+/**
+ * TODO static?
+ */
+void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap);
 
-void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
+/**
+ * Query wether at least one registered session has (or should have) timed out.
+ *
+ * (Comfort) function does not have to be used, but rather can if timer handler does not already handle everything.
+ */
+inline uint8_t aes67_sap_service_timeout_now(struct aes67_sap_service * sap)
+{
+    return sap->timeout_timer.state == aes67_timer_state_expired;
+}
 
+void aes67_sap_service_timeout_clear(struct aes67_sap_service * sap);
+
+/**
+ * Handles incoming SAP message and triggers event callback accordingly.
+ */
+void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
+
+/**
+ *
+ */
 u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp);
 
 

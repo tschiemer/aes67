@@ -19,6 +19,8 @@
 #ifndef AES67_HOST_TIMER_H
 #define AES67_HOST_TIMER_H
 
+#define AES67_TIMER_NOW 0
+
 #include "aes67/arch.h"
 
 enum aes67_timer_state {

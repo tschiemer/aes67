@@ -25,6 +25,6 @@ typedef u32_t aes67_timestamp_t;
 
 extern void aes67_timestamp_now(aes67_timestamp_t * timestamp);
 
-extern void aes67_timestamp_diffsec(aes67_timestamp_t * lhs, aes67_timestamp_t * rhs);
+extern u32_t aes67_timestamp_diffsec(aes67_timestamp_t * lhs, aes67_timestamp_t * rhs);
 
 #endif //AES67_HOST_TIME_H

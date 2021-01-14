@@ -26,9 +26,25 @@
 
 
 
-inline static void session_unregister(struct aes67_sap_session * session){
-    session->hash = 0;
-}
+/**
+ * See wether given session has ben registered prior and return related pointer.
+ */
+static struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
+
+/**
+ * Add a specific session to the session table.
+ *
+ * To be used directly (most likely) only when registering sessions sent from this device (to let them count towards
+ * the total announcement count).
+ */
+static struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
+
+/**
+ * To remove a specific session from the session table.
+ */
+static void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
+
+
 
 
 void aes67_sap_service_init(
@@ -42,23 +58,22 @@ void aes67_sap_service_init(
     AES67_ASSERT("hash_table_sz == 0 || hash_table != NULL", session_table_size == 0 || session_table != NULL);
     AES67_ASSERT("event_callback != NULL", event_callback != NULL);
 
+    sap->session_table.active = 0;
     sap->session_table.size = session_table_size;
     sap->session_table.table = session_table;
 
     sap->event_callback = event_callback;
 
+    sap->announcement_size = 0;
+    sap->timeout_interval = 0;
+
 
     // make sure to clear session table
     aes67_memset(session_table, 0, session_table_size * sizeof(struct aes67_sap_session));
 
-
-    sap->announcement_size = 0;
-
-    // init timer
+    // init timers
     aes67_timer_init(&sap->announcement_timer);
-
-    sap->compress_callback = NULL;
-    sap->uncompress_callback = NULL;
+    aes67_timer_init(&sap->timeout_timer);
 }
 
 void aes67_sap_service_deinit(struct aes67_sap_service * sap)
@@ -94,6 +109,12 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
             sap->session_table.table[i].hash = hash;
             sap->session_table.table[i].src.ipver = ipver;
             aes67_memcpy(sap->session_table.table[i].src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16));
+
+            // never let overflow
+            if (sap->session_table.active < UINT16_MAX - 1){
+                sap->session_table.active++;
+            }
+
             return &sap->session_table.table[i];
         }
     }
@@ -103,6 +124,12 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
     return NULL;
 }
 
+
+inline static void session_unregister(struct aes67_sap_session * session){
+    session->hash = 0;
+}
+
+
 void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip)
 {
     struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ipver, ip);
@@ -111,11 +138,117 @@ void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, en
         return;
     }
 
+    // decrease active session count
+    if (sap->session_table.active > 1){
+        sap->session_table.active--;
+    }
+
     session_unregister(session);
 }
 
+void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
+{
+    AES67_ASSERT("sap != NULL", sap != NULL);
 
-void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen)
+    // if no message was generated, then no message has yet been sent
+    // set timer to trigger next possible time.
+    if (sap->announcement_size == 0){
+        aes67_timer_enable(&sap->announcement_timer, AES67_TIMER_NOW);
+        return;
+    }
+
+    s32_t no_of_ads = sap->session_table.active;
+
+    // min 1
+    if (no_of_ads == 0){
+        no_of_ads = 1;
+    }
+
+    s32_t i = (8 * sap->announcement_size * no_of_ads) / AES67_SAP_BANDWITH;
+
+    s32_t interval_sec = i > 300 ? i : 300;
+
+    s32_t offset_sec = (AES67_RAND() % (2*interval_sec/3) ) - interval_sec/3;
+
+    u32_t next_tx = interval_sec + offset_sec;
+
+    // remember the timeout interval
+    sap->timeout_interval = interval_sec;
+
+    // actually set timer
+    aes67_timer_enable(&sap->announcement_timer, next_tx * 1000);
+}
+
+void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
+{
+    AES67_ASSERT("sap != NULL", sap != NULL);
+
+    aes67_timestamp_t now;
+
+    aes67_timestamp_now(&now);
+
+    // max(3600, 10 * ad_interval)
+    u32_t timeout_after = 10 * (sap->timeout_interval > 360 ? sap->timeout_interval : 360);
+
+    // get age of oldest announcement
+    u32_t oldest = 0;
+
+    for(u16_t i = 0; i < sap->session_table.size; i++){
+
+        if (sap->session_table.table[i].hash != 0){
+
+            u32_t age = aes67_timestamp_diffsec(&now, &sap->session_table.table[i].last_announcement);
+
+            if (age > oldest){
+                oldest = age;
+
+                // in case there is at least one that has timed out already,
+                // set timer and stop further processing
+                if (oldest > timeout_after){
+                    aes67_timer_enable(&sap->timeout_timer, AES67_TIMER_NOW);
+
+                    return;
+                }
+            }
+        }
+    }
+
+    aes67_timer_enable(&sap->timeout_timer, (timeout_after - oldest + 1) *1000);
+}
+
+void aes67_sap_service_timeout_clear(struct aes67_sap_service * sap)
+{
+    AES67_ASSERT("sap != NULL", sap != NULL);
+
+    aes67_timestamp_t now;
+
+    aes67_timestamp_now(&now);
+
+    // max(3600, 10 * ad_interval)
+    u32_t timeout_after = 10 * (sap->timeout_interval > 360 ? sap->timeout_interval : 360);
+
+
+    for(u16_t i = 0; i < sap->session_table.size; i++){
+
+        if (sap->session_table.table[i].hash != 0){
+
+            u32_t age = aes67_timestamp_diffsec(&now, &sap->session_table.table[i].last_announcement);
+
+            if (age > timeout_after){
+
+                if (sap->event_callback != NULL){
+
+                    sap->event_callback(aes67_sap_event_timeout, &sap->session_table.table[i], NULL, 0, NULL, 0);
+                }
+
+                session_unregister(&sap->session_table.table[i]);
+            }
+        }
+    }
+}
+
+
+void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
     AES67_ASSERT("msg != NULL", msg != NULL);
@@ -164,7 +297,7 @@ void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t m
 
     if ( (session == NULL) || session->authenticated == aes67_sap_auth_result_ok){
 
-        if (aes67_sap_auth_result_ok != aes67_sap_service_auth_validate(msg, msglen)){
+        if (aes67_sap_auth_result_ok != aes67_sap_service_auth_validate(sap, msg, msglen)){
             return;
         }
     }
@@ -181,16 +314,17 @@ void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t m
     // uncompress content
     if ( (msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_COMPRESSED_MASK) == AES67_SAP_STATUS_COMPRESSED_ZLIB ) {
 
-        if (sap->uncompress_callback == NULL){
-            // zlib compression not supported, discard message
-            return;
-        }
+#if AES67_SAP_DECOMPRESS_AVAILABLE == 0
+        // discard message - it is compressed but there's no decompression available
+        return;
+#else // AES67_SAP_DECOMPRESS_AVAILABLE == 1
 
-        // TODO compressed payloads are not handled at this point in time.
-        datalen = sap->uncompress_callback(&data, data, datalen);
+#endif
 
-        // treat a zero length as error
-        if (datalen == 0){
+        data = aes67_sap_zlib_decompress(sap, data, &datalen);
+
+        // treat a NULL pointer as error
+        if (data == NULL || datalen == 0){
             return;
         }
     }
@@ -237,13 +371,6 @@ void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t m
 
             session = aes67_sap_service_register(sap, hash, ipver, &msg[4]);
 
-            // if the session is newly registered, make sure to increase the session count accordingly.
-            // (but only if we're actually adding it to the active session table)
-            if (session != NULL && sap->session_table.active < UINT16_MAX - 1){
-
-                sap->session_table.active++;
-            }
-
             event = aes67_sap_event_new;
 
         } else {
@@ -265,17 +392,6 @@ void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t m
 
     } else {
 
-#if AES67_SAP_AUTH_ENABLED == 1
-        if (session != NULL){
-
-        }
-#endif
-        // decrease active session count
-        // (if was before actually registered)
-        if (session != NULL && sap->session_table.active > 1){
-            sap->session_table.active--;
-        }
-
         event = aes67_sap_event_deleted;
     }
 
@@ -289,6 +405,15 @@ void aes67_sap_service_parse(struct aes67_sap_service * sap, u8_t * msg, u16_t m
             session_unregister(session);
         }
     }
+
+#if AES67_SAP_DECOMPRESS_AVAILABLE == 1
+
+    // don' forget to free payload memory if was decompressed (well, however the function may be implemented)
+    if ((msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_COMPRESSED_MASK) == AES67_SAP_STATUS_COMPRESSED_ZLIB){
+        aes67_sap_zlib_decompress_free(payload);
+    }
+
+#endif //AES67_SAP_DECOMPRESS_AVAILABLE == 1
 }
 
 
@@ -297,8 +422,7 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
     AES67_ASSERT("sap != NULL", sap != NULL);
     AES67_ASSERT("msg != NULL", msg != NULL);
     AES67_ASSERT("maxlen > 64", maxlen > 64); // a somewhat meaningful min size
-    AES67_ASSERT("(opt & !(AES67_SAP_STATUS_MSGTYPE_MASK | AES67_SAP_STATUS_COMPRESSED_MASK)) == 0", (opt & !(AES67_SAP_STATUS_MSGTYPE_MASK | AES67_SAP_STATUS_COMPRESSED_MASK)) == 0); // only allowed options
-    AES67_ASSERT(" (opt & AES67_SAP_STATUS_COMPRESSED_MASK) == AES67_SAP_STATUS_COMPRESSED_NONE || sap->compress_callback != NULL",  (opt & AES67_SAP_STATUS_COMPRESSED_MASK) == AES67_SAP_STATUS_COMPRESSED_NONE || sap->compress_callback != NULL); // if asking for compression, require callback
+    AES67_ASSERT("(opt & ~(AES67_SAP_STATUS_MSGTYPE_MASK | AES67_SAP_STATUS_COMPRESSED_MASK)) == 0", (opt & ~(AES67_SAP_STATUS_MSGTYPE_MASK | AES67_SAP_STATUS_COMPRESSED_MASK)) == 0); // only allowed options
     AES67_ASSERT("hash != 0", hash != 0);
     AES67_ASSERT("ip != NULL", ip != NULL);
     AES67_ASSERT("sdp != NULL", sdp != NULL);
@@ -306,17 +430,22 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
     u8_t is_ipv4 = (ip->ipver == aes67_net_ipver_4);
 
     msg[AES67_SAP_STATUS] = AES67_SAP_STATUS_VERSION_2;
+
+#if AES67_SAP_COMPRESS_ENABLED == 1
     msg[AES67_SAP_STATUS] |= (opt & (AES67_SAP_STATUS_MSGTYPE_MASK | AES67_SAP_STATUS_COMPRESSED_MASK));
+#else
+    msg[AES67_SAP_STATUS] |= (opt & AES67_SAP_STATUS_MSGTYPE_MASK);
+#endif
+
     msg[AES67_SAP_STATUS] |= is_ipv4 ? AES67_SAP_STATUS_ADDRTYPE_IPv4 : AES67_SAP_STATUS_ADDRTYPE_IPv6;
 
-    // auth data len = 0 for now
-    msg[AES67_SAP_AUTH_LEN] = 0;
 
     *(u16_t*)&msg[AES67_SAP_MSG_ID_HASH] = aes67_htons(hash);
 
     aes67_memcpy(&msg[AES67_SAP_ORIGIN_SRC], ip->addr, (is_ipv4 ? 4 : 16));
 
-    u16_t len = 4 + (is_ipv4 ? 4 : 16);
+    u16_t headerlen = 4 + (is_ipv4 ? 4 : 16);
+    u16_t len = headerlen;
 
     // always add payload type which MUST be supported by all SAPv2 capable recipients
     msg[len++] = 'a';
@@ -336,6 +465,7 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
     msg[len++] = 'p';
     msg[len++] = '0';
 
+    struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ip->ipver, ip->addr);
 
     if ( (opt & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE ){
 
@@ -347,6 +477,11 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
         }
         len += l;
 
+        // if own session was not registered prior, register now
+        if (session == NULL){
+            aes67_sap_service_register(sap, hash, ip->ipver, ip->addr);
+        }
+
     } else { // AES67_SAP_STATUS_MSGTYPE_DELETE
 
         // when deleting a session, just add first line (after version) of SDP message
@@ -357,23 +492,42 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
             return 0;
         }
         len += l;
+
+        // above function does not add line termination
+        msg[len++] = '\r';
+        msg[len++] = '\n';
+
+        // if own session was registered prior, unregister now
+        if (session != NULL){
+            aes67_sap_service_register(sap, hash, ip->ipver, ip->addr);
+        }
     }
 
-    // if called for compression
+#if AES67_SAP_COMPRESS_ENABLED == 1
+
+    // only compress when explicitly requested
     if ( (opt & AES67_SAP_STATUS_COMPRESSED_MASK) == AES67_SAP_STATUS_COMPRESSED_ZLIB ){
 
-        // and if compression callback set (if not just send uncompressed)
-        if (sap->compress_callback != NULL){
-            //TODO inline compression
+        u16_t payloadlen = aes67_sap_zlib_compress(sap, &msg[headerlen], len - headerlen, maxlen - headerlen);
+
+        // on error, abort
+        if (payloadlen == 0){
+            return 0;
         }
 
+        len = headerlen + payloadlen;
     }
 
+#endif //AES67_SAP_COMPRESS_ENABLED == 1
+
+
+    // auth data len = 0 for now
+    msg[AES67_SAP_AUTH_LEN] = 0;
 
 #if AES67_SAP_AUTH_ENABLED == 1
 
     // if returns other value than 0 is an error
-    if (aes67_sap_service_auth_add(msg, len, maxlen) != 0){
+    if (aes67_sap_service_auth_add(sap, msg, len, maxlen) != 0){
 
         // but we are ment to return the msglen, ie 0 indicates an error.
         return 0;
@@ -384,6 +538,7 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
 
 #endif
 
+    sap->announcement_size = len;
 
     return len;
 }
