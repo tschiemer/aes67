@@ -84,7 +84,7 @@ extern "C" {
 #define AES67_SAP_STATUS_MSGTYPE_DELETE     0b00000000
 
 #define AES67_SAP_STATUS_ENCRYPTED_YES      0b00000010
-#define AES67_SAP_STATUS_ENCRYPTED_NO       0b00000010
+#define AES67_SAP_STATUS_ENCRYPTED_NO       0b00000000
 
 #define AES67_SAP_STATUS_COMPRESSED_ZLIB    0b00000001
 #define AES67_SAP_STATUS_COMPRESSED_NONE    0b00000000
@@ -280,7 +280,9 @@ extern u8_t aes67_sap_service_auth_add(struct aes67_sap_service * sap, u8_t * ms
  */
 extern u8_t * aes67_sap_zlib_decompress(struct aes67_sap_service * sap, u8_t * payload, u16_t * payloadlen);
 
+#ifndef aes67_sap_zlib_decompress_free
 extern void aes67_sap_zlib_decompress_free(u8_t * payload);
+#endif
 
 #endif //AES67_SAP_DECOMPRESS_AVAILABLE == 1
 
