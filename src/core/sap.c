@@ -58,9 +58,13 @@ void aes67_sap_service_init(
     AES67_ASSERT("hash_table_sz == 0 || hash_table != NULL", session_table_size == 0 || session_table != NULL);
     AES67_ASSERT("event_callback != NULL", event_callback != NULL);
 
-    sap->session_table.active = 0;
-    sap->session_table.size = session_table_size;
-    sap->session_table.table = session_table;
+    sap->no_of_ads = 0;
+
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
+    aes67_memset(sap->sessions, 0, sizeof(sap->sessions));
+#else
+    sap->first_session = NULL;
+#endif
 
     sap->event_callback = event_callback;
 
@@ -78,7 +82,21 @@ void aes67_sap_service_init(
 
 void aes67_sap_service_deinit(struct aes67_sap_service * sap)
 {
-    // do nothing at this point in time
+    AES67_ASSERT("sap != NULL", sap != NULL);
+
+#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+    struct aes67_sap_session * current = sap->first_session;
+
+    sap->first_session = NULL;
+
+    while(current != NULL){
+        struct aes67_sap_session * previous = current;
+        current = current->next;
+        previous->next = NULL; // not needed really
+
+        AES67_SAP_FREE(previous);
+    }
+#endif
 }
 
 struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip)
@@ -88,11 +106,21 @@ struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap
     AES67_ASSERT("AES67_NET_IPVER_ISVALID(ipver)", AES67_NET_IPVER_ISVALID(ipver));
     AES67_ASSERT("ip != NULL", ip != NULL);
 
-    for(u16_t i = 0; i < sap->session_table.size; i++){
-        if (sap->session_table.table[i].hash == hash && sap->session_table.table[i].src.ipver == ipver && 0 == aes67_memcmp(sap->session_table.table[i].src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16))){
-            return &sap->session_table.table[i];
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
+    for(u16_t i = 0; i < AES67_SAP_MEMORY_POOL_SIZE; i++){
+        if (sap->sessions[i].hash == hash && sap->sessions[i].src.ipver == ipver && 0 == aes67_memcmp(sap->sessions[i].src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16))){
+            return &sap->sessions[i];
         }
     }
+#else //AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+    struct aes67_sap_session * current = sap->first_session;
+
+    while(current != NULL){
+        if (current->hash == hash && current->src.ipver == ipver && 0 == aes67_memcmp(current->src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16))){
+            return current;
+        }
+    }
+#endif
 
     return NULL;
 }
@@ -104,29 +132,57 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
     AES67_ASSERT("AES67_NET_IPVER_ISVALID(ipver)", AES67_NET_IPVER_ISVALID(ipver));
     AES67_ASSERT("ip != NULL", ip != NULL);
 
-    for(u16_t i = 0; i < sap->session_table.size; i++){
-        if (sap->session_table.table[i].hash == 0){
-            sap->session_table.table[i].hash = hash;
-            sap->session_table.table[i].src.ipver = ipver;
-            aes67_memcpy(sap->session_table.table[i].src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16));
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
+
+    for(u16_t i = 0; i < AES67_SAP_MEMORY_POOL_SIZE; i++){
+        if (sap->sessions[i].hash == 0){
+            sap->sessions[i].hash = hash;
+            sap->sessions[i].src.ipver = ipver;
+            aes67_memcpy(sap->sessions[i].src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16));
 
             // never let overflow
-            if (sap->session_table.active < UINT16_MAX - 1){
-                sap->session_table.active++;
+            if (sap->no_of_ads < UINT16_MAX - 1){
+                sap->no_of_ads++;
             }
 
-            return &sap->session_table.table[i];
+            return &sap->sessions[i];
         }
     }
 
     // TODO should only reach here if we've run out of memory (ie, table entries)
 
     return NULL;
+
+#else //AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+
+    struct aes67_sap_session * session = (struct aes67_sap_session *)AES67_SAP_CALLOC(sizeof(struct aes67_sap_session));
+
+    session->hash = hash;
+    session->src.ipver = ipver;
+    aes67_memcpy(session->src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16));
+
+    // never let overflow
+    if (sap->no_of_ads < UINT16_MAX - 1){
+        sap->no_of_ads++;
+    }
+
+    // insert at beginning of linked list
+    session->next = sap->first_session;
+    sap->first_session = session;
+
+    return session;
+
+#endif
 }
 
 
 inline static void session_unregister(struct aes67_sap_session * session){
+
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
     session->hash = 0;
+#else
+    AES67_SAP_FREE(session);
+#endif
 }
 
 
@@ -139,8 +195,8 @@ void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, en
     }
 
     // decrease active session count
-    if (sap->session_table.active > 1){
-        sap->session_table.active--;
+    if (sap->no_of_ads > 1){
+        sap->no_of_ads--;
     }
 
     session_unregister(session);
@@ -157,7 +213,7 @@ void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
         return;
     }
 
-    s32_t no_of_ads = sap->session_table.active;
+    s32_t no_of_ads = sap->no_of_ads;
 
     // min 1
     if (no_of_ads == 0){
@@ -193,11 +249,13 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
     // get age of oldest announcement
     u32_t oldest = 0;
 
-    for(u16_t i = 0; i < sap->session_table.size; i++){
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
 
-        if (sap->session_table.table[i].hash != 0){
+    for(u16_t i = 0; i < AES67_SAP_MEMORY_POOL_SIZE; i++){
 
-            u32_t age = aes67_timestamp_diffsec(&now, &sap->session_table.table[i].last_announcement);
+        if (sap->sessions[i].hash != 0){
+
+            u32_t age = aes67_timestamp_diffsec(&now, &sap->sessions[i].last_announcement);
 
             if (age > oldest){
                 oldest = age;
@@ -213,6 +271,29 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
         }
     }
 
+#else // AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+
+    struct aes67_sap_session * current = sap->first_session;
+
+    for(;current != NULL; current = current->next){
+
+        u32_t age = aes67_timestamp_diffsec(&now, &current->last_announcement);
+
+        if (age > oldest){
+            oldest = age;
+
+            // in case there is at least one that has timed out already,
+            // set timer and stop further processing
+            if (oldest > timeout_after){
+                aes67_timer_enable(&sap->timeout_timer, AES67_TIMER_NOW);
+
+                return;
+            }
+        }
+    }
+
+#endif
+
     aes67_timer_enable(&sap->timeout_timer, (timeout_after - oldest + 1) *1000);
 }
 
@@ -227,24 +308,47 @@ void aes67_sap_service_timeout_clear(struct aes67_sap_service * sap)
     // max(3600, 10 * ad_interval)
     u32_t timeout_after = 10 * (sap->timeout_interval > 360 ? sap->timeout_interval : 360);
 
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
 
-    for(u16_t i = 0; i < sap->session_table.size; i++){
+    for(u16_t i = 0; i < AES67_SAP_MEMORY_POOL_SIZE; i++){
 
-        if (sap->session_table.table[i].hash != 0){
+        if (sap->sessions[i].hash != 0){
 
-            u32_t age = aes67_timestamp_diffsec(&now, &sap->session_table.table[i].last_announcement);
+            u32_t age = aes67_timestamp_diffsec(&now, &sap->sessions[i].last_announcement);
 
             if (age > timeout_after){
 
                 if (sap->event_callback != NULL){
 
-                    sap->event_callback(aes67_sap_event_timeout, &sap->session_table.table[i], NULL, 0, NULL, 0);
+                    sap->event_callback(aes67_sap_event_timeout, &sap->sessions[i], NULL, 0, NULL, 0);
                 }
 
-                session_unregister(&sap->session_table.table[i]);
+                session_unregister(&sap->sessions[i]);
             }
         }
     }
+
+#else // AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+
+    struct aes67_sap_session * current = sap->first_session;
+
+    for(;current != NULL; current = current->next) {
+
+        u32_t age = aes67_timestamp_diffsec(&now, &current->last_announcement);
+
+        if (age > timeout_after){
+
+            if (sap->event_callback != NULL){
+
+                sap->event_callback(aes67_sap_event_timeout, current, NULL, 0, NULL, 0);
+            }
+
+            session_unregister(current);
+        }
+    }
+
+#endif
+
 }
 
 

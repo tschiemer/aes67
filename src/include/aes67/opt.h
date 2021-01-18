@@ -20,6 +20,8 @@
 #ifndef AES67_OPT_H
 #define AES67_OPT_H
 
+#define AES67_MEMORY_POOL       1
+#define AES67_MEMORY_DYNAMIC    2
 
 /*
  * Include user defined options first. Anything not defined in these files
@@ -29,6 +31,20 @@
 
 #ifndef AES67_USE_IPv6
 #define AES67_USE_IPv6 1
+#endif
+
+/****** Session Announcement Protocol (SAP) *******/
+
+#ifndef AES67_SAP_MEMORY
+#define AES67_SAP_MEMORY    AES67_MEMORY_DYNAMIC
+#endif
+
+#if AES67_SAP_MEMORY != AES67_MEMORY_POOL && AES67_SAP_MEMORY != AES67_MEMORY_DYNAMIC
+#error Please specify valid memory strategy for SAP (AES67_SAP_MEMORY)
+#endif
+
+#ifndef AES67_SAP_MEMORY_POOL_SIZE
+#define AES67_SAP_MEMORY_POOL_SIZE 32
 #endif
 
 // tmp set to 1
@@ -50,6 +66,9 @@
 #ifndef AES67_SAP_COMPRESS_ENABLED
 #define AES67_SAP_COMPRESS_ENABLED 1
 #endif
+
+
+/******* Session Description Protocol (SDP) ********/
 
 #ifndef AES67_SDP_MAXUSERNAME
 #define AES67_SDP_MAXUSERNAME 32

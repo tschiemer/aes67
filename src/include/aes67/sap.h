@@ -143,12 +143,10 @@ struct aes67_sap_session {
 #endif
 
     void * data;
-};
 
-struct aes67_sap_session_table {
-    u16_t active; // no_of_ads (used for interval computation)
-    u16_t size;
-    struct aes67_sap_session * table;
+#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+    struct aes67_sap_session * next;
+#endif
 };
 
 
@@ -157,8 +155,6 @@ typedef void (*aes67_sap_event_callback)(enum aes67_sap_event event, struct aes6
 
 struct aes67_sap_service {
 
-    struct aes67_sap_session_table session_table;
-
     u16_t announcement_size; // ad_size (used for interval computation)
     struct aes67_timer announcement_timer;
 
@@ -166,6 +162,14 @@ struct aes67_sap_service {
     struct aes67_timer timeout_timer;
 
     aes67_sap_event_callback event_callback;
+
+    u16_t no_of_ads; // no_of_ads (used for interval computation)
+
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
+    struct aes67_sap_session sessions[AES67_SAP_MEMORY_POOL_SIZE];
+#else
+    struct aes67_sap_session * first_session; // first session of linked list
+#endif
 };
 
 
