@@ -171,7 +171,7 @@ u16_t aes67_net_addr2str(u8_t * str, struct aes67_net_addr * addr)
     AES67_ASSERT("str != NULL", str != NULL);
     AES67_ASSERT("addr != NULL", addr != NULL);
 
-#if AES67_USE_IPv6
+#if AES67_USE_IPv6 == 1
     AES67_ASSERT("addr->ipver == aes67_net_ipver_4 || addr->ipver == aes67_net_ipver_6", addr->ipver == aes67_net_ipver_4 || addr->ipver == aes67_net_ipver_6);
 #else
     AES67_ASSERT("addr->ipver == aes67_net_ipver_4", addr->ipver == aes67_net_ipver_4);
@@ -180,7 +180,7 @@ u16_t aes67_net_addr2str(u8_t * str, struct aes67_net_addr * addr)
     u16_t len = 0;
 
 
-#if AES67_USE_IPv6
+#if AES67_USE_IPv6 == 1
     if (addr->ipver == aes67_net_ipver_6){
 
         if (addr->port > 0){
@@ -218,7 +218,7 @@ u16_t aes67_net_addr2str(u8_t * str, struct aes67_net_addr * addr)
         len += aes67_itoa(addr->port, &str[len], 10);
     }
 
-#if AES67_USE_IPv6
+#if AES67_USE_IPv6 == 1
     }
 #endif
 

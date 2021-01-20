@@ -108,6 +108,15 @@ TEST(Net_TestGroup, str2addr_ipv6)
 {
     aes67_net_addr addr;
 
+#if AES67_USE_IPv6 == 0
+
+    // make sure that the most simple ipv6 address fails
+
+    RESET_ADDR(addr);
+    CHECK_FALSE(aes67_net_str2addr(&addr, IPSTRLEN("0:0:0:0:0:0:0:0")));
+
+#else // AES67_USE_IPv6 == 1
+
     // basic format
 
     RESET_ADDR(addr);
@@ -298,6 +307,8 @@ TEST(Net_TestGroup, str2addr_ipv6)
     CHECK_FALSE(aes67_net_str2addr(&addr, IPSTRLEN("[0:0: 0:0:0:0:0:0]:0")));
     CHECK_FALSE(aes67_net_str2addr(&addr, IPSTRLEN("[ 0:0:0:0:0:0:0:0]:0")));
     CHECK_FALSE(aes67_net_str2addr(&addr, IPSTRLEN(" [0:0:0:0:0:0:0:0]:0")));
+
+#endif // AES67_USE_IPv6 == 1
 }
 
 
@@ -359,8 +370,16 @@ TEST(Net_TestGroup, addr2str_ipv6)
     aes67_net_addr addr;
     uint16_t len;
 
+    RESET_ADDR(addr);
+
     addr.ipver = aes67_net_ipver_6;
     addr.port = 0;
+
+#if AES67_USE_IPv6 == 0
+
+    // No test: if ipv6 is not supported, an ipv4 is always assumed
+
+#else // AES67_USE_IPv6 == 1
 
     std::memcpy(addr.addr,"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16);
     len = aes67_net_addr2str(str, &addr);
@@ -405,6 +424,8 @@ TEST(Net_TestGroup, addr2str_ipv6)
     CHECK_EQUAL(sizeof("[0:0:0:0:0:0:0:0]:65535") - 1, len);
     str[len] = '\0';
     STRCMP_EQUAL("[0:0:0:0:0:0:0:0]:65535", (const char *)str);
+
+#endif // AES67_USE_IPv6 == 1
 }
 
 
