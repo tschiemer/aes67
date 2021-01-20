@@ -33,8 +33,6 @@ s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
     AES67_ASSERT("addr != NULL", addr != NULL);
     AES67_ASSERT("str != NULL", str != NULL);
 
-    s32_t return_length = 0;
-
     u16_t ncolons = 0;
     s32_t last = -2;
     u32_t doublecolon = -1;
@@ -43,7 +41,7 @@ s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
             if (last == i-1){
                 // can not have more than one doublecolon
                 if (doublecolon != -1){
-                    return 999;
+                    return false;
                 }
                 doublecolon = ncolons;
             }
@@ -93,10 +91,10 @@ s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
                 if (slen <= len + 1 || str[len+1] == ']') {
                     addr->addr[14] = 0;
                     addr->addr[15] = 0;
-                    if (slen >= len + 2){
+//                    if (slen >= len + 2){
 
                         len++;
-                    }
+//                    }
                 } else {
                     i--;
                 }
@@ -110,7 +108,7 @@ s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
             len += l;
         }
 
-        if (str[0] != '[' || (slen == len + 1 && str[len] == ']')) {
+        if (len == slen || (slen == len + 1 && str[0] == '[' && str[len] == ']')) {
             addr->port = 0;
         } else {
             if (slen < len + 3 || str[len] != ']' || str[len+1] != ':'){
@@ -138,14 +136,14 @@ s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
         s32_t a;
 
         a = aes67_atoi(&str[0], slen, 10, &l);
-        if (l == 0 || l > 3 || (a & 0xff000000)) return false;
+        if (l == 0 || l > 3 || (a & 0xffffff00)) return false;
         addr->addr[0] = a;
         len = l;
 
         for (int i = 1; i < 4; i++) {
             if (slen < len + 1 || str[len++] != '.') return false;
             a = aes67_atoi(&str[len], slen - len, 10, &l);
-            if (l == 0 || l > 3 || (a & 0xff000000)) return false;
+            if (l == 0 || l > 3 || (a & 0xffffff00)) return false;
             addr->addr[i] = a;
             len += l;
         }
