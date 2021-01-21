@@ -12,19 +12,46 @@ https://github.com/tschiemer/aes67
 ## Rough feature/support roadmap
 
 - Clock
-  - [ ] PTPv2 / IEEE1558-2008 ?
+  - [ ] PTPv2 / IEEE1558-2008 ? (as per AE67-2018)
   - [ ] PTPv2.1 / IEEE1558-2019 ??
 - Discovery & | Management
   - [ ] SAP (required for interoperability)
-  - [mDNS / DNS-SD](https://github.com/tschiemer/minimr)
+    - [ ] Support compression (of incoming packets)?
   - [ ] SIP ? (for unicast management according to standard, but most systems use multicast only..)
+    - [x] [mDNS / DNS-SD](https://github.com/tschiemer/minimr)
   - [ ] RSTP ?
-  - [NMOS](https://github.com/AMWA-TV/nmos)
-  - [AES70/OCA](https://github.com/tschiemer/ocac) *work in progress*
+  - [ ] [AES70/OCA](https://github.com/tschiemer/ocac) *work in progress*
 - Stream
   - [ ] RTP/RTCP
 
 - command line / developer utilities
+
+## In a Nutshell
+
+### Discovery & Management
+
+Discovery and management approaches are generally not needed - but require other (ie manual) configuration. For ease of integration such methods are generally recommended and thus considered within this framework.
+
+Joining of multicast session essentially requires but the joining of respective multicast group.
+Setting up a unicast session requires cooperation of the partners, ie some form of control protocol.
+Seemingly unicast sessions are barely in use (see [wikipedia](https://en.wikipedia.org/wiki/AES67#Adoption)).
+
+
+AES67 generally leaves the choice of discovery and management mechanism open, but it names several possibilities to be aware of:
+
+ - Bonjours / mDNS (DNS-SD) is proposed in conjunction with SIP, ie the device's SIP URI / service is announced (unicast sessions)
+ - SAP is proposed for announcement of *multicast* sessions
+ - Axia Discovery Protocol
+ - Wheatstone WheatnetIP Discovery Protocol
+ - [AMWA NMOS Discovery and Registration Specification (IS-04)]( https://github.com/AMWA-TV/nmos-discovery-registration)
+
+Not mentioned, but seemingly also used in distributed products (according to [wikipedia](https://en.wikipedia.org/wiki/AES67#Adoption)):
+
+- Real-Time Streaming Protocol
+
+As discussed elsewhere AES70 - a rather young discovery and control standard of networked audio devices - is suggested as a promising solution.
+
+For broad integration SAP seems like a general requirement for any device. SIP may be considered for management of unicast streams but it is not only barely adopted, as an (somewhat elaborate) additional service it only provides connection management. Thus, it is (generally) proposed to use AES70 for discovery and management, in particular because the standard is a collaborative effort and provides several meaningful features out of the box (although it is somewhat complex) beyond discovery and stream management.
 
 
 ## References
