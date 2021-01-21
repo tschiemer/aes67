@@ -27,6 +27,71 @@ TEST_GROUP(Def_TestGroup)
 };
 
 
+TEST(Def_TestGroup, memcmp)
+{
+    CHECK_EQUAL(std::memcmp("abcd", "abcd", 4), aes67_memcmp("abcd", "abcd", 4));
+    CHECK_EQUAL(std::memcmp("abce", "abcd", 4), aes67_memcmp("abce", "abcd", 4));
+    CHECK_EQUAL(std::memcmp("abcd", "abce", 4), aes67_memcmp("abcd", "abce", 4));
+
+    CHECK_EQUAL(std::memcmp(NULL, NULL, 0), aes67_memcmp(NULL, NULL, 0));
+}
+
+TEST(Def_TestGroup, memset)
+{
+    uint8_t data[8];
+    uint8_t data2[8];
+
+    std::memset(data2, 4, sizeof(8));
+    CHECK_EQUAL(data, aes67_memset(data, 4, sizeof(8)));
+    MEMCMP_EQUAL(data2, data, sizeof(8));
+
+    std::memset(data2, 255, sizeof(8));
+    CHECK_EQUAL(data, aes67_memset(data, 255, sizeof(8)));
+    MEMCMP_EQUAL(data2, data, sizeof(8));
+
+    std::memset(data2, 256, sizeof(8));
+    CHECK_EQUAL(data, aes67_memset(data, 256, sizeof(8)));
+    MEMCMP_EQUAL(data2, data, sizeof(8));
+}
+
+TEST(Def_TestGroup, memcpy)
+{
+    uint8_t dst[8];
+
+    aes67_memcpy(dst, "abcdef", sizeof("abcdef"));
+    STRCMP_EQUAL("abcdef", (const char *)dst);
+}
+
+
+TEST(Def_TestGroup, memmove)
+{
+    const uint8_t orig[] = "0123456789abcdef";
+    uint8_t data[32];
+
+    // just copy operation
+    CHECK_EQUAL(&data[0], aes67_memmove(&data[0], orig, sizeof(orig)));
+    STRCMP_EQUAL((const char *)orig, (const char *)&data[0]);
+
+    // overlapping move forward
+    CHECK_EQUAL(&data[4], aes67_memmove(&data[4], &data[0], sizeof(orig)));
+    STRCMP_EQUAL((const char *)orig, (const char *)&data[4]);
+
+    // overlapping move backward
+    CHECK_EQUAL(&data[0], aes67_memmove(&data[0], &data[4], sizeof(orig)));
+    STRCMP_EQUAL((const char *)orig, (const char *)&data[0]);
+}
+
+TEST(Def_TestGroup, memchr)
+{
+    const uint8_t str[] = "0123456789";
+
+    CHECK_EQUAL( &str[0], aes67_memchr(str, '0', sizeof(str)-1));
+    CHECK_EQUAL( &str[1], aes67_memchr(str, '1', sizeof(str)-1));
+    CHECK_EQUAL( &str[9], aes67_memchr(str, '9', sizeof(str)-1));
+
+    CHECK_EQUAL( NULL, aes67_memchr(str, 'a', sizeof(str)-1));
+}
+
 TEST(Def_TestGroup, itoa)
 {
     uint8_t str[256];

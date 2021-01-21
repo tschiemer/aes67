@@ -63,7 +63,7 @@ void aes67_memcpy( void * dst, const void * src, size_t count )
 void* aes67_memset( void * dst, int ch, size_t count )
 {
     for(size_t i = 0; i < count; i++){
-        *(u8_t*)dst = (u8_t)ch;
+        *(u8_t*)&dst[i] = (u8_t)ch;
     }
     return dst;
 }
@@ -79,18 +79,6 @@ int aes67_memcmp( const void * lhs, const void * rhs, size_t count )
     return 0;
 }
 #endif //aes67_memcmp
-
-#ifndef aes67_memchr
-void * aes67_memchr( const void * ptr, int ch, size_t count )
-{
-    for(size_t i = 0; i < count; i++){
-        if ( ((u8_t*)ptr)[i] == (u8_t)ch ){
-            return (void*)&(((u8_t*)ptr)[i]);
-        }
-    }
-    return NULL;
-}
-#endif //aes67_memchr
 
 #ifndef aes67_memmove
 void * aes67_memmove(void* dest, const void* src, size_t count)
@@ -110,6 +98,18 @@ void * aes67_memmove(void* dest, const void* src, size_t count)
     return dest;
 }
 #endif
+
+#ifndef aes67_memchr
+void * aes67_memchr( const void * ptr, int ch, size_t count )
+{
+    for(size_t i = 0; i < count; i++){
+        if ( ((u8_t*)ptr)[i] == (u8_t)ch ){
+            return (void*)&(((u8_t*)ptr)[i]);
+        }
+    }
+    return NULL;
+}
+#endif //aes67_memchr
 
 
 /**
