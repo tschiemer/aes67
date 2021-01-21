@@ -95,8 +95,17 @@ void * aes67_memchr( const void * ptr, int ch, size_t count )
 #ifndef aes67_memmove
 void * aes67_memmove(void* dest, const void* src, size_t count)
 {
-    for(size_t i = 0; i < count; i++){
-        ((u8_t*)dest)[i] = ((u8_t*)src)[i];
+    // either start copying from start or from end depending on relative position in memory
+    // (to allow for safe overlapping of memory regions)
+    if (dest < src) {
+        for (size_t i = 0; i < count; i++) {
+            ((u8_t *) dest)[i] = ((u8_t *) src)[i];
+        }
+    } else {
+        for (size_t i = count; 0 < i;) {
+            i--;
+            ((u8_t *) dest)[i] = ((u8_t *) src)[i];
+        }
     }
     return dest;
 }
