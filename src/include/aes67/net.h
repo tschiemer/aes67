@@ -68,6 +68,12 @@ inline void aes67_net_addrcp(struct aes67_net_addr * to, const struct aes67_net_
     aes67_memcmp(to, from, sizeof(struct aes67_net_addr));
 }
 
+inline u8_t aes67_net_addr2mem(u8_t * to, const struct aes67_net_addr * from)
+{
+    aes67_memcpy(to, from->addr, (from->ipver == aes67_net_ipver_4) ? 4 : 16);
+    return (from->ipver == aes67_net_ipver_4) ? 4 : 16;
+}
+
 #ifdef DEBUG
 void aes67_dump_net_addr(struct aes67_net_addr * addr);
 #endif
