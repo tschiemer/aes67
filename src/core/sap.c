@@ -49,13 +49,10 @@ static void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t h
 
 void aes67_sap_service_init(
         struct aes67_sap_service * sap,
-        u16_t session_table_size,
-        struct aes67_sap_session * session_table,
         aes67_sap_event_callback event_callback
 )
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
-    AES67_ASSERT("hash_table_sz == 0 || hash_table != NULL", session_table_size == 0 || session_table != NULL);
     AES67_ASSERT("event_callback != NULL", event_callback != NULL);
 
     sap->no_of_ads = 0;
@@ -70,10 +67,6 @@ void aes67_sap_service_init(
 
     sap->announcement_size = 0;
     sap->timeout_interval = 0;
-
-
-    // make sure to clear session table
-    aes67_memset(session_table, 0, session_table_size * sizeof(struct aes67_sap_session));
 
     // init timers
     aes67_timer_init(&sap->announcement_timer);

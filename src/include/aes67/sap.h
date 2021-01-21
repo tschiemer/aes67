@@ -89,15 +89,6 @@ extern "C" {
 #define AES67_SAP_STATUS_COMPRESSED_ZLIB    0b00000001
 #define AES67_SAP_STATUS_COMPRESSED_NONE    0b00000000
 
-//#define AES67_SAP_PACKET_STATUS         0
-//struct aes67_sap_packet {
-//    u8_t status;
-//    u8_t auth_len;
-//    u16_t msg_id_hash;
-//    u8_t ip[16];
-//
-//} PACK_STRUCT;
-
 #define AES67_SAP_AUTH_VERSION_MASK         0b11100000
 #define AES67_SAP_AUTH_PADDING_MASK         0b00010000
 #define AES67_SAP_AUTH_TYPE_MASK            0b00001111
@@ -178,8 +169,6 @@ struct aes67_sap_service {
  */
 void aes67_sap_service_init(
         struct aes67_sap_service * sap,
-        u16_t session_table_size,
-        struct aes67_sap_session * session_table,
         aes67_sap_event_callback event_callback
 );
 
