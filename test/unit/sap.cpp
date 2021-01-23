@@ -26,7 +26,7 @@ typedef struct {
     uint8_t status;
     uint8_t auth_len;      // length(auth_data) == 4 * auth_len
     uint16_t msg_id_hash;
-    uint8_t ip[16];
+    struct aes67_net_addr ip;
     uint16_t typelen;
     uint8_t type[32];
     uint16_t datalen;
@@ -47,12 +47,14 @@ u16_t packet2mem(uint8_t data[], sap_packet_t & packet)
 
     u16_t len = AES67_SAP_ORIGIN_SRC;
 
-    if ( (packet.status & AES67_SAP_STATUS_ADDRTYPE_MASK) == AES67_SAP_STATUS_ADDRTYPE_IPv4){
-        std::memcpy(&data[AES67_SAP_ORIGIN_SRC], packet.ip, 4);
+    if ( packet.ip.ipver == aes67_net_ipver_4 ){
+        std::memcpy(&data[AES67_SAP_ORIGIN_SRC], packet.ip.addr, 4);
         len += 4;
+        data[AES67_SAP_STATUS] = (data[AES67_SAP_STATUS] & ~AES67_SAP_STATUS_ADDRTYPE_MASK) | AES67_SAP_STATUS_ADDRTYPE_IPv4;
     } else {
-        std::memcpy(&data[AES67_SAP_ORIGIN_SRC], packet.ip, 16);
+        std::memcpy(&data[AES67_SAP_ORIGIN_SRC], packet.ip.addr, 16);
         len += 16;
+        data[AES67_SAP_STATUS] = (data[AES67_SAP_STATUS] & ~AES67_SAP_STATUS_ADDRTYPE_MASK) | AES67_SAP_STATUS_ADDRTYPE_IPv6;
     }
 
     if (packet.typelen > 0){
@@ -230,10 +232,13 @@ TEST(SAP_TestGroup, sap_handle_v2)
     // announce valid packet
 
     sap_packet_t p1 = {
-            .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
             .auth_len = 0,
             .msg_id_hash = 1234,
-            .ip = {5,6,7,8},
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
     };
@@ -250,15 +255,10 @@ TEST(SAP_TestGroup, sap_handle_v2)
     CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
-#if AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
     CHECK_TRUE( sap_event.session == NULL );
-#else // AES67_SAP_MEMORY_POOL_SIZE > 0
-    CHECK_EQUAL( 1, sap.no_of_ads);
-    CHECK_TRUE( sap_event.session != NULL );
-#endif
-#else // AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+#else
     CHECK_EQUAL(1, sap.no_of_ads);
     CHECK_TRUE( sap_event.session != NULL );
 #endif
@@ -275,17 +275,11 @@ TEST(SAP_TestGroup, sap_handle_v2)
     CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
-#if AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
     CHECK_TRUE( sap_event.session == NULL );
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
-#else // AES67_SAP_MEMORY_POOL_SIZE > 0
-    CHECK_EQUAL( 1, sap.no_of_ads);
-    CHECK_TRUE( sap_event.session != NULL );
-    CHECK_EQUAL(aes67_sap_event_refreshed, sap_event.event); // different event
-#endif
-#else // AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+#else
     CHECK_EQUAL(1, sap.no_of_ads);
     CHECK_TRUE( sap_event.session != NULL );
     CHECK_EQUAL(aes67_sap_event_refreshed, sap_event.event); // different event
@@ -296,7 +290,10 @@ TEST(SAP_TestGroup, sap_handle_v2)
             .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_DELETE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
             .auth_len = 0,
             .msg_id_hash = 1234,
-            .ip = {5,6,7,8},
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("o=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
     };
@@ -313,13 +310,9 @@ TEST(SAP_TestGroup, sap_handle_v2)
     CHECK_EQUAL(p2.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p2.data, sap_event.payload, p2.datalen);
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
-#if AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE == 0
     CHECK_TRUE( sap_event.session == NULL );
-#else // AES67_SAP_MEMORY_POOL_SIZE > 0
-    CHECK_TRUE( sap_event.session != NULL );
-#endif
-#else // AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+#else
     CHECK_TRUE( sap_event.session != NULL );
 #endif
 
@@ -343,7 +336,10 @@ TEST(SAP_TestGroup, sap_handle_v1)
             .status = AES67_SAP_STATUS_VERSION_1 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
             .auth_len = 0,
             .msg_id_hash = 1234,
-            .ip = {5,6,7,8},
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
             .typelen = 0,
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
     };
@@ -359,15 +355,10 @@ TEST(SAP_TestGroup, sap_handle_v1)
     CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
-#if AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
     CHECK_TRUE( sap_event.session == NULL );
-#else // AES67_SAP_MEMORY_POOL_SIZE > 0
-    CHECK_EQUAL( 1, sap.no_of_ads);
-    CHECK_TRUE( sap_event.session != NULL );
-#endif
-#else // AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+#else
     CHECK_EQUAL(1, sap.no_of_ads);
     CHECK_TRUE( sap_event.session != NULL );
 #endif
@@ -383,17 +374,11 @@ TEST(SAP_TestGroup, sap_handle_v1)
     CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
-#if AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
     CHECK_TRUE( sap_event.session == NULL );
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
-#else // AES67_SAP_MEMORY_POOL_SIZE > 0
-    CHECK_EQUAL( 1, sap.no_of_ads);
-    CHECK_TRUE( sap_event.session != NULL );
-    CHECK_EQUAL(aes67_sap_event_refreshed, sap_event.event); // different event
-#endif
-#else // AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+#else
     CHECK_EQUAL(1, sap.no_of_ads);
     CHECK_TRUE( sap_event.session != NULL );
     CHECK_EQUAL(aes67_sap_event_refreshed, sap_event.event); // different event
@@ -404,7 +389,10 @@ TEST(SAP_TestGroup, sap_handle_v1)
             .status = AES67_SAP_STATUS_VERSION_1 | AES67_SAP_STATUS_MSGTYPE_DELETE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
             .auth_len = 0,
             .msg_id_hash = 1234,
-            .ip = {5,6,7,8},
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
             .typelen = 0,
             PACKET_DATA("o=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
     };
@@ -421,13 +409,9 @@ TEST(SAP_TestGroup, sap_handle_v1)
     CHECK_EQUAL(p2.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p2.data, sap_event.payload, p2.datalen);
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
-#if AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE == 0
     CHECK_TRUE( sap_event.session == NULL );
-#else // AES67_SAP_MEMORY_POOL_SIZE > 0
-    CHECK_TRUE( sap_event.session != NULL );
-#endif
-#else // AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+#else
     CHECK_TRUE( sap_event.session != NULL );
 #endif
 
@@ -437,7 +421,10 @@ TEST(SAP_TestGroup, sap_handle_v1)
             .status = AES67_SAP_STATUS_VERSION_1 | AES67_SAP_STATUS_MSGTYPE_DELETE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
             .auth_len = 0,
             .msg_id_hash = 1234,
-            .ip = {5,6,7,8},
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
             .typelen = 0,
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
     };
@@ -462,7 +449,10 @@ TEST(SAP_TestGroup, sap_handle_v1)
             .status = AES67_SAP_STATUS_VERSION_1 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
             .auth_len = 0,
             .msg_id_hash = 0,
-            .ip = {5,6,7,8},
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
             .typelen = 0,
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
     };
@@ -498,7 +488,10 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
             .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
             .auth_len = 0,
             .msg_id_hash = 0,
-            .ip = {5,6,7,8},
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
     };
@@ -546,7 +539,10 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
             .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_DELETE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
             .auth_len = 0,
             .msg_id_hash = 0,
-            .ip = {5,6,7,8},
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("o=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
     };
@@ -620,7 +616,10 @@ TEST(SAP_TestGroup, sap_handle_compressed)
             .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_ZLIB,
             .auth_len = 0,
             .msg_id_hash = 1234,
-            .ip = {5,6,7,8},
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
     };
@@ -639,6 +638,32 @@ TEST(SAP_TestGroup, sap_handle_compressed)
     CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
 #endif //AES67_SAP_DECOMPRESS_AVAILABLE == 0
+
+    aes67_sap_service_deinit(&sap);
+}
+
+
+TEST(SAP_TestGroup, sap_msg)
+{
+    struct aes67_sap_service sap;
+
+    uint8_t data[256];
+    uint16_t len;
+
+    u8_t opt = AES67_SAP_STATUS_MSGTYPE_ANNOUNCE;
+    u16_t hash = 1234;
+    struct aes67_net_addr ip1 = {
+            .ipver = aes67_net_ipver_4,
+            .addr = {5,6,7,8}
+    };
+
+    struct aes67_sdp sdp;
+
+    len = aes67_sap_service_msg(&sap, data, sizeof(data), opt, hash, &ip1,  &sdp);
+
+    CHECK_TRUE(len > 0);
+
+
 
     aes67_sap_service_deinit(&sap);
 }
