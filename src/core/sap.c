@@ -471,7 +471,7 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
 
         typelen = pos;
 
-        // if the sdp mimetype ("applicatin/sdp") is given, just set the type as NULL with a zero length to keep
+        // if the sdp mimetype ("application/sdp") is given, just set the type as NULL with a zero length to keep
         // things simple
         if ( (typelen == sizeof(AES67_SDP_MIMETYPE) - 1) && 0 == aes67_memcmp(AES67_SDP_MIMETYPE, type, sizeof(AES67_SDP_MIMETYPE)) ) {
             type = NULL;

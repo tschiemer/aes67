@@ -135,12 +135,17 @@ enum aes67_sap_auth_result aes67_sap_service_auth_validate(struct aes67_sap_serv
 
 #if AES67_SAP_AUTH_SELF == 1
 
+static u8_t auth_data[] = {0x13,0x37,0xba,0xbe};
+
 u8_t aes67_sap_service_auth_add(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen, u16_t maxlen)
 {
+    // the basic assumption of the auth data used here
+    assert(sizeof(auth_data) % 4 == 0);
+
     CHECK_TRUE(sap != nullptr);
     CHECK_TRUE(msg != nullptr);
 
-    uint16_t doffset;
+    uint16_t doffset; // data offset
 
     if ( (msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_ADDRTYPE_MASK) == AES67_SAP_STATUS_ADDRTYPE_IPv4 ){
         doffset = AES67_SAP_ORIGIN_SRC + 4;
@@ -150,14 +155,15 @@ u8_t aes67_sap_service_auth_add(struct aes67_sap_service * sap, u8_t * msg, u16_
 
     CHECK_TRUE(doffset < msglen);
 
-    // just the length of our dummy auth data
-    const u16_t auth_len = sizeof("is authorized") / 4 + ((sizeof("is authorized") % 4 == 0) ? 0 : 1);
 
-    CHECK_TRUE(msglen + 4*auth_len <= maxlen);
+    CHECK_TRUE(msglen + sizeof(auth_data) <= maxlen);
 
-    std::memmove(&msg[doffset+auth_len], &msg[doffset], msglen - doffset);
+    std::memmove(&msg[doffset + sizeof(auth_data)], &msg[doffset], msglen - doffset);
 
-    msg[AES67_SAP_AUTH_LEN] = auth_len;
+    std::memcpy(&msg[doffset], auth_data, sizeof(auth_data));
+
+
+    msg[AES67_SAP_AUTH_LEN] = sizeof(auth_data) / 4;
 
     // return 0 on success
     return 0;
@@ -706,11 +712,14 @@ TEST(SAP_TestGroup, sap_msg)
     CHECK_EQUAL(0, data[AES67_SAP_AUTH_LEN]);
 #else
     CHECK_TRUE(0 < data[AES67_SAP_AUTH_LEN]);
+    MEMCMP_EQUAL(auth_data, &data[AES67_SAP_ORIGIN_SRC + (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16)], 4*data[AES67_SAP_AUTH_LEN]);
 #endif
     CHECK_EQUAL(p1.msg_id_hash, ntohs(*(uint16_t*)&data[AES67_SAP_MSG_ID_HASH]));
     MEMCMP_EQUAL(p1.ip.addr, &data[AES67_SAP_ORIGIN_SRC], p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
 
-
+    int pos = AES67_SAP_ORIGIN_SRC + (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN];
+    STRCMP_EQUAL(AES67_SDP_MIMETYPE, (const char *)&data[pos]);
+    MEMCMP_EQUAL("v=0", &data[pos + sizeof(AES67_SDP_MIMETYPE)], 3);
 
     aes67_sap_service_deinit(&sap);
 }
