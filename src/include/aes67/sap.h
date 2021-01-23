@@ -233,7 +233,8 @@ void aes67_sap_service_timeout_clear(struct aes67_sap_service * sap);
 void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
 
 /**
- *
+ * Generates an SAP packet according to arguments.
+ * To be sent by external methods.
  */
 u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp);
 
