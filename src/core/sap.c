@@ -169,13 +169,18 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
 }
 
 
-inline static void session_unregister(struct aes67_sap_session * session){
+inline static void session_unregister(struct aes67_sap_service * sap, struct aes67_sap_session * session){
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
     session->hash = 0;
 #else
     AES67_SAP_FREE(session);
 #endif
+
+    // never let underflow
+    if (sap->no_of_ads > 0){
+        sap->no_of_ads--;
+    }
 }
 
 
@@ -192,7 +197,7 @@ void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, en
         sap->no_of_ads--;
     }
 
-    session_unregister(session);
+    session_unregister(sap, session);
 }
 
 void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
@@ -316,7 +321,7 @@ void aes67_sap_service_timeout_clear(struct aes67_sap_service * sap)
                     sap->event_callback(aes67_sap_event_timeout, &sap->sessions[i], NULL, 0, NULL, 0);
                 }
 
-                session_unregister(&sap->sessions[i]);
+                session_unregister(sap, &sap->sessions[i]);
             }
         }
     }
@@ -353,6 +358,17 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
 
     // make sure basic header is there
     if (msglen < 4){
+        return;
+    }
+
+    // discard SAPv0 packets
+    // (as msg hash is always zero, it would be discarded further down anyway
+//    if ( (msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_RESERVED_MASK) == AES67_SAP_STATUS_VERSION_0 ){
+//        return;
+//    }
+
+    // to be strict, check that the reserved bit is actually zero
+    if ((msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_RESERVED_MASK) != 0){
         return;
     }
 
@@ -430,33 +446,44 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
     u8_t * type = NULL;
     u16_t typelen = 0;
 
-    // check if there is a SDP content start ("v=0") because if there is, there will not be a mimetype payload
-    // apparently, older SAP versions did not specify payload types but required SDP payloads
-    if ( ((msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_VERSION_MASK) == AES67_SAP_STATUS_VERSION_1) | (data[0] != 'v' && data[1] != '=' && data[2] != '0')){
+
+
+
+    if ((data[0] == 'v' && data[1] == '=' && data[2] == '0')){
+        // SAPv1 announce packets have no payload type (transport SDP only), but start with "v=0"
+        // (some implementation might send it in deletion packet also)
+    } else if (((msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_DELETE) && (data[0] == 'o' && data[1] == '=')){
+        // SAPv1 delete packets have no payload type (transport SDP only), but start with "o="
+    } else {
 
         // set payload type string start to current position
         type = data;
 
         //search for NULL-termination of payload-type string
-        for (; pos < datalen && data[pos] != '\0'; pos++, typelen++){
+        for (; pos < datalen && data[pos] != '\0'; pos++){
             // pogo logo
         }
 
         // (silently) discard message if no payload type termination found until end of msg
-        if ( pos + 1 < datalen ){
+        if ( pos + 1 >= datalen ){
             return;
         }
 
+        typelen = pos;
+
         // if the sdp mimetype ("applicatin/sdp") is given, just set the type as NULL with a zero length to keep
         // things simple
-        if ( (typelen == sizeof(AES67_SDP_MIMETYPE) - 1) && aes67_memcmp(AES67_SDP_MIMETYPE, type, sizeof(AES67_SDP_MIMETYPE)) ) {
+        if ( (typelen == sizeof(AES67_SDP_MIMETYPE) - 1) && 0 == aes67_memcmp(AES67_SDP_MIMETYPE, type, sizeof(AES67_SDP_MIMETYPE)) ) {
             type = NULL;
             typelen = 0;
         }
+
+        // move position past NULL-byte of type
+        pos++;
     }
 
 
-    u8_t * payload = &data[pos + 1];
+    u8_t * payload = &data[pos];
     u16_t payloadlen = datalen - pos;
 
     enum aes67_sap_event event;
@@ -497,9 +524,9 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
     sap->event_callback(event, session, type, typelen, payload, payloadlen);
 
     // when deleting a session, do so after publishing the event to make the session data available for the callback
-    if ( (msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE ){
+    if ( (msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_DELETE ){
         if (session != NULL){
-            session_unregister(session);
+            session_unregister(sap, session);
         }
     }
 
@@ -507,7 +534,7 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
 
     // don' forget to free payload memory if was decompressed (well, however the function may be implemented)
     if ((msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_COMPRESSED_MASK) == AES67_SAP_STATUS_COMPRESSED_ZLIB){
-        aes67_sap_zlib_decompress_free(payload);
+        aes67_sap_zlib_decompress_free(data);
     }
 
 #endif //AES67_SAP_DECOMPRESS_AVAILABLE == 1
@@ -629,6 +656,8 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
         // but we are ment to return the msglen, ie 0 indicates an error.
         return 0;
     }
+
+    AES67_ASSERT("auth_len isset", msg[AES67_SAP_AUTH_LEN] > 0);
 
     // add authentication data len to total message length
     len += 4 * msg[AES67_SAP_AUTH_LEN];

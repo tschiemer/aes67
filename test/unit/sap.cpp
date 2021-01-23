@@ -19,7 +19,6 @@
 #include "CppUTest/TestHarness.h"
 
 #include <string>
-#include <cassert>
 
 #include "aes67/sap.h"
 
@@ -37,7 +36,9 @@ typedef struct {
 #define PACKET_TYPE(str) .type = str, .typelen = sizeof(str)
 #define PACKET_DATA(str) .data = str, .datalen = sizeof(str) - 1
 
-static u16_t packet2mem(uint8_t data[], sap_packet_t & packet)
+static u16_t packet2mem(uint8_t data[], sap_packet_t & packet);
+
+u16_t packet2mem(uint8_t data[], sap_packet_t & packet)
 {
     data[AES67_SAP_STATUS] = packet.status;
     data[AES67_SAP_AUTH_LEN] = packet.auth_len;
@@ -89,10 +90,10 @@ inline bool sap_event_isset()
 
 static void sap_event_callback(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen)
 {
-    assert(event);
-    assert(session != nullptr);
-    assert(payloadtypelen == 0 || payloadtype == nullptr);
-    assert(payloadlen == 0 || payload == nullptr);
+    CHECK_TRUE(AES67_SAP_EVENT_IS_VALID(event));
+//    CHECK_TRUE(session != nullptr); // this is actually not always the case (if we've run out of memory)
+    CHECK_TRUE(payloadtypelen > 0 || payloadtype == nullptr);
+    CHECK_TRUE(payloadlen > 0 || payload == nullptr);
 
     sap_event.event = event;
     sap_event.session = session;
@@ -107,10 +108,20 @@ static void sap_event_callback(enum aes67_sap_event event, struct aes67_sap_sess
 
 #if AES67_SAP_AUTH_ENABLED == 1
 
+static enum aes67_sap_auth_result auth_result;
+
+#define AUTH_OK()   auth_result = aes67_sap_auth_result_ok
+#define AUTH_NOT_OK()   auth_result = aes67_sap_auth_result_not_ok
+
 enum aes67_sap_auth_result aes67_sap_service_auth_validate(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen)
 {
-
+    return auth_result;
 }
+
+#else // not auth
+
+#define AUTH_OK()
+#define AUTH_NOT_OK()
 
 #endif //AES67_SAP_AUTH_ENABLED == 1
 
@@ -119,14 +130,30 @@ enum aes67_sap_auth_result aes67_sap_service_auth_validate(struct aes67_sap_serv
 
 u8_t aes67_sap_service_auth_add(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen, u16_t maxlen)
 {
-    assert(sap != nullptr);
-    assert(msg != nullptr);
+    CHECK_TRUE(sap != nullptr);
+    CHECK_TRUE(msg != nullptr);
 
     uint16_t doffset;
 
     if ( (msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_ADDRTYPE_MASK) == AES67_SAP_STATUS_ADDRTYPE_IPv4 ){
-//        doffset
+        doffset = AES67_SAP_ORIGIN_SRC + 4;
+    } else {
+        doffset = AES67_SAP_ORIGIN_SRC + 16;
     }
+
+    CHECK_TRUE(doffset < msglen);
+
+    // just the length of our dummy auth data
+    const u16_t auth_len = sizeof("is authorized") / 4 + ((sizeof("is authorized") % 4 == 0) ? 0 : 1);
+
+    CHECK_TRUE(msglen + 4*auth_len <= maxlen);
+
+    std::memmove(&msg[doffset+auth_len], &msg[doffset], msglen - doffset);
+
+    msg[AES67_SAP_AUTH_LEN] = auth_len;
+
+    // return 0 on success
+    return 0;
 }
 
 #endif //AES67_SAP_AUTH_SELF == 1
@@ -138,12 +165,12 @@ static uint8_t * decompressed = nullptr;
 
 u8_t * aes67_sap_zlib_decompress(struct aes67_sap_service * sap, u8_t * payload, u16_t * payloadlen)
 {
-    assert(sap != nullptr);
-    assert(payload != nullptr);
-    assert(payloadlen != nullptr);
+    CHECK_TRUE(sap != nullptr);
+    CHECK_TRUE(payload != nullptr);
+    CHECK_TRUE(payloadlen != nullptr);
 
     // make sure the allocated memory pointer is always unoccupied (otherwise there is a leak problem)
-    assert(decompressed == nullptr);
+    CHECK_TRUE(decompressed == nullptr);
 
     // just copy payload to another (dynamic allocated) memory location
 
@@ -159,8 +186,8 @@ u8_t * aes67_sap_zlib_decompress(struct aes67_sap_service * sap, u8_t * payload,
 #ifndef aes67_sap_zlib_decompress_free
 void aes67_sap_zlib_decompress_free(u8_t * payload)
 {
-    assert(payload != nullptr);
-    assert(payload == decompressed);
+    CHECK_TRUE(payload != nullptr);
+    CHECK_EQUAL(decompressed, payload);
 
     std::free(payload);
 
@@ -176,10 +203,10 @@ void aes67_sap_zlib_decompress_free(u8_t * payload)
 
 u16_t aes67_sap_zlib_compress(struct aes67_sap_service * sap, u8_t * payload, u16_t payloadlen, u16_t maxlen)
 {
-    assert(sap != NULL);
-    assert(payload != NULL);
-    assert(payloadlen > 0);
-//    assert(maxlen <= payloadlen);
+    CHECK_TRUE(sap != NULL);
+    CHECK_TRUE(payload != NULL);
+    CHECK_TRUE(payloadlen > 0);
+//    CHECK_TRUE(maxlen <= payloadlen);
 
     // leave as is
 
@@ -193,25 +220,208 @@ TEST_GROUP(SAP_TestGroup)
 };
 
 
-TEST(SAP_TestGroup, sap_decompress)
+TEST(SAP_TestGroup, sap_handle_v2)
 {
     struct aes67_sap_service sap;
 
     uint8_t data[256];
     uint16_t len;
 
+    // make sure the auth
+    AUTH_OK();
+
+    aes67_sap_service_init(&sap, sap_event_callback);
+
+    // announce valid packet
+
+    sap_packet_t p1 = {
+            .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            .auth_len = 0,
+            .msg_id_hash = 1234,
+            .ip = {5,6,7,8},
+            PACKET_TYPE("application/sdp"),
+            PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
+    };
+    len = packet2mem(data, p1);
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_TRUE(sap_event_isset());
+    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
+    CHECK_TRUE( sap_event.session != NULL );
+    CHECK_EQUAL(0, sap_event.payloadtypelen);
+    CHECK_EQUAL(NULL, sap_event.payloadtype);
+    CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
+    MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
+
+
+    // re-announce the same packet (ie same msg hash id + originating source)
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_TRUE(sap_event_isset());
+    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(aes67_sap_event_refreshed, sap_event.event); // different event
+    CHECK_TRUE( sap_event.session != NULL );
+    CHECK_EQUAL(0, sap_event.payloadtypelen);
+    CHECK_EQUAL(NULL, sap_event.payloadtype);
+    CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
+    MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
+
+
+    // delete session
+    sap_packet_t p2 = {
+            .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_DELETE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            .auth_len = 0,
+            .msg_id_hash = 1234,
+            .ip = {5,6,7,8},
+            PACKET_TYPE("application/sdp"),
+            PACKET_DATA("o=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
+    };
+    len = packet2mem(data, p2);
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_TRUE(sap_event_isset());
+    CHECK_EQUAL(0, sap.no_of_ads);
+    CHECK_EQUAL(aes67_sap_event_deleted, sap_event.event); // different event
+    CHECK_TRUE( sap_event.session != NULL );
+    CHECK_EQUAL(0, sap_event.payloadtypelen);
+    CHECK_EQUAL(NULL, sap_event.payloadtype);
+    CHECK_EQUAL(p2.datalen, sap_event.payloadlen);
+    MEMCMP_EQUAL(p2.data, sap_event.payload, p2.datalen);
+
+    aes67_sap_service_deinit(&sap);
+}
+
+TEST(SAP_TestGroup, sap_handle_v1)
+{
+    struct aes67_sap_service sap;
+
+    uint8_t data[256];
+    uint16_t len;
+
+    // make sure the auth
+    AUTH_OK();
+
+    aes67_sap_service_init(&sap, sap_event_callback);
+
+    // announce valid packet
+
+    sap_packet_t p1 = {
+            .status = AES67_SAP_STATUS_VERSION_1 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            .auth_len = 0,
+            .msg_id_hash = 1234,
+            .ip = {5,6,7,8},
+            .typelen = 0,
+            PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
+    };
+    len = packet2mem(data, p1);
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_TRUE(sap_event_isset());
+    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
+    CHECK_TRUE( sap_event.session != NULL );
+    CHECK_EQUAL(0, sap_event.payloadtypelen);
+    CHECK_EQUAL(NULL, sap_event.payloadtype);
+    CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
+    MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
+
+
+    // re-announce the same packet (ie same msg hash id + originating source)
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_TRUE(sap_event_isset());
+    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(aes67_sap_event_refreshed, sap_event.event); // different event
+    CHECK_TRUE( sap_event.session != NULL );
+    CHECK_EQUAL(0, sap_event.payloadtypelen);
+    CHECK_EQUAL(NULL, sap_event.payloadtype);
+    CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
+    MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
+
+
+    // delete session
+    sap_packet_t p2 = {
+            .status = AES67_SAP_STATUS_VERSION_1 | AES67_SAP_STATUS_MSGTYPE_DELETE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            .auth_len = 0,
+            .msg_id_hash = 1234,
+            .ip = {5,6,7,8},
+            .typelen = 0,
+            PACKET_DATA("o=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
+    };
+    len = packet2mem(data, p2);
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_TRUE(sap_event_isset());
+    CHECK_EQUAL(0, sap.no_of_ads);
+    CHECK_EQUAL(aes67_sap_event_deleted, sap_event.event); // different event
+    CHECK_TRUE( sap_event.session != NULL );
+    CHECK_EQUAL(0, sap_event.payloadtypelen);
+    CHECK_EQUAL(NULL, sap_event.payloadtype);
+    CHECK_EQUAL(p2.datalen, sap_event.payloadlen);
+    MEMCMP_EQUAL(p2.data, sap_event.payload, p2.datalen);
+
+
+
+    // delete session
+    sap_packet_t p3 = {
+            .status = AES67_SAP_STATUS_VERSION_1 | AES67_SAP_STATUS_MSGTYPE_DELETE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            .auth_len = 0,
+            .msg_id_hash = 1234,
+            .ip = {5,6,7,8},
+            .typelen = 0,
+            PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
+    };
+    len = packet2mem(data, p3);
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_TRUE(sap_event_isset());
+    CHECK_EQUAL(0, sap.no_of_ads);
+    CHECK_EQUAL(aes67_sap_event_deleted, sap_event.event); // different event
+    CHECK_EQUAL( NULL, sap_event.session ); // note, this session was not previously known
+    CHECK_EQUAL(0, sap_event.payloadtypelen);
+    CHECK_EQUAL(NULL, sap_event.payloadtype);
+    CHECK_EQUAL(p3.datalen, sap_event.payloadlen);
+    MEMCMP_EQUAL(p3.data, sap_event.payload, p3.datalen);
+
+
+    aes67_sap_service_deinit(&sap);
+}
+
+TEST(SAP_TestGroup, sap_handle_compressed)
+{
+    struct aes67_sap_service sap;
+
+    uint8_t data[256];
+    uint16_t len;
+
+    // make sure the auth
+    AUTH_OK();
+
     aes67_sap_service_init(&sap, sap_event_callback);
 
     sap_packet_t p1 = {
             .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ADDRTYPE_IPv4 | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_ZLIB,
             .auth_len = 0,
-            .msg_id_hash = 0x1234,
+            .msg_id_hash = 1234,
             .ip = {5,6,7,8},
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
     };
-
     len = packet2mem(data, p1);
+
     sap_event_reset();
     aes67_sap_service_handle(&sap, data, len);
 
@@ -219,9 +429,12 @@ TEST(SAP_TestGroup, sap_decompress)
     CHECK_FALSE(sap_event_isset());
 #else
     CHECK_TRUE(sap_event_isset());
+    CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
     CHECK_EQUAL(0, sap_event.payloadtypelen);
     CHECK_EQUAL(NULL, sap_event.payloadtype);
     CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
 #endif //AES67_SAP_DECOMPRESS_AVAILABLE == 0
+
+    aes67_sap_service_deinit(&sap);
 }

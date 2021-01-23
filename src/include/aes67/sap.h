@@ -3,7 +3,7 @@
  * Utilities for Session Announcement Protocol (SAP) handling.
  *
  * References:
- * Session Announcement Protocol https://tools.ietf.org/html/rfc2974
+ * Session Announcement Protocol: Version 2 https://tools.ietf.org/html/rfc2974
  */
 
 /**
@@ -74,8 +74,9 @@ extern "C" {
 #define AES67_SAP_STATUS_ENCRYPTED_MASK     0b00000010
 #define AES67_SAP_STATUS_COMPRESSED_MASK    0b00000001
 
-#define AES67_SAP_STATUS_VERSION_1          0b00000000
-#define AES67_SAP_STATUS_VERSION_2          0b00100000
+#define AES67_SAP_STATUS_VERSION_0          0b00000000
+#define AES67_SAP_STATUS_VERSION_1          0b00100000
+#define AES67_SAP_STATUS_VERSION_2          AES67_SAP_STATUS_VERSION_1
 
 #define AES67_SAP_STATUS_ADDRTYPE_IPv4      0b00000000
 #define AES67_SAP_STATUS_ADDRTYPE_IPv6      0b00010000
@@ -101,10 +102,6 @@ extern "C" {
     (__type__) == AES67_SAP_AUTH_TYPE_CMS \
 )
 
-//struct aes67_sap_auth_hdr {
-//    u8_t hdr;
-//    u8_t subhdr[];
-//};
 
 #if AES67_SAP_AUTH_ENABLED == 1
 
@@ -121,6 +118,13 @@ enum aes67_sap_event {
     aes67_sap_event_deleted,
     aes67_sap_event_timeout
 };
+
+#define AES67_SAP_EVENT_IS_VALID(__e__) ( \
+    (__e__) == aes67_sap_event_new || \
+    (__e__) == aes67_sap_event_refreshed || \
+    (__e__) == aes67_sap_event_deleted || \
+    (__e__) == aes67_sap_event_timeout \
+)
 
 
 struct aes67_sap_session {
