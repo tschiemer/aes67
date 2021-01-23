@@ -737,5 +737,44 @@ TEST(SAP_TestGroup, sap_msg)
     MEMCMP_EQUAL(&data[pos + sizeof(AES67_SDP_MIMETYPE)], sdp_data, sdp_len);
 
 
+    // test with ipv6
+    sap_packet_t p2 = {
+            .status = AES67_SAP_STATUS_MSGTYPE_ANNOUNCE,
+            .msg_id_hash = 1234,
+            .ip = {
+                    .ipver = aes67_net_ipver_6,
+                    .addr = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}
+            }
+    };
+
+
+    std::memset(data, 0, sizeof(data));
+    len = aes67_sap_service_msg(&sap, data, sizeof(data), p2.status, p2.msg_id_hash, &p2.ip,  &sdp);
+
+    assert(len > 0);
+
+    CHECK_EQUAL(AES67_SAP_ORIGIN_SRC + (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN] + sizeof(AES67_SDP_MIMETYPE) + sdp_len, len);
+    CHECK_EQUAL(AES67_SAP_STATUS_VERSION_2, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_VERSION_MASK);
+    CHECK_EQUAL(AES67_SAP_STATUS_MSGTYPE_MASK, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK);
+    CHECK_EQUAL(AES67_SAP_STATUS_ADDRTYPE_IPv6, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_ADDRTYPE_MASK);
+    CHECK_EQUAL(0, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_RESERVED_MASK);
+    CHECK_EQUAL(AES67_SAP_STATUS_COMPRESSED_NONE, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_COMPRESSED_MASK);
+    CHECK_EQUAL(AES67_SAP_STATUS_ENCRYPTED_NO, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_ENCRYPTED_MASK);
+#if AES67_SAP_AUTH_SELF == 0
+    CHECK_EQUAL(0, data[AES67_SAP_AUTH_LEN]);
+#else
+    CHECK_TRUE(0 < data[AES67_SAP_AUTH_LEN]);
+    MEMCMP_EQUAL(auth_data, &data[AES67_SAP_ORIGIN_SRC + (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16)], 4*data[AES67_SAP_AUTH_LEN]);
+#endif
+    CHECK_EQUAL(p2.msg_id_hash, ntohs(*(uint16_t*)&data[AES67_SAP_MSG_ID_HASH]));
+    MEMCMP_EQUAL(p2.ip.addr, &data[AES67_SAP_ORIGIN_SRC], p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
+
+    pos = AES67_SAP_ORIGIN_SRC + (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN];
+    STRCMP_EQUAL(AES67_SDP_MIMETYPE, (const char *)&data[pos]);
+
+    MEMCMP_EQUAL(&data[pos + sizeof(AES67_SDP_MIMETYPE)], sdp_data, sdp_len);
+
+
+
     aes67_sap_service_deinit(&sap);
 }
