@@ -134,7 +134,7 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
             aes67_memcpy(sap->sessions[i].src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16));
 
             // never let overflow
-            if (sap->no_of_ads < UINT16_MAX - 1){
+            if (sap->no_of_ads < AES67_SAP_MEMORY_POOL_SIZE){
                 sap->no_of_ads++;
             }
 

@@ -34,6 +34,15 @@
 #include "aes67/host/time.h"
 
 
+// sanity checks
+#if AES67_SAP_MEMORY != AES67_MEMORY_POOL && AES67_SAP_MEMORY != AES67_MEMORY_DYNAMIC
+#error Please specify valid memory strategy for SAP (AES67_SAP_MEMORY)
+#endif
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE > UINT16_MAX
+#error AES67_SAP_MEMORY_POOL_SIZE too big!
+#endif
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif

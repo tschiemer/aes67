@@ -12,7 +12,7 @@ https://github.com/tschiemer/aes67
 ## Rough feature/support roadmap
 
 - Clock
-  - [ ] PTPv2 / IEEE1558-2008 ? (as per AE67-2018)
+  - [ ] PTPv2 / IEEE1558-2008 ? (as per AES67-2018)
   - [ ] PTPv2.1 / IEEE1558-2019 ??
 - Discovery & | Management
   - [ ] SAP (required for interoperability)

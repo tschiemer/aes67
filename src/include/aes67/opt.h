@@ -36,11 +36,7 @@
 /****** Session Announcement Protocol (SAP) *******/
 
 #ifndef AES67_SAP_MEMORY
-#define AES67_SAP_MEMORY    AES67_MEMORY_DYNAMIC
-#endif
-
-#if AES67_SAP_MEMORY != AES67_MEMORY_POOL && AES67_SAP_MEMORY != AES67_MEMORY_DYNAMIC
-#error Please specify valid memory strategy for SAP (AES67_SAP_MEMORY)
+#define AES67_SAP_MEMORY    AES67_MEMORY_POOL
 #endif
 
 #ifndef AES67_SAP_MEMORY_POOL_SIZE
