@@ -685,7 +685,26 @@ TEST(SAP_TestGroup, sap_msg)
 
     uint8_t data[256];
     uint8_t sdp_data[256];
-    uint16_t len, sdp_len;
+    uint8_t origin_data[256];
+    uint16_t len, sdp_len, origin_len;
+
+    struct aes67_sdp sdp = {
+            .originator.username        = {0},
+            .originator.session_id      = {1, "1"},
+            .originator.session_version = {1, "2"},
+            .originator.address_type    = aes67_net_ipver_4,
+            .originator.address         = {8,"10.0.0.1"},
+    };
+
+    std::memset(sdp_data, 0, sizeof(sdp_data));
+    sdp_len = aes67_sdp_tostr(sdp_data, sizeof(sdp_data), &sdp);
+
+    assert(sdp_len > 0);
+
+    std::memset(origin_data, 0, sizeof(origin_data));
+    origin_len = aes67_sdp_origin_tostr(origin_data, sizeof(origin_data), &sdp.originator);
+
+    assert(origin_len > 0);
 
     sap_packet_t p1 = {
             .status = AES67_SAP_STATUS_MSGTYPE_ANNOUNCE,
@@ -696,20 +715,6 @@ TEST(SAP_TestGroup, sap_msg)
             }
     };
 
-    struct aes67_sdp sdp = {
-            .originator.username        = {0},
-            .originator.session_id      = {1, "1"},
-            .originator.session_version = {1, "2"},
-            .originator.address_type    = aes67_net_ipver_4,
-            .originator.address         = {8,"10.0.0.1"},
-    };
-
-
-    std::memset(sdp_data, 0, sizeof(sdp_data));
-    sdp_len = aes67_sdp_tostr(sdp_data, sizeof(sdp_data), &sdp);
-
-    assert(sdp_len > 0);
-
     std::memset(data, 0, sizeof(data));
     len = aes67_sap_service_msg(&sap, data, sizeof(data), p1.status, p1.msg_id_hash, &p1.ip,  &sdp);
 
@@ -717,7 +722,7 @@ TEST(SAP_TestGroup, sap_msg)
 
     CHECK_EQUAL(AES67_SAP_ORIGIN_SRC + (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN] + sizeof(AES67_SDP_MIMETYPE) + sdp_len, len);
     CHECK_EQUAL(AES67_SAP_STATUS_VERSION_2, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_VERSION_MASK);
-    CHECK_EQUAL(AES67_SAP_STATUS_MSGTYPE_MASK, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK);
+    CHECK_EQUAL(AES67_SAP_STATUS_MSGTYPE_ANNOUNCE, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK);
     CHECK_EQUAL(AES67_SAP_STATUS_ADDRTYPE_IPv4, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_ADDRTYPE_MASK);
     CHECK_EQUAL(0, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_RESERVED_MASK);
     CHECK_EQUAL(AES67_SAP_STATUS_COMPRESSED_NONE, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_COMPRESSED_MASK);
@@ -755,7 +760,7 @@ TEST(SAP_TestGroup, sap_msg)
 
     CHECK_EQUAL(AES67_SAP_ORIGIN_SRC + (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN] + sizeof(AES67_SDP_MIMETYPE) + sdp_len, len);
     CHECK_EQUAL(AES67_SAP_STATUS_VERSION_2, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_VERSION_MASK);
-    CHECK_EQUAL(AES67_SAP_STATUS_MSGTYPE_MASK, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK);
+    CHECK_EQUAL(AES67_SAP_STATUS_MSGTYPE_ANNOUNCE, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK);
     CHECK_EQUAL(AES67_SAP_STATUS_ADDRTYPE_IPv6, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_ADDRTYPE_MASK);
     CHECK_EQUAL(0, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_RESERVED_MASK);
     CHECK_EQUAL(AES67_SAP_STATUS_COMPRESSED_NONE, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_COMPRESSED_MASK);
@@ -774,6 +779,41 @@ TEST(SAP_TestGroup, sap_msg)
 
     MEMCMP_EQUAL(&data[pos + sizeof(AES67_SDP_MIMETYPE)], sdp_data, sdp_len);
 
+    // delete test
+    sap_packet_t p3 = {
+            .status = AES67_SAP_STATUS_MSGTYPE_DELETE,
+            .msg_id_hash = 1234,
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5,6,7,8}
+            }
+    };
+
+    std::memset(data, 0, sizeof(data));
+    len = aes67_sap_service_msg(&sap, data, sizeof(data), p3.status, p3.msg_id_hash, &p3.ip,  &sdp);
+
+    assert(len > 0);
+
+    CHECK_EQUAL(AES67_SAP_ORIGIN_SRC + (p3.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN] + sizeof(AES67_SDP_MIMETYPE) + origin_len, len);
+    CHECK_EQUAL(AES67_SAP_STATUS_VERSION_2, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_VERSION_MASK);
+    CHECK_EQUAL(AES67_SAP_STATUS_MSGTYPE_DELETE, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK);
+    CHECK_EQUAL(AES67_SAP_STATUS_ADDRTYPE_IPv4, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_ADDRTYPE_MASK);
+    CHECK_EQUAL(0, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_RESERVED_MASK);
+    CHECK_EQUAL(AES67_SAP_STATUS_COMPRESSED_NONE, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_COMPRESSED_MASK);
+    CHECK_EQUAL(AES67_SAP_STATUS_ENCRYPTED_NO, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_ENCRYPTED_MASK);
+#if AES67_SAP_AUTH_SELF == 0
+    CHECK_EQUAL(0, data[AES67_SAP_AUTH_LEN]);
+#else
+    CHECK_TRUE(0 < data[AES67_SAP_AUTH_LEN]);
+    MEMCMP_EQUAL(auth_data, &data[AES67_SAP_ORIGIN_SRC + (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16)], 4*data[AES67_SAP_AUTH_LEN]);
+#endif
+    CHECK_EQUAL(p3.msg_id_hash, ntohs(*(uint16_t*)&data[AES67_SAP_MSG_ID_HASH]));
+    MEMCMP_EQUAL(p3.ip.addr, &data[AES67_SAP_ORIGIN_SRC], p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
+
+    pos = AES67_SAP_ORIGIN_SRC + (p3.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN];
+    STRCMP_EQUAL(AES67_SDP_MIMETYPE, (const char *)&data[pos]);
+
+    MEMCMP_EQUAL(&data[pos + sizeof(AES67_SDP_MIMETYPE)], origin_data, origin_len);
 
 
     aes67_sap_service_deinit(&sap);

@@ -618,8 +618,8 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
         len += l;
 
         // above function does not add line termination
-        msg[len++] = '\r';
-        msg[len++] = '\n';
+//        msg[len++] = '\r';
+//        msg[len++] = '\n';
 
         // if own session was registered prior, unregister now
         if (session != NULL){

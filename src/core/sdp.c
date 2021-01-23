@@ -90,6 +90,9 @@ u32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_origina
     //<address>
     //TODO
 
+    str[len++] = CR;
+    str[len++] = NL;
+
     return len;
 }
 
@@ -109,12 +112,12 @@ u8_t aes67_sdp_origin_cmp(struct aes67_sdp_originator * lhs, struct aes67_sdp_or
     if (lhs->username.length > rhs->username.length) return 1;
     if (aes67_memcmp(lhs->username.data, rhs->username.data, lhs->username.length) != 0) return 1;
 
-    // compare session id
+    // compare session_data id
     if (lhs->session_id.length < rhs->session_id.length) return 1;
     if (lhs->session_id.length > rhs->session_id.length) return 1;
     if (aes67_memcmp(lhs->session_id.data, rhs->session_id.data, lhs->session_id.length) != 0) return 1;
 
-    // do NOT compare session version
+    // do NOT compare session_data version
 
     // do NOT compare nettype + addrtype (do implicitly through unicast address)
 
@@ -133,7 +136,7 @@ s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp_originator * lhs, struct aes6
     AES67_ASSERT("lhs != NULL", lhs != NULL);
     AES67_ASSERT("rhs != NULL", rhs != NULL);
 
-    // assuming the session version is given as integer, if the version differs in number of digits, the case is clear
+    // assuming the session_data version is given as integer, if the version differs in number of digits, the case is clear
     if (lhs->session_version.length < rhs->session_version.length) return -1;
     if (lhs->session_version.length > rhs->session_version.length) return 1;
 
@@ -162,11 +165,11 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     // originator (o=..)
     len += aes67_sdp_origin_tostr(&str[len], maxlen - 5, &sdp->originator);
 
-    str[len++] = CR;
-    str[len++] = NL;
+//    str[len++] = CR;
+//    str[len++] = NL;
 
 
-    //s=<session name>
+    //s=<session_data name>
     str[len++] = 's';
     str[len++] = '=';
     if (sdp->session_name.length == 0){
@@ -179,7 +182,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     str[len++] = NL;
 
 
-    // i=<session info>
+    // i=<session_data info>
 #if 0 < AES67_SDP_MASSESSIONINFO
     if (0 < sdp->session_info.length){
         aes67_memcpy(&str[len], sdp->session_info.data, sdp->session_info.length);
