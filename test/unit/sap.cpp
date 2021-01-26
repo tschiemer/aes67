@@ -26,6 +26,7 @@
 typedef struct {
     uint8_t status;
     uint8_t auth_len;      // length(auth_data) == 4 * auth_len
+    uint8_t authdata[256];
     uint16_t msg_id_hash;
     struct aes67_net_addr ip;
     uint16_t typelen;
@@ -34,8 +35,11 @@ typedef struct {
     uint8_t data[256];
 } sap_packet_t;
 
-#define PACKET_TYPE(str) .type = str, .typelen = sizeof(str)
-#define PACKET_DATA(str) .data = str, .datalen = sizeof(str) - 1
+#define PACKET_AUTH(str)    .authdata = str, .auth_len = ((sizeof(str) - 1) / 4)
+#define PACKET_AUTH_NONE    .auth_len = 0
+#define PACKET_TYPE(str)    .type = str, .typelen = sizeof(str)
+#define PACKET_TYPE_NONE    .typelen = 0
+#define PACKET_DATA(str)    .data = str, .datalen = sizeof(str) - 1
 
 static u16_t packet2mem(uint8_t data[], sap_packet_t & packet);
 
@@ -85,7 +89,7 @@ static struct {
 
 inline void sap_event_reset()
 {
-    sap_event.isset = false;
+    std::memset(&sap_event, 0, sizeof(sap_event));
 }
 
 void aes67_sap_service_event(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen, void * user_data)
@@ -518,7 +522,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
 
     sap_packet_t p1 = {
             .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
-            .auth_len = 0,
+            PACKET_AUTH_NONE,
             .msg_id_hash = 0,
             .ip = {
                     .ipver = aes67_net_ipver_4,
@@ -679,14 +683,167 @@ TEST(SAP_TestGroup, sap_handle_compressed)
 }
 
 
+TEST(SAP_TestGroup, sap_handle_auth)
+{
+    struct aes67_sap_service sap;
+
+    aes67_sap_service_init(&sap, NULL);
+
+
+    uint8_t data[256];
+    uint16_t len;
+
+    sap_packet_t p1 = {
+            .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            PACKET_AUTH("1337cafe"),
+            .msg_id_hash = 1234,
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
+            PACKET_TYPE("application/sdp"),
+            PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
+    };
+    len = packet2mem(data, p1);
+
+
+    AUTH_OK();
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_TRUE(sap_event.isset);
+    CHECK_EQUAL(1, sap.no_of_ads);
+
+
+    // identical to p1 (except for auth data now no auth data given)
+    // ie, session MUST NOT be altered
+    sap_packet_t p2 = {
+            .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            PACKET_AUTH_NONE,
+            .msg_id_hash = 1234,
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
+            PACKET_TYPE("application/sdp"),
+            PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
+    };
+    len = packet2mem(data, p2);
+
+    AUTH_NOT_OK();
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_FALSE(sap_event.isset);
+    CHECK_EQUAL(1, sap.no_of_ads);
+
+
+
+    // trying unauthorized deletion of previously authenticated packet p1
+    sap_packet_t p3 = {
+            .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_DELETE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            PACKET_AUTH_NONE,
+            .msg_id_hash = 1234,
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
+            PACKET_TYPE("application/sdp"),
+            PACKET_DATA("o=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
+    };
+    len = packet2mem(data, p3);
+
+    AUTH_NOT_OK();
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_FALSE(sap_event.isset);
+    CHECK_EQUAL(1, sap.no_of_ads);
+
+
+    // trying unauthorized deletion of previously authenticated packet p1 (now with auth data)
+    sap_packet_t p4 = {
+            .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_DELETE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            PACKET_AUTH("deadbeef"),
+            .msg_id_hash = 1234,
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
+            PACKET_TYPE("application/sdp"),
+            PACKET_DATA("o=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
+    };
+    len = packet2mem(data, p4);
+
+    AUTH_NOT_OK();
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_FALSE(sap_event.isset);
+    CHECK_EQUAL(1, sap.no_of_ads);
+
+
+    // repeat but authorize message
+    AUTH_OK();
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_TRUE(sap_event.isset);
+    CHECK_EQUAL(0, sap.no_of_ads);
+
+
+    aes67_sap_service_deinit(&sap);
+}
+
+
+TEST(SAP_TestGroup, sap_handle_user_data)
+{
+    struct aes67_sap_service sap;
+
+    const uint8_t user_data[] = "This is userdata";
+
+    aes67_sap_service_init(&sap, (void*)user_data);
+
+    // make sure the auth
+    AUTH_OK();
+
+
+    uint8_t data[256];
+    uint16_t len;
+
+    sap_packet_t p1 = {
+            .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            .auth_len = 0,
+            .msg_id_hash = 1234,
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
+            PACKET_TYPE("application/sdp"),
+            PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
+    };
+    len = packet2mem(data, p1);
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_TRUE(sap_event.isset);
+    CHECK_EQUAL(user_data, sap_event.user_data);
+
+
+    aes67_sap_service_deinit(&sap);
+}
+
 TEST(SAP_TestGroup, sap_msg)
 {
     struct aes67_sap_service sap;
 
-    uint8_t data[256];
-    uint8_t sdp_data[256];
-    uint8_t origin_data[256];
-    uint16_t len, sdp_len, origin_len;
+    aes67_sap_service_init(&sap, NULL);
 
     struct aes67_sdp sdp = {
             .originator.username        = {0},
@@ -695,6 +852,11 @@ TEST(SAP_TestGroup, sap_msg)
             .originator.address_type    = aes67_net_ipver_4,
             .originator.address         = {8,"10.0.0.1"},
     };
+
+    uint8_t data[256];
+    uint8_t sdp_data[256];
+    uint8_t origin_data[256];
+    uint16_t len, sdp_len, origin_len;
 
     std::memset(sdp_data, 0, sizeof(sdp_data));
     sdp_len = aes67_sdp_tostr(sdp_data, sizeof(sdp_data), &sdp);
