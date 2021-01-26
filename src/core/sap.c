@@ -414,7 +414,7 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
 
     if ( (session == NULL) || session->authenticated == aes67_sap_auth_result_ok){
 
-        if (aes67_sap_auth_result_ok != aes67_sap_service_auth_validate(sap, msg, msglen)){
+        if (aes67_sap_auth_result_ok != aes67_sap_service_auth_validate(msg, msglen, sap->user_data)){
             return;
         }
     }
@@ -438,7 +438,7 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
 
 #endif
 
-        data = aes67_sap_zlib_decompress(sap, data, &datalen);
+        data = aes67_sap_zlib_decompress(data, &datalen, sap->user_data);
 
         // treat a NULL pointer as error
         if (data == NULL || datalen == 0){
@@ -636,7 +636,7 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
     // only compress when explicitly requested
     if ( (opt & AES67_SAP_STATUS_COMPRESSED_MASK) == AES67_SAP_STATUS_COMPRESSED_ZLIB ){
 
-        u16_t payloadlen = aes67_sap_zlib_compress(sap, &msg[headerlen], len - headerlen, maxlen - headerlen);
+        u16_t payloadlen = aes67_sap_zlib_compress(&msg[headerlen], len - headerlen, maxlen - headerlen, sap->user_data);
 
         // on error, abort
         if (payloadlen == 0){
@@ -655,7 +655,7 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
 #if AES67_SAP_AUTH_ENABLED == 1
 
     // if returns other value than 0 is an error
-    if (aes67_sap_service_auth_add(sap, msg, len, maxlen) != 0){
+    if (aes67_sap_service_auth_add(msg, len, maxlen, sap->user_data) != 0){
 
         // but we are ment to return the msglen, ie 0 indicates an error.
         return 0;

@@ -123,7 +123,7 @@ static enum aes67_sap_auth_result auth_result;
 #define AUTH_OK()   auth_result = aes67_sap_auth_result_ok
 #define AUTH_NOT_OK()   auth_result = aes67_sap_auth_result_not_ok
 
-enum aes67_sap_auth_result aes67_sap_service_auth_validate(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen)
+enum aes67_sap_auth_result aes67_sap_service_auth_validate(u8_t * msg, u16_t msglen, void * user_data)
 {
     return auth_result;
 }
@@ -140,12 +140,11 @@ enum aes67_sap_auth_result aes67_sap_service_auth_validate(struct aes67_sap_serv
 
 static u8_t auth_data[] = {0x13,0x37,0xba,0xbe};
 
-u8_t aes67_sap_service_auth_add(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen, u16_t maxlen)
+u8_t aes67_sap_service_auth_add(u8_t * msg, u16_t msglen, u16_t maxlen, void * user_data)
 {
     // the basic assumption of the auth data used here
     assert(sizeof(auth_data) % 4 == 0);
 
-    CHECK_TRUE(sap != nullptr);
     CHECK_TRUE(msg != nullptr);
 
     uint16_t doffset; // data offset
@@ -179,9 +178,8 @@ u8_t aes67_sap_service_auth_add(struct aes67_sap_service * sap, u8_t * msg, u16_
 
 static uint8_t * decompressed = nullptr;
 
-u8_t * aes67_sap_zlib_decompress(struct aes67_sap_service * sap, u8_t * payload, u16_t * payloadlen)
+u8_t * aes67_sap_zlib_decompress(u8_t * payload, u16_t * payloadlen, void * user_data)
 {
-    CHECK_TRUE(sap != nullptr);
     CHECK_TRUE(payload != nullptr);
     CHECK_TRUE(payloadlen != nullptr);
 
@@ -217,9 +215,8 @@ void aes67_sap_zlib_decompress_free(u8_t * payload)
 
 #if AES67_SAP_COMPRESS_ENABLED == 1
 
-u16_t aes67_sap_zlib_compress(struct aes67_sap_service * sap, u8_t * payload, u16_t payloadlen, u16_t maxlen)
+u16_t aes67_sap_zlib_compress(u8_t * payload, u16_t payloadlen, u16_t maxlen, void * user_data)
 {
-    CHECK_TRUE(sap != NULL);
     CHECK_TRUE(payload != NULL);
     CHECK_TRUE(payloadlen > 0);
 //    CHECK_TRUE(maxlen <= payloadlen);

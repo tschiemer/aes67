@@ -306,9 +306,10 @@ extern void aes67_sap_service_event(enum aes67_sap_event event, struct aes67_sap
  * @param sap
  * @param msg
  * @param msglen
- * @return          Wether the message contains valid authentication data (or does not contain validation data)
+ * @param user_data         As set in aes67_sap_service_init(..)
+ * @return                  Wether the message contains valid authentication data (or does not contain validation data)
  */
-extern enum aes67_sap_auth_result aes67_sap_service_auth_validate(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
+extern enum aes67_sap_auth_result aes67_sap_service_auth_validate(u8_t * msg, u16_t msglen, void * user_data);
 
 #endif //AES67_SAP_AUTH_ENABLED == 1
 
@@ -323,13 +324,13 @@ extern enum aes67_sap_auth_result aes67_sap_service_auth_validate(struct aes67_s
  * - inserting the authentication data between the header and the payload (ie, moving the payload accordingly)
  * - setting the <auth_len> header field correctly (from which the total msglen will be deduced)
  *
- * @param sap
  * @param msg
  * @param msglen
- * @param maxlen    The maximum msg length to be respected (ie msglen + length of auth data may not exceed this limit)
+ * @param maxlen        The maximum msg length to be respected (ie msglen + length of auth data may not exceed this limit)
+ * @param user_data     As set in aes67_sap_service_init(..)
  * @return  0 on success, error otherwise
  */
-extern u8_t aes67_sap_service_auth_add(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen, u16_t maxlen);
+extern u8_t aes67_sap_service_auth_add(u8_t * msg, u16_t msglen, u16_t maxlen, void * user_data);
 
 #endif //AES67_SAP_AUTH_SELF == 1
 
@@ -341,14 +342,14 @@ extern u8_t aes67_sap_service_auth_add(struct aes67_sap_service * sap, u8_t * ms
  *
  * NOTE in case function uses dynamic memory allocation, make sure to also implement aes67_sap_zlib_decompress_free()
  *
- * @param sap
  * @param payload       start of the data to decompress
  * @param payloadlen    length of the data to decompress (must be set by the function to reflect the decrompressed length)
+ * @param user_data     As set in aes67_sap_service_init(..)
  * @return
  *  - pointer to decompressed payload -> set payloadlen to decompressed payload length
  *  - NULL on error -> set payloadlen to 0
  */
-extern u8_t * aes67_sap_zlib_decompress(struct aes67_sap_service * sap, u8_t * payload, u16_t * payloadlen);
+extern u8_t * aes67_sap_zlib_decompress(u8_t * payload, u16_t * payloadlen, void * user_data);
 
 #ifndef aes67_sap_zlib_decompress_free
 extern void aes67_sap_zlib_decompress_free(u8_t * payload);
@@ -369,13 +370,13 @@ extern void aes67_sap_zlib_decompress_free(u8_t * payload);
  * standard considers compression a feature, but you know, skipping the implementation might be meaningful and if no
  * implementation actually uses compression there's no loss - but you never know!
  *
- * @param sap
  * @param payload       start of the data to compress
  * @param payloadlen    current length of the data to compress
  * @param maxlen        maximum length of available space for free use from start of data
+ * @param user_data     As set in aes67_sap_service_init(..)
  * @return  0 on error, (new) length of payload on success
  */
-extern u16_t aes67_sap_zlib_compress(struct aes67_sap_service * sap, u8_t * payload, u16_t payloadlen, u16_t maxlen);
+extern u16_t aes67_sap_zlib_compress(u8_t * payload, u16_t payloadlen, u16_t maxlen, void * user_data);
 
 #endif //AES67_SAP_COMPRESS_ENABLED == 1
 
