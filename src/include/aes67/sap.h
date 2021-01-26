@@ -121,6 +121,10 @@ enum aes67_sap_auth_result {
 
 #endif //AES67_SAP_AUTH_ENABLED
 
+/**
+ * Event trigger by message handler
+ * @see aes67_sap_service_event(..)
+ */
 enum aes67_sap_event {
     aes67_sap_event_new,
     aes67_sap_event_refreshed,
@@ -135,7 +139,9 @@ enum aes67_sap_event {
     (__e__) == aes67_sap_event_timeout \
 )
 
-
+/**
+ * Structure of internal session data
+ */
 struct aes67_sap_session {
     u16_t hash;
     struct aes67_net_addr src;
@@ -146,7 +152,7 @@ struct aes67_sap_session {
     enum aes67_sap_auth_result authenticated;
 #endif
 
-    void * data;
+    void * data; // optional user data
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
     struct aes67_sap_session * next;
@@ -154,17 +160,40 @@ struct aes67_sap_session {
 };
 
 
+/**
+ * Basic SAP service struct
+ */
 struct aes67_sap_service {
 
-    u16_t announcement_size; // ad_size (used for interval computation)
+    /**
+     * ad_size (used for interval computation)
+     */
+    u16_t announcement_size;
+
+    /**
+     * Timer functionality for approximating the next time to announce own packets
+     * (optionally used)
+     */
     struct aes67_timer announcement_timer;
 
+    /**
+     * Last computed timeout interval
+     * use aes67_sap_service_get_timeout_sec()
+     */
     u32_t timeout_interval;
+
+    /**
+     * Timer functionality for approximating the next time a session times out
+     */
     struct aes67_timer timeout_timer;
 
     void * user_data;
 
-    u16_t no_of_ads; // no_of_ads (used for interval computation)
+    /**
+     * Counter of active packets
+     * used for interval computation but also interesting otherwise
+     */
+    u16_t no_of_ads; //
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
     struct aes67_sap_session sessions[AES67_SAP_MEMORY_MAX_SESSIONS];
