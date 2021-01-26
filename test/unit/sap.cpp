@@ -80,6 +80,7 @@ static struct {
     u16_t payloadtypelen;
     u8_t * payload;
     u16_t payloadlen;
+    void * user_data;
 } sap_event;
 
 inline void sap_event_reset()
@@ -87,7 +88,7 @@ inline void sap_event_reset()
     sap_event.isset = false;
 }
 
-static void sap_event_callback(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen)
+void aes67_sap_service_event(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen, void * user_data)
 {
     CHECK_TRUE(AES67_SAP_EVENT_IS_VALID(event));
 //    CHECK_TRUE(session_data != nullptr); // this is actually not always the case (if we've run out of memory)
@@ -109,6 +110,8 @@ static void sap_event_callback(enum aes67_sap_event event, struct aes67_sap_sess
     sap_event.payloadtypelen = payloadtypelen;
     sap_event.payload = payload;
     sap_event.payloadlen = payloadlen;
+
+    sap_event.user_data = user_data;
 
     sap_event.isset = true;
 }
@@ -243,7 +246,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
     // make sure the auth
     AUTH_OK();
 
-    aes67_sap_service_init(&sap, sap_event_callback);
+    aes67_sap_service_init(&sap, NULL);
 
     // announce valid packet
 
@@ -353,7 +356,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     // make sure the auth
     AUTH_OK();
 
-    aes67_sap_service_init(&sap, sap_event_callback);
+    aes67_sap_service_init(&sap, NULL);
 
     // announce valid packet
     sap_packet_t p1 = {
@@ -512,7 +515,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     // make sure the auth
     AUTH_OK();
 
-    aes67_sap_service_init(&sap, sap_event_callback);
+    aes67_sap_service_init(&sap, NULL);
 
     // announce valid packet
 
@@ -646,7 +649,7 @@ TEST(SAP_TestGroup, sap_handle_compressed)
     // make sure the auth
     AUTH_OK();
 
-    aes67_sap_service_init(&sap, sap_event_callback);
+    aes67_sap_service_init(&sap, NULL);
 
     sap_packet_t p1 = {
             .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_ZLIB,

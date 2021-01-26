@@ -154,9 +154,6 @@ struct aes67_sap_session {
 };
 
 
-typedef void (*aes67_sap_event_callback)(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen);
-
-
 struct aes67_sap_service {
 
     u16_t announcement_size; // ad_size (used for interval computation)
@@ -165,7 +162,7 @@ struct aes67_sap_service {
     u32_t timeout_interval;
     struct aes67_timer timeout_timer;
 
-    aes67_sap_event_callback event_callback;
+    void * user_data;
 
     u16_t no_of_ads; // no_of_ads (used for interval computation)
 
@@ -180,10 +177,7 @@ struct aes67_sap_service {
 /**
  * Initializes service data
  */
-void aes67_sap_service_init(
-        struct aes67_sap_service * sap,
-        aes67_sap_event_callback event_callback
-);
+void aes67_sap_service_init(struct aes67_sap_service * sap, void * user_data);
 
 /**
  * Deinitalizes service data
@@ -238,6 +232,8 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
  */
 u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp);
 
+
+extern void aes67_sap_service_event(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen, void * user_data);
 
 #if AES67_SAP_AUTH_ENABLED == 1
 

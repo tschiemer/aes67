@@ -47,13 +47,18 @@ static void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t h
 
 
 
-void aes67_sap_service_init(
-        struct aes67_sap_service * sap,
-        aes67_sap_event_callback event_callback
-)
+void aes67_sap_service_init(struct aes67_sap_service * sap, void * user_data)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
-    AES67_ASSERT("event_callback != NULL", event_callback != NULL);
+
+    sap->user_data = user_data;
+
+    sap->announcement_size = 0;
+    sap->timeout_interval = 0;
+
+    // init timers
+    aes67_timer_init(&sap->announcement_timer);
+    aes67_timer_init(&sap->timeout_timer);
 
     sap->no_of_ads = 0;
 
@@ -62,15 +67,6 @@ void aes67_sap_service_init(
 #else
     sap->first_session = NULL;
 #endif
-
-    sap->event_callback = event_callback;
-
-    sap->announcement_size = 0;
-    sap->timeout_interval = 0;
-
-    // init timers
-    aes67_timer_init(&sap->announcement_timer);
-    aes67_timer_init(&sap->timeout_timer);
 }
 
 void aes67_sap_service_deinit(struct aes67_sap_service * sap)
@@ -316,10 +312,7 @@ void aes67_sap_service_timeout_clear(struct aes67_sap_service * sap)
 
             if (age > timeout_after){
 
-                if (sap->event_callback != NULL){
-
-                    sap->event_callback(aes67_sap_event_timeout, &sap->sessions[i], NULL, 0, NULL, 0);
-                }
+                aes67_sap_service_event(aes67_sap_event_timeout, &sap->sessions[i], NULL, 0, NULL, 0, sap->user_data);
 
                 session_unregister(sap, &sap->sessions[i]);
             }
@@ -336,10 +329,7 @@ void aes67_sap_service_timeout_clear(struct aes67_sap_service * sap)
 
         if (age > timeout_after){
 
-            if (sap->event_callback != NULL){
-
-                sap->event_callback(aes67_sap_event_timeout, current, NULL, 0, NULL, 0);
-            }
+            aes67_sap_service_event(aes67_sap_event_timeout, current, NULL, 0, NULL, 0, sap->user_data);
 
             session_unregister(current);
         }
@@ -521,7 +511,7 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
 
     // publish event
     // NOTE if we've run out of memory when adding new sessions, session will be NULL!
-    sap->event_callback(event, session, type, typelen, payload, payloadlen);
+    aes67_sap_service_event(event, session, type, typelen, payload, payloadlen, sap->user_data);
 
     // when deleting a session, do so after publishing the event to make the session data available for the callback
     if ( (msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_DELETE ){
