@@ -16,25 +16,71 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "aes67/host/timer.h"
+#include "timer.h"
+
+#include "time.h"
 
 #include <assert.h>
+#include <string.h>
+
+
+typedef struct {
+    aes67_timestamp_t started;
+    u32_t timeout_ms;
+} timer_info_t;
+
+uint32_t timer_gettimeout(struct aes67_timer *timer)
+{
+    return ((timer_info_t*)timer->impl)->timeout_ms;
+}
+
+void timer_expire( struct aes67_timer * timer )
+{
+    assert(timer != NULL);
+
+    timer->state = aes67_timer_state_expired;
+}
+
+void timer_check( struct aes67_timer * timer )
+{
+    assert(timer != NULL);
+
+    if (timer->state != aes67_timer_state_set){
+        return;
+    }
+
+    aes67_timestamp_t now;
+    aes67_timestamp_now( &now );
+
+    u32_t ms = ((timer_info_t*)timer->impl)->timeout_ms;
+
+    if (ms > aes67_timestamp_diffmsec(&((timer_info_t*)timer->impl)->started, &now))
+    {
+        timer->state = aes67_timer_state_expired;
+    }
+}
 
 void aes67_timer_init(struct aes67_timer * timer)
 {
     assert(timer != NULL);
 
     timer->state = aes67_timer_state_unset;
+
+    timer->impl = malloc(sizeof(timer_info_t));
+    memset(timer->impl, 0, sizeof(timer_info_t));
 }
 
-void aes67_timer_enable(struct aes67_timer * timer, u32_t millisec)
+void aes67_timer_set(struct aes67_timer * timer, u32_t millisec)
 {
     assert(timer != NULL);
 
     timer->state = aes67_timer_state_set;
+
+    ((timer_info_t*)timer->impl)->timeout_ms = millisec;
+    aes67_timestamp_now( &((timer_info_t*)timer->impl)->started );
 }
 
-void aes67_timer_disable(struct aes67_timer * timer)
+void aes67_timer_unset(struct aes67_timer * timer)
 {
     assert(timer != NULL);
 
@@ -46,4 +92,6 @@ void aes67_timer_deinit(struct aes67_timer * timer)
     assert(timer != NULL);
 
     timer->state = aes67_timer_state_unset;
+
+    free(timer->impl);
 }

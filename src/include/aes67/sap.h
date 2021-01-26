@@ -221,8 +221,24 @@ inline uint8_t aes67_sap_service_announcement_timer_expired(struct aes67_sap_ser
     return sap->announcement_timer.state == aes67_timer_state_expired;
 }
 
+
 /**
- * TODO static?
+ * Returns timeout duration in sec.
+ *
+ * @param sap
+ * @return
+ */
+inline u32_t aes67_sap_service_get_timeout_sec(struct aes67_sap_service * sap)
+{
+    // max(3600, 10 * ad_interval)
+    return 10 * (sap->timeout_interval > 360 ? sap->timeout_interval : 360);
+}
+
+/**
+ * Sets timeout timer to when first/next session will timeout.
+ *
+ * Relies on aes67_sap_service_get_timeout_sec().
+ * To be checked
  *
  * @param sap
  */

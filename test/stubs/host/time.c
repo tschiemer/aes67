@@ -16,23 +16,29 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "aes67/host/time.h"
+#include "time.h"
 
 #include <assert.h>
 
-static aes67_timestamp_t counter = 0;
+static aes67_timestamp_t counter_ms = 0;
+
+void time_add_now_ms(int32_t ms)
+{
+    counter_ms += ms;
+}
+
 
 void aes67_timestamp_now(aes67_timestamp_t * timestamp)
 {
     assert(timestamp != NULL);
 
-    *timestamp = ++counter;
+    *timestamp = ++counter_ms;
 }
 
-s32_t aes67_timestamp_diffsec(aes67_timestamp_t * lhs, aes67_timestamp_t * rhs)
+s32_t aes67_timestamp_diffmsec(aes67_timestamp_t * lhs, aes67_timestamp_t * rhs)
 {
     assert(lhs != NULL);
     assert(rhs != NULL);
 
-    return (s32_t)*rhs - (s32_t)*lhs;
+    return ((s32_t)*rhs - (s32_t)*lhs);
 }

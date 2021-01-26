@@ -73,6 +73,9 @@ void aes67_sap_service_deinit(struct aes67_sap_service * sap)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
 
+    aes67_timer_deinit(&sap->announcement_timer);
+    aes67_timer_deinit(&sap->timeout_timer);
+
 #if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
     struct aes67_sap_session * current = sap->first_session;
 
@@ -240,8 +243,9 @@ void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
     u32_t ms = aes67_sap_service_get_announcement_time_ms(sap);
 
     // actually set timer
-    aes67_timer_enable(&sap->announcement_timer, ms);
+    aes67_timer_set(&sap->announcement_timer, ms);
 }
+
 
 void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 {
@@ -252,7 +256,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
     aes67_timestamp_now(&now);
 
     // max(3600, 10 * ad_interval)
-    u32_t timeout_after = 10 * (sap->timeout_interval > 360 ? sap->timeout_interval : 360);
+    u32_t timeout_after = 1000 * aes67_sap_service_get_timeout_sec(sap);
 
     // get age of oldest announcement
     u32_t oldest = 0;
@@ -263,7 +267,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 
         if (sap->sessions[i].hash != 0){
 
-            u32_t age = aes67_timestamp_diffsec(&now, &sap->sessions[i].last_announcement);
+            u32_t age = aes67_timestamp_diffmsec(&now, &sap->sessions[i].last_announcement);
 
             if (age > oldest){
                 oldest = age;
@@ -271,7 +275,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
                 // in case there is at least one that has timed out already,
                 // set timer and stop further processing
                 if (oldest > timeout_after){
-                    aes67_timer_enable(&sap->timeout_timer, AES67_TIMER_NOW);
+                    aes67_timer_set(&sap->timeout_timer, AES67_TIMER_NOW);
 
                     return;
                 }
@@ -285,7 +289,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 
     for(;current != NULL; current = current->next){
 
-        u32_t age = aes67_timestamp_diffsec(&now, &current->last_announcement);
+        u32_t age = aes67_timestamp_diffmsec(&now, &current->last_announcement);
 
         if (age > oldest){
             oldest = age;
@@ -293,7 +297,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
             // in case there is at least one that has timed out already,
             // set timer and stop further processing
             if (oldest > timeout_after){
-                aes67_timer_enable(&sap->timeout_timer, AES67_TIMER_NOW);
+                aes67_timer_set(&sap->timeout_timer, AES67_TIMER_NOW);
 
                 return;
             }
@@ -302,7 +306,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 
 #endif
 
-    aes67_timer_enable(&sap->timeout_timer, (timeout_after - oldest + 1) *1000);
+    aes67_timer_set(&sap->timeout_timer, (timeout_after - oldest + 1) * 1000);
 }
 
 void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
@@ -314,7 +318,7 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
     aes67_timestamp_now(&now);
 
     // max(3600, 10 * ad_interval)
-    u32_t timeout_after = 10 * (sap->timeout_interval > 360 ? sap->timeout_interval : 360);
+    u32_t timeout_after = 1000 * aes67_sap_service_get_timeout_sec(sap);
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
 
@@ -322,9 +326,9 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
 
         if (sap->sessions[i].hash != 0){
 
-            u32_t age = aes67_timestamp_diffsec(&now, &sap->sessions[i].last_announcement);
+            u32_t age = aes67_timestamp_diffmsec(&sap->sessions[i].last_announcement, &now);
 
-            if (age > timeout_after){
+            if (timeout_after < age){
 
                 aes67_sap_service_event(aes67_sap_event_timeout, &sap->sessions[i], NULL, 0, NULL, 0, sap->user_data);
 
@@ -339,9 +343,9 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
 
     for(;current != NULL; current = current->next) {
 
-        u32_t age = aes67_timestamp_diffsec(&now, &current->last_announcement);
+        u32_t age = aes67_timestamp_diffmsec(&current->last_announcement, &now);
 
-        if (age > timeout_after){
+        if (timeout_after < age){
 
             aes67_sap_service_event(aes67_sap_event_timeout, current, NULL, 0, NULL, 0, sap->user_data);
 

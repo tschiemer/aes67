@@ -19,17 +19,21 @@
 #ifndef AES67_HOST_TIMER_H
 #define AES67_HOST_TIMER_H
 
-#define AES67_TIMER_NOW 0
-
 #include "aes67/arch.h"
 
+#define AES67_TIMER_NOW 0
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 enum aes67_timer_state {
-    aes67_timer_state_unset     = 0,
-    aes67_timer_state_set       = 1,
-    aes67_timer_state_expired   = 2
+    aes67_timer_state_unset = 0,
+    aes67_timer_state_set = 1,
+    aes67_timer_state_expired = 2
 };
 
-#define AES67_TIMER_IS_VALID( x ) ( \
+#define AES67_TIMER_IS_VALID(x) ( \
     (x) == aes67_timer_state_unset || \
     (x) == aes67_timer_state_set || \
     (x) == aes67_timer_state_expired \
@@ -38,16 +42,23 @@ enum aes67_timer_state {
 struct aes67_timer {
     enum aes67_timer_state state;
 
-    void * impl; // host implementation reference
+    void *impl; // host implementation reference
 };
 
-extern void aes67_timer_init(struct aes67_timer * timer);
+extern void aes67_timer_init(struct aes67_timer *timer);
+extern void aes67_timer_deinit(struct aes67_timer *timer);
 
-extern void aes67_timer_enable(struct aes67_timer * timer, u32_t millisec);
+extern void aes67_timer_set(struct aes67_timer *timer, u32_t millisec);
+extern void aes67_timer_unset(struct aes67_timer *timer);
 
-extern void aes67_timer_disable(struct aes67_timer * timer);
+inline enum aes67_timer_state aes67_timer_state(struct aes67_timer *timer)
+{
+    return timer->state;
+}
 
-extern void aes67_timer_deinit(struct aes67_timer * timer);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif //AES67_HOST_TIMER_H

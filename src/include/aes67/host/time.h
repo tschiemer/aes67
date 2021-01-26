@@ -21,10 +21,23 @@
 
 #include "aes67/arch.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef u32_t aes67_timestamp_t;
 
-extern void aes67_timestamp_now(aes67_timestamp_t * timestamp);
+extern void aes67_timestamp_now(aes67_timestamp_t *timestamp);
 
-extern s32_t aes67_timestamp_diffsec(aes67_timestamp_t * lhs, aes67_timestamp_t * rhs);
+extern s32_t aes67_timestamp_diffmsec(aes67_timestamp_t *lhs, aes67_timestamp_t *rhs);
+
+inline s32_t aes67_timestamp_diffsec(aes67_timestamp_t *lhs, aes67_timestamp_t *rhs)
+{
+    return aes67_timestamp_diffmsec(lhs, rhs) / 1000;
+}
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //AES67_HOST_TIME_H

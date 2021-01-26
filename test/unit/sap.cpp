@@ -20,8 +20,10 @@
 
 #include "aes67/sap.h"
 
+#include "stubs/host/time.h"
+#include "stubs/host/timer.h"
 #include <string>
-#include <arpa/inet.h>
+
 
 typedef struct {
     uint8_t status;
@@ -946,6 +948,244 @@ TEST(SAP_TestGroup, sap_msg)
     STRCMP_EQUAL(AES67_SDP_MIMETYPE, (const char *)&data[pos]);
 
     MEMCMP_EQUAL(&data[pos + sizeof(AES67_SDP_MIMETYPE)], origin_data, origin_len);
+
+
+    aes67_sap_service_deinit(&sap);
+}
+
+
+TEST(SAP_TestGroup, sap_announcement_timer)
+{
+    struct aes67_sap_service sap;
+
+    aes67_sap_service_init(&sap, gl_user_data);
+
+    CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
+    CHECK_EQUAL(0, aes67_sap_service_get_announcement_time_ms(&sap));
+    CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
+
+    // this should trigger the timer to be called as soon as possible.
+    aes67_sap_service_set_announcement_timer(&sap);
+
+    CHECK_EQUAL(aes67_timer_state_set, aes67_timer_state(&sap.announcement_timer));
+    CHECK_EQUAL(AES67_TIMER_NOW , timer_gettimeout(&sap.announcement_timer));
+
+    // ASYNC expire timer
+    timer_expire(&sap.announcement_timer);
+
+    CHECK_TRUE(aes67_sap_service_announcement_timer_expired(&sap));
+
+    // clear timer -> now we would sent a timer
+    aes67_timer_unset(&sap.announcement_timer);
+
+    CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
+
+
+    struct aes67_sdp sdp = {
+            .originator.username        = {0},
+            .originator.session_id      = {1, "1"},
+            .originator.session_version = {1, "2"},
+            .originator.address_type    = aes67_net_ipver_4,
+            .originator.address         = {8,"10.0.0.1"},
+    };
+
+    uint8_t data[256];
+    uint16_t len;
+
+    sap_packet_t p1 = {
+            .status = AES67_SAP_STATUS_MSGTYPE_ANNOUNCE,
+            .msg_id_hash = 1234,
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5,6,7,8}
+            }
+    };
+
+    std::memset(data, 0, sizeof(data));
+    len = aes67_sap_service_msg(&sap, data, sizeof(data), p1.status, p1.msg_id_hash, &p1.ip,  &sdp);
+
+    CHECK_EQUAL(len, sap.announcement_size);
+
+    CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
+
+    // the module assumes a packet is sent after creating it
+    // thus the announcement time has changed.
+    CHECK_COMPARE(0, <, aes67_sap_service_get_announcement_time_ms(&sap));
+
+    // this should trigger the timer to be called as soon as possible.
+    aes67_sap_service_set_announcement_timer(&sap);
+
+    CHECK_EQUAL(aes67_timer_state_set, aes67_timer_state(&sap.announcement_timer));
+    CHECK_COMPARE(0 , <, timer_gettimeout(&sap.announcement_timer));
+
+    CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
+
+
+    aes67_sap_service_deinit(&sap);
+}
+
+
+TEST(SAP_TestGroup, sap_timeouts)
+{
+    struct aes67_sap_service sap;
+
+    aes67_sap_service_init(&sap, gl_user_data);
+
+    // make sure to authenticate all messages
+    AUTH_OK();
+
+
+    CHECK_COMPARE(0, <, aes67_sap_service_get_timeout_sec(&sap));
+    CHECK_FALSE(aes67_sap_service_timeout_timer_expired(&sap));
+
+
+    uint8_t data[256];
+    uint16_t len;
+
+    sap_packet_t p1 = {
+            .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            PACKET_AUTH_NONE,
+            .msg_id_hash = 1234,
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
+            PACKET_TYPE("application/sdp"),
+            PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
+    };
+    len = packet2mem(data, p1);
+
+    aes67_timestamp_t t1b, t1a; // before/after timestamps
+    aes67_timestamp_now(&t1b);
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    aes67_timestamp_now(&t1a);
+
+    CHECK_TRUE(sap_event.isset);
+    CHECK_EQUAL(1, sap.no_of_ads);
+    // t1a < p1.last_announcement < t1b
+    CHECK_COMPARE(0, <, aes67_timestamp_diffmsec(&t1b, &sap_event.session_data.last_announcement));
+    CHECK_COMPARE(0, <, aes67_timestamp_diffmsec(&sap_event.session_data.last_announcement, &t1a));
+
+    sap_packet_t p2 = {
+            .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
+            PACKET_AUTH_NONE,
+            .msg_id_hash = 12345, // another hash!
+            .ip = {
+                    .ipver = aes67_net_ipver_4,
+                    .addr = {5, 6, 7, 8},
+            },
+            PACKET_TYPE("application/sdp"),
+            PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
+    };
+    len = packet2mem(data, p2);
+
+    aes67_timestamp_t t2b, t2a; // before/after timestamps
+    aes67_timestamp_now(&t2b);
+
+    sap_event_reset();
+    aes67_sap_service_handle(&sap, data, len);
+
+    aes67_timestamp_now(&t2a);
+
+    CHECK_TRUE(sap_event.isset);
+    CHECK_EQUAL(2, sap.no_of_ads);
+
+    // t1b < t2b < p2.last_announcement < t2a
+    CHECK_COMPARE(0, <, aes67_timestamp_diffmsec(&t1a, &t2b));
+    CHECK_COMPARE(0, <, aes67_timestamp_diffmsec(&t2b, &sap_event.session_data.last_announcement));
+    CHECK_COMPARE(0, <, aes67_timestamp_diffmsec(&sap_event.session_data.last_announcement, &t2a));
+
+
+    u32_t timeout_sec = aes67_sap_service_get_timeout_sec(&sap);
+
+    CHECK_FALSE(aes67_sap_service_timeout_timer_expired(&sap));
+
+    aes67_sap_service_set_timeout_timer(&sap);
+
+    // this should not fail (depends on timer implementation)
+    CHECK_FALSE(aes67_sap_service_timeout_timer_expired(&sap));
+
+    // try to clean up timeouts (timeout should not have happened yet)
+    sap_event_reset();
+    aes67_sap_service_timeouts_cleanup(&sap);
+
+    CHECK_FALSE(aes67_sap_service_timeout_timer_expired(&sap));
+    CHECK_FALSE(sap_event.isset);
+    CHECK_EQUAL(2, sap.no_of_ads);
+
+    // let time go beyond timeout
+    timeout_sec = aes67_sap_service_get_timeout_sec(&sap);
+    time_add_now_ms(1000*timeout_sec);
+    timer_expire(&sap.timeout_timer);
+
+    CHECK_TRUE(aes67_sap_service_timeout_timer_expired(&sap));
+
+    sap_event_reset();
+    aes67_sap_service_timeouts_cleanup(&sap);
+
+    CHECK_TRUE(sap_event.isset);
+    CHECK_EQUAL( 0, sap.no_of_ads);
+    CHECK_EQUAL(aes67_sap_event_timeout, sap_event.event);
+
+
+
+    // now let's add two packets, and timeout only one thereof
+
+    len = packet2mem(data, p1);
+    aes67_sap_service_handle(&sap, data, len);
+
+    // step half a timeout into the future
+    timeout_sec = aes67_sap_service_get_timeout_sec(&sap);
+    time_add_now_ms(500*timeout_sec);
+
+    CHECK_EQUAL(1, sap.no_of_ads);
+
+    len = packet2mem(data, p2);
+    aes67_sap_service_handle(&sap, data, len);
+
+    CHECK_EQUAL(2, sap.no_of_ads);
+
+    sap_event_reset();
+    aes67_sap_service_timeouts_cleanup(&sap);
+
+    CHECK_FALSE(sap_event.isset);
+    CHECK_EQUAL(2, sap.no_of_ads);
+
+    // step another half a timeout into the future
+    timeout_sec = aes67_sap_service_get_timeout_sec(&sap);
+    time_add_now_ms(500*timeout_sec);
+
+    // and
+    sap_event_reset();
+    aes67_sap_service_timeouts_cleanup(&sap);
+
+    CHECK_TRUE(sap_event.isset);
+    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(aes67_sap_event_timeout, sap_event.event);
+    CHECK_EQUAL(p1.msg_id_hash, sap_event.session_data.hash);
+    CHECK_EQUAL(p1.ip.ipver, sap_event.session_data.src.ipver);
+    MEMCMP_EQUAL(p1.ip.addr, sap_event.session_data.src.addr, p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
+
+
+    // step another half a timeout into the future
+    timeout_sec = aes67_sap_service_get_timeout_sec(&sap);
+    time_add_now_ms(500*timeout_sec);
+
+    // and
+    sap_event_reset();
+    aes67_sap_service_timeouts_cleanup(&sap);
+
+    CHECK_TRUE(sap_event.isset);
+    CHECK_EQUAL(0, sap.no_of_ads);
+    CHECK_EQUAL(aes67_sap_event_timeout, sap_event.event);
+    CHECK_EQUAL(p2.msg_id_hash, sap_event.session_data.hash);
+    CHECK_EQUAL(p2.ip.ipver, sap_event.session_data.src.ipver);
+    MEMCMP_EQUAL(p2.ip.addr, sap_event.session_data.src.addr, p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
+
+
 
 
     aes67_sap_service_deinit(&sap);
