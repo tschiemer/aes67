@@ -15,16 +15,18 @@ https://github.com/tschiemer/aes67
   - [ ] PTPv2 / IEEE1558-2008 ? (as per AES67-2018)
   - [ ] PTPv2.1 / IEEE1558-2019 ??
 - Discovery & | Management
-  - [ ] SAP (required for interoperability)
+  - [ ] SAP (required for broader interoperability)
     - [ ] Support compression (of incoming packets)?
   - [ ] SIP ? (for unicast management according to standard, but most systems use multicast only..)
     - [x] [mDNS / DNS-SD](https://github.com/tschiemer/minimr)
-  - [ ] RSTP ?
+  - [ ] RSTP ? (meaningful for system with Ravenna-based components if no RAV2SAP)
   - [ ] [AES70/OCA](https://github.com/tschiemer/ocac) *work in progress*
 - Stream
   - [ ] RTP/RTCP
 
 - command line / developer utilities
+
+
 
 ## In a Nutshell
 
@@ -32,8 +34,8 @@ https://github.com/tschiemer/aes67
 
 Discovery and management approaches are generally not needed - but require other (ie manual) configuration. For ease of integration such methods are generally recommended and thus considered within this framework.
 
-Joining of multicast session essentially requires but the joining of respective multicast group.
-Setting up a unicast session requires cooperation of the partners, ie some form of control protocol.
+Joining of multicast session_data essentially requires but the joining of respective multicast group.
+Setting up a unicast session_data requires cooperation of the partners, ie some form of control protocol.
 Seemingly unicast sessions are barely in use (see [wikipedia](https://en.wikipedia.org/wiki/AES67#Adoption)).
 
 
@@ -51,7 +53,16 @@ Not mentioned, but seemingly also used in distributed products (according to [wi
 
 As discussed elsewhere AES70 - a rather young discovery and control standard of networked audio devices - is suggested as a promising solution.
 
-For broad integration SAP seems like a general requirement for any device. SIP may be considered for management of unicast streams but it is not only barely adopted, as an (somewhat elaborate) additional service it only provides connection management. Thus, it is (generally) proposed to use AES70 for discovery and management, in particular because the standard is a collaborative effort and provides several meaningful features out of the box (although it is somewhat complex) beyond discovery and stream management.
+*Conclusion*
+
+For broad integration SAP seems like a general requirement for any device.
+
+Further it is (generally) proposed to use AES70 for discovery and management, in particular because the standard is a collaborative effort and provides several meaningful features out of the box (although it is somewhat complex) beyond discovery and stream management.
+
+SIP may be considered (in the future) for management of unicast streams but it is not only barely adopted, as an (somewhat elaborate) additional service it only provides connection management.
+
+RTSP may be considered (in the future) for management of unicast streams aswell as service discovery of Ravenna streams.
+
 
 
 ## References
