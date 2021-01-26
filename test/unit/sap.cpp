@@ -41,6 +41,8 @@ typedef struct {
 #define PACKET_TYPE_NONE    .typelen = 0
 #define PACKET_DATA(str)    .data = str, .datalen = sizeof(str) - 1
 
+static uint8_t gl_user_data[] = "this is userdata";
+
 static u16_t packet2mem(uint8_t data[], sap_packet_t & packet);
 
 u16_t packet2mem(uint8_t data[], sap_packet_t & packet)
@@ -98,6 +100,7 @@ void aes67_sap_service_event(enum aes67_sap_event event, struct aes67_sap_sessio
 //    CHECK_TRUE(session_data != nullptr); // this is actually not always the case (if we've run out of memory)
     CHECK_TRUE(payloadtypelen > 0 || payloadtype == nullptr);
     CHECK_TRUE(payloadlen > 0 || payload == nullptr);
+    CHECK_EQUAL(gl_user_data, user_data);
 
     sap_event.event = event;
 
@@ -129,6 +132,8 @@ static enum aes67_sap_auth_result auth_result;
 
 enum aes67_sap_auth_result aes67_sap_service_auth_validate(u8_t * msg, u16_t msglen, void * user_data)
 {
+    CHECK_EQUAL(gl_user_data, user_data);
+
     return auth_result;
 }
 
@@ -146,6 +151,8 @@ static u8_t auth_data[] = {0x13,0x37,0xba,0xbe};
 
 u8_t aes67_sap_service_auth_add(u8_t * msg, u16_t msglen, u16_t maxlen, void * user_data)
 {
+    CHECK_EQUAL(gl_user_data, user_data);
+
     // the basic assumption of the auth data used here
     assert(sizeof(auth_data) % 4 == 0);
 
@@ -186,6 +193,7 @@ u8_t * aes67_sap_zlib_decompress(u8_t * payload, u16_t * payloadlen, void * user
 {
     CHECK_TRUE(payload != nullptr);
     CHECK_TRUE(payloadlen != nullptr);
+    CHECK_EQUAL(gl_user_data, user_data);
 
     // make sure the allocated memory pointer is always unoccupied (otherwise there is a leak problem)
     CHECK_TRUE(decompressed == nullptr);
@@ -247,7 +255,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
     // make sure the auth
     AUTH_OK();
 
-    aes67_sap_service_init(&sap, NULL);
+    aes67_sap_service_init(&sap, gl_user_data);
 
     // announce valid packet
 
@@ -357,7 +365,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     // make sure the auth
     AUTH_OK();
 
-    aes67_sap_service_init(&sap, NULL);
+    aes67_sap_service_init(&sap, gl_user_data);
 
     // announce valid packet
     sap_packet_t p1 = {
@@ -516,7 +524,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     // make sure the auth
     AUTH_OK();
 
-    aes67_sap_service_init(&sap, NULL);
+    aes67_sap_service_init(&sap, gl_user_data);
 
     // announce valid packet
 
@@ -650,7 +658,7 @@ TEST(SAP_TestGroup, sap_handle_compressed)
     // make sure the auth
     AUTH_OK();
 
-    aes67_sap_service_init(&sap, NULL);
+    aes67_sap_service_init(&sap, gl_user_data);
 
     sap_packet_t p1 = {
             .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_ZLIB,
@@ -687,7 +695,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
 {
     struct aes67_sap_service sap;
 
-    aes67_sap_service_init(&sap, NULL);
+    aes67_sap_service_init(&sap, gl_user_data);
 
 
     uint8_t data[256];
@@ -801,49 +809,11 @@ TEST(SAP_TestGroup, sap_handle_auth)
 }
 
 
-TEST(SAP_TestGroup, sap_handle_user_data)
-{
-    struct aes67_sap_service sap;
-
-    const uint8_t user_data[] = "This is userdata";
-
-    aes67_sap_service_init(&sap, (void*)user_data);
-
-    // make sure the auth
-    AUTH_OK();
-
-
-    uint8_t data[256];
-    uint16_t len;
-
-    sap_packet_t p1 = {
-            .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
-            .auth_len = 0,
-            .msg_id_hash = 1234,
-            .ip = {
-                    .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
-            },
-            PACKET_TYPE("application/sdp"),
-            PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
-    };
-    len = packet2mem(data, p1);
-
-    sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
-
-    CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL(user_data, sap_event.user_data);
-
-
-    aes67_sap_service_deinit(&sap);
-}
-
 TEST(SAP_TestGroup, sap_msg)
 {
     struct aes67_sap_service sap;
 
-    aes67_sap_service_init(&sap, NULL);
+    aes67_sap_service_init(&sap, gl_user_data);
 
     struct aes67_sdp sdp = {
             .originator.username        = {0},
