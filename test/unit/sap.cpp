@@ -274,7 +274,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
     CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
     CHECK_TRUE( sap_event.session_data == NULL );
 #else
@@ -298,7 +298,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
     CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
     CHECK_TRUE( sap_event.session_data == NULL );
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
@@ -333,7 +333,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
     CHECK_EQUAL(p2.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p2.data, sap_event.payload, p2.datalen);
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_TRUE( sap_event.session_data == NULL );
 #else
     CHECK_TRUE( sap_event.session_ptr != NULL );
@@ -382,7 +382,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
     CHECK_TRUE( sap_event.session_data == NULL );
 #else
@@ -405,7 +405,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     CHECK_EQUAL(p1.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p1.data, sap_event.payload, p1.datalen);
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
     CHECK_TRUE( sap_event.session_data == NULL );
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
@@ -440,7 +440,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     CHECK_EQUAL(p2.datalen, sap_event.payloadlen);
     MEMCMP_EQUAL(p2.data, sap_event.payload, p2.datalen);
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_TRUE( sap_event.session_data == NULL );
 #else
     CHECK_TRUE( sap_event.session_ptr != NULL );
@@ -534,7 +534,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     CHECK_EQUAL(0, sap.no_of_ads);
 
     // fill pool with quasi-identical session_data (hashes 1 - POOL_SIZE)
-    for(int i = 0; i < AES67_SAP_MEMORY_POOL_SIZE; i++){
+    for(int i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
         p1.msg_id_hash++; // change hash
         len = packet2mem(data, p1);
 
@@ -546,7 +546,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
         CHECK_EQUAL(i+1, sap.no_of_ads);
     }
 
-    CHECK_EQUAL(AES67_SAP_MEMORY_POOL_SIZE, sap.no_of_ads);
+    CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads);
 
     // send another (unique) announce message
     p1.msg_id_hash++;
@@ -556,7 +556,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     aes67_sap_service_handle(&sap, data, len);
 
     CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL(AES67_SAP_MEMORY_POOL_SIZE, sap.no_of_ads);
+    CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
     CHECK_TRUE( sap_event.session_ptr == NULL);
 
@@ -565,7 +565,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     aes67_sap_service_handle(&sap, data, len);
 
     CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL(AES67_SAP_MEMORY_POOL_SIZE, sap.no_of_ads);
+    CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event); // note: event != refreshed
     CHECK_TRUE( sap_event.session_ptr == NULL );
 
@@ -584,7 +584,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
 
 
     // empty pool with quasi-identical session_data (hashes 1 - POOL_SIZE)
-    for(int i = 0; i < AES67_SAP_MEMORY_POOL_SIZE; i++){
+    for(int i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
         p2.msg_id_hash++; // change hash
         len = packet2mem(data, p2);
 
@@ -592,7 +592,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
         aes67_sap_service_handle(&sap, data, len);
 
         CHECK_TRUE(sap_event.isset);
-        CHECK_EQUAL(AES67_SAP_MEMORY_POOL_SIZE-i-1, sap.no_of_ads);
+        CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS-i-1, sap.no_of_ads);
         CHECK_TRUE( sap_event.session_ptr != NULL );
     }
 
@@ -607,7 +607,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
-#if AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
     CHECK_TRUE( sap_event.session_data == NULL );
 #else
@@ -624,7 +624,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     aes67_sap_service_handle(&sap, data, len);
 
     CHECK_TRUE(sap_event.isset);
-#if AES67_SAP_MEMORY_POOL_SIZE == 0
+#if AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
     CHECK_TRUE( sap_event.session_data == NULL );
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);

@@ -96,7 +96,7 @@ struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap
     AES67_ASSERT("ip != NULL", ip != NULL);
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
-    for(u16_t i = 0; i < AES67_SAP_MEMORY_POOL_SIZE; i++){
+    for(u16_t i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
         if (sap->sessions[i].hash == hash && sap->sessions[i].src.ipver == ipver && 0 == aes67_memcmp(sap->sessions[i].src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16))){
             return &sap->sessions[i];
         }
@@ -123,14 +123,14 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
 
-    for(u16_t i = 0; i < AES67_SAP_MEMORY_POOL_SIZE; i++){
+    for(u16_t i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
         if (sap->sessions[i].hash == 0){
             sap->sessions[i].hash = hash;
             sap->sessions[i].src.ipver = ipver;
             aes67_memcpy(sap->sessions[i].src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16));
 
             // never let overflow
-            if (sap->no_of_ads < AES67_SAP_MEMORY_POOL_SIZE){
+            if (sap->no_of_ads < AES67_SAP_MEMORY_MAX_SESSIONS){
                 sap->no_of_ads++;
             }
 
@@ -143,6 +143,13 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
     return NULL;
 
 #else //AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+
+    if (sap->no_of_ads >= AES67_SAP_MEMORY_MAX_SESSIONS){
+
+        // TODO we've run out of (allowed) memory
+
+        return NULL;
+    }
 
     struct aes67_sap_session * session = (struct aes67_sap_session *)AES67_SAP_CALLOC(sizeof(struct aes67_sap_session));
 
@@ -196,15 +203,14 @@ void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, en
     session_unregister(sap, session);
 }
 
-void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
+u32_t aes67_sap_service_get_announcement_time_ms(struct aes67_sap_service * sap)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
 
     // if no message was generated, then no message has yet been sent
     // set timer to trigger next possible time.
     if (sap->announcement_size == 0){
-        aes67_timer_enable(&sap->announcement_timer, AES67_TIMER_NOW);
-        return;
+        return AES67_TIMER_NOW;
     }
 
     s32_t no_of_ads = sap->no_of_ads;
@@ -222,11 +228,19 @@ void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
 
     u32_t next_tx = interval_sec + offset_sec;
 
-    // remember the timeout interval
+    // remember the timeout interval (as used in time out computations)
     sap->timeout_interval = interval_sec;
 
+    return next_tx * 1000;
+}
+
+
+void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
+{
+    u32_t ms = aes67_sap_service_get_announcement_time_ms(sap);
+
     // actually set timer
-    aes67_timer_enable(&sap->announcement_timer, next_tx * 1000);
+    aes67_timer_enable(&sap->announcement_timer, ms);
 }
 
 void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
@@ -245,7 +259,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
 
-    for(u16_t i = 0; i < AES67_SAP_MEMORY_POOL_SIZE; i++){
+    for(u16_t i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
 
         if (sap->sessions[i].hash != 0){
 
@@ -291,7 +305,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
     aes67_timer_enable(&sap->timeout_timer, (timeout_after - oldest + 1) *1000);
 }
 
-void aes67_sap_service_timeout_clear(struct aes67_sap_service * sap)
+void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
 
@@ -304,7 +318,7 @@ void aes67_sap_service_timeout_clear(struct aes67_sap_service * sap)
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
 
-    for(u16_t i = 0; i < AES67_SAP_MEMORY_POOL_SIZE; i++){
+    for(u16_t i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
 
         if (sap->sessions[i].hash != 0){
 

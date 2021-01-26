@@ -167,7 +167,7 @@ struct aes67_sap_service {
     u16_t no_of_ads; // no_of_ads (used for interval computation)
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
-    struct aes67_sap_session sessions[AES67_SAP_MEMORY_POOL_SIZE];
+    struct aes67_sap_session sessions[AES67_SAP_MEMORY_MAX_SESSIONS];
 #else
     struct aes67_sap_session * first_session; // first session of linked list
 #endif
@@ -176,20 +176,34 @@ struct aes67_sap_service {
 
 /**
  * Initializes service data
+ *
+ * @param sap
  */
 void aes67_sap_service_init(struct aes67_sap_service * sap, void * user_data);
 
 /**
  * Deinitalizes service data
+ *
+ * @param sap
  */
 void aes67_sap_service_deinit(struct aes67_sap_service * sap);
 
 
+/**
+ * Computes the announcement time in millisec when the next announcement should occur, roughly respecting bandwidth
+ * restrictions.
+ *
+ * NOTE: sets timeout_interval as used in aes67_sap_service_set_timeout_timer() et al
+ *
+ * @param sap
+ * @return
+ */
+u32_t aes67_sap_service_get_announcement_time_ms(struct aes67_sap_service * sap);
 
 /**
  * Sets and enables announcement timer to trigger when next announcement can/should be sent.
  *
- * TODO static?
+ * @param sap
  */
 void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap);
 
@@ -198,14 +212,19 @@ void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap);
  *
  * Assumes the announcement timer was triggered.
  * (Comfort) function does not have to be used, but rather can if timer handler does not already handle everything.
+ *
+ * @param sap
+ * @return true iff announcement may/should occur now
  */
-inline uint8_t aes67_sap_service_announce_now(struct aes67_sap_service * sap)
+inline uint8_t aes67_sap_service_announcement_timer_expired(struct aes67_sap_service * sap)
 {
     return sap->announcement_timer.state == aes67_timer_state_expired;
 }
 
 /**
  * TODO static?
+ *
+ * @param sap
  */
 void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap);
 
@@ -213,26 +232,62 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap);
  * Query wether at least one registered session has (or should have) timed out.
  *
  * (Comfort) function does not have to be used, but rather can if timer handler does not already handle everything.
+ *
+ * @param sap
+ * @return true iff the timeout timer expired
  */
-inline uint8_t aes67_sap_service_timeout_now(struct aes67_sap_service * sap)
+inline uint8_t aes67_sap_service_timeout_timer_expired(struct aes67_sap_service * sap)
 {
     return sap->timeout_timer.state == aes67_timer_state_expired;
 }
 
-void aes67_sap_service_timeout_clear(struct aes67_sap_service * sap);
+/**
+ * Deletes timed out sessions
+ *
+ * Calls aes67_sap_service_event(..) with the timeout event.
+ *
+ * @param sap
+ */
+void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap);
 
 /**
  * Handles incoming SAP message and triggers event callback accordingly.
+ *
+ * @param sap
+ * @param msg
+ * @param msglen
  */
 void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
 
 /**
  * Generates an SAP packet according to arguments.
  * To be sent by external methods.
+ *
+ * @param sap
+ * @param msg       buffer to write to
+ * @param maxlen    maxlen of buffer msg
+ * @param opt       SAP status byte options. only accepts:
+ *                      AES67_SAP_STATUS_MSGTYPE_ANNOUNCE
+ *                      AES67_SAP_STATUS_MSGTYPE_DELETE
+ *                      AES67_SAP_STATUS_COMPRESSED_ZLIB (iff compression available)
+ *                      AES67_SAP_STATUS_COMPRESSED_NONE
+ * @param hash      session identifier (SHOULD be unique in combination with originating source/ip)
+ * @param ip        ipv4/ipv6 to use as originating source
+ * @param sdp       SDP data to add to packet
  */
 u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp);
 
 
+/**
+ *
+ * @param event
+ * @param session
+ * @param payloadtype       Payload type string if given. Will ALWAYS be NULL iff the payload type is "application/sdp"
+ * @param payloadtypelen    Length of payload type string if given. Will ALWAYS be 0 iff the payload type is "application/sdp".
+ * @param payload
+ * @param payloadlen
+ * @param user_data         As set in aes67_sap_service_init(..)
+ */
 extern void aes67_sap_service_event(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen, void * user_data);
 
 #if AES67_SAP_AUTH_ENABLED == 1
@@ -247,6 +302,11 @@ extern void aes67_sap_service_event(enum aes67_sap_event event, struct aes67_sap
  * Attackers could flood the device with enough SAP announcements as to fill up the (limited) session memory BEFORE any
  * actually authenticated messages are received, thus the session would not be remembered as to having been authenticated.
  * Following up, attackers might change set up and authenticated sessions by simply leaving out authentication data.
+ *
+ * @param sap
+ * @param msg
+ * @param msglen
+ * @return          Wether the message contains valid authentication data (or does not contain validation data)
  */
 extern enum aes67_sap_auth_result aes67_sap_service_auth_validate(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
 
@@ -263,7 +323,11 @@ extern enum aes67_sap_auth_result aes67_sap_service_auth_validate(struct aes67_s
  * - inserting the authentication data between the header and the payload (ie, moving the payload accordingly)
  * - setting the <auth_len> header field correctly (from which the total msglen will be deduced)
  *
- * Return value: 0 on success, error otherwise
+ * @param sap
+ * @param msg
+ * @param msglen
+ * @param maxlen    The maximum msg length to be respected (ie msglen + length of auth data may not exceed this limit)
+ * @return  0 on success, error otherwise
  */
 extern u8_t aes67_sap_service_auth_add(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen, u16_t maxlen);
 
@@ -277,7 +341,10 @@ extern u8_t aes67_sap_service_auth_add(struct aes67_sap_service * sap, u8_t * ms
  *
  * NOTE in case function uses dynamic memory allocation, make sure to also implement aes67_sap_zlib_decompress_free()
  *
- * Return value:
+ * @param sap
+ * @param payload       start of the data to decompress
+ * @param payloadlen    length of the data to decompress (must be set by the function to reflect the decrompressed length)
+ * @return
  *  - pointer to decompressed payload -> set payloadlen to decompressed payload length
  *  - NULL on error -> set payloadlen to 0
  */
@@ -302,7 +369,11 @@ extern void aes67_sap_zlib_decompress_free(u8_t * payload);
  * standard considers compression a feature, but you know, skipping the implementation might be meaningful and if no
  * implementation actually uses compression there's no loss - but you never know!
  *
- * Return value: 0 on error, (new) length of payload on success
+ * @param sap
+ * @param payload       start of the data to compress
+ * @param payloadlen    current length of the data to compress
+ * @param maxlen        maximum length of available space for free use from start of data
+ * @return  0 on error, (new) length of payload on success
  */
 extern u16_t aes67_sap_zlib_compress(struct aes67_sap_service * sap, u8_t * payload, u16_t payloadlen, u16_t maxlen);
 
