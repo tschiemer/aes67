@@ -238,7 +238,8 @@ inline u32_t aes67_sap_service_get_timeout_sec(struct aes67_sap_service * sap)
  * Sets timeout timer to when first/next session will timeout.
  *
  * Relies on aes67_sap_service_get_timeout_sec().
- * To be checked
+ * Note: Does NOT set timeout timer if there are not ads registered
+ * Suggestion: could be called after a new/refreshed event
  *
  * @param sap
  */

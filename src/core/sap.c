@@ -251,6 +251,11 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
 
+    // do NOT set timer if there are not sessions registered in the first place
+    if (sap->no_of_ads == 0) {
+        return;
+    }
+
     aes67_timestamp_t now;
 
     aes67_timestamp_now(&now);
@@ -546,6 +551,16 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
     }
 
 #endif //AES67_SAP_DECOMPRESS_AVAILABLE == 1
+
+    // Note: we could update the timeout timer here accordingly, but let's not do this here but expect any implementation
+    // to do this otherwise.
+//    if ( sap->timeout_timer.state == aes67_timer_state_set){
+//        if (sap->no_of_ads){
+//            aes67_timer_unset(&sap->timeout_timer);
+//        } else {
+//            // hmm
+//        }
+//    }
 }
 
 
