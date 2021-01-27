@@ -246,6 +246,11 @@ void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
     aes67_timer_set(&sap->announcement_timer, ms);
 }
 
+u32_t aes67_sap_service_get_timeout_sec(struct aes67_sap_service * sap)
+{
+    // max(3600, 10 * ad_interval)
+    return 10 * (sap->timeout_interval > 360 ? sap->timeout_interval : 360);
+}
 
 void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 {
@@ -444,10 +449,9 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
         // discard message - it is compressed but there's no decompression available
         return;
 #else // AES67_SAP_DECOMPRESS_AVAILABLE == 1
-
+        data = aes67_sap_zlib_decompress(data, &datalen, sap->user_data);
 #endif
 
-        data = aes67_sap_zlib_decompress(data, &datalen, sap->user_data);
 
         // treat a NULL pointer as error
         if (data == NULL || datalen == 0){

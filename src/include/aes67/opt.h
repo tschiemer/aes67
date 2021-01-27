@@ -52,24 +52,20 @@
 #define AES67_SAP_MEMORY_MAX_SESSIONS 32
 #endif
 
-// tmp set to 1
 #ifndef AES67_SAP_AUTH_ENABLED
-#define AES67_SAP_AUTH_ENABLED 1
+#define AES67_SAP_AUTH_ENABLED 0
 #endif
 
-// tmp set to 1
 #ifndef AES67_SAP_AUTH_SELF
-#define AES67_SAP_AUTH_SELF 1
+#define AES67_SAP_AUTH_SELF 0
 #endif
 
-// tmp set to 1
 #ifndef AES67_SAP_DECOMPRESS_AVAILABLE
-#define AES67_SAP_DECOMPRESS_AVAILABLE 1
+#define AES67_SAP_DECOMPRESS_AVAILABLE 0
 #endif
 
-// tmp set to 1
 #ifndef AES67_SAP_COMPRESS_ENABLED
-#define AES67_SAP_COMPRESS_ENABLED 1
+#define AES67_SAP_COMPRESS_ENABLED 0
 #endif
 
 
