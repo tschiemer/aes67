@@ -240,6 +240,19 @@ u8_t aes67_net_ipeq(const struct aes67_net_addr * lhs, const struct aes67_net_ad
     return aes67_memcmp(lhs->addr, rhs->addr, l) == 0;
 }
 
+u8_t aes67_net_ismcastip(const struct aes67_net_addr * addr)
+{
+    AES67_ASSERT("addr != NULL", addr != NULL);
+
+    if (addr->ipver == aes67_net_ipver_4){
+        // 224.0.0.0 - 239.255.255.255
+        return (224 <= addr->addr[0]) && (addr->addr[0] < 240);
+    } else {
+        // ff00::/8 prefix
+        return (0xff == addr->addr[0]);
+    }
+}
+
 #ifdef DEBUG
 void aes67_dump_net_addr(struct aes67_net_addr * addr)
 {

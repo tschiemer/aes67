@@ -55,6 +55,8 @@ u16_t aes67_net_addr2str(u8_t * str, struct aes67_net_addr * addr);
 
 u8_t aes67_net_ipeq(const struct aes67_net_addr * lhs, const struct aes67_net_addr * rhs);
 
+u8_t aes67_net_ismcastip(const struct aes67_net_addr * addr);
+
 inline u8_t aes67_net_addreq(const struct aes67_net_addr * lhs, const struct aes67_net_addr * rhs)
 {
     if (aes67_net_ipeq(lhs, rhs) == false) return false;
