@@ -145,7 +145,7 @@ enum aes67_sap_event {
 struct aes67_sap_session {
     u16_t hash;
     struct aes67_net_addr src;
-    aes67_timestamp_t last_announcement;
+    aes67_time_t last_announcement;
 
 #if AES67_SAP_AUTH_ENABLED == 1
     // these are not quite thought through yet, but show an the idea

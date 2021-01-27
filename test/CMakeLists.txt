@@ -45,7 +45,6 @@ add_executable(run_tests
         )
 target_include_directories(run_tests PRIVATE
         ${AES67_INCLUDE_DIRS}
-        ${AES67_PORT_INCLUDE_DIRS}
         "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(run_tests PRIVATE CppUTest CppUTestExt)
 

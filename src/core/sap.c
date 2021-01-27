@@ -256,9 +256,9 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
         return;
     }
 
-    aes67_timestamp_t now;
+    aes67_time_t now;
 
-    aes67_timestamp_now(&now);
+    aes67_time_now(&now);
 
     // max(3600, 10 * ad_interval)
     u32_t timeout_after = 1000 * aes67_sap_service_get_timeout_sec(sap);
@@ -272,7 +272,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 
         if (sap->sessions[i].hash != 0){
 
-            u32_t age = aes67_timestamp_diffmsec(&now, &sap->sessions[i].last_announcement);
+            u32_t age = aes67_time_diffmsec(&now, &sap->sessions[i].last_announcement);
 
             if (age > oldest){
                 oldest = age;
@@ -294,7 +294,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 
     for(;current != NULL; current = current->next){
 
-        u32_t age = aes67_timestamp_diffmsec(&now, &current->last_announcement);
+        u32_t age = aes67_time_diffmsec(&now, &current->last_announcement);
 
         if (age > oldest){
             oldest = age;
@@ -318,9 +318,9 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
 
-    aes67_timestamp_t now;
+    aes67_time_t now;
 
-    aes67_timestamp_now(&now);
+    aes67_time_now(&now);
 
     // max(3600, 10 * ad_interval)
     u32_t timeout_after = 1000 * aes67_sap_service_get_timeout_sec(sap);
@@ -331,7 +331,7 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
 
         if (sap->sessions[i].hash != 0){
 
-            u32_t age = aes67_timestamp_diffmsec(&sap->sessions[i].last_announcement, &now);
+            u32_t age = aes67_time_diffmsec(&sap->sessions[i].last_announcement, &now);
 
             if (timeout_after < age){
 
@@ -348,7 +348,7 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
 
     for(;current != NULL; current = current->next) {
 
-        u32_t age = aes67_timestamp_diffmsec(&current->last_announcement, &now);
+        u32_t age = aes67_time_diffmsec(&current->last_announcement, &now);
 
         if (timeout_after < age){
 
@@ -524,7 +524,7 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
             session->authenticated = msg[AES67_SAP_AUTH_LEN] > 0 ? aes67_sap_auth_result_ok : aes67_sap_auth_result_not_ok;
 #endif
 
-            aes67_timestamp_now(&session->last_announcement);
+            aes67_time_now(&session->last_announcement);
         }
 
     } else {

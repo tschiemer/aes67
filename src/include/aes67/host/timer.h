@@ -41,6 +41,10 @@ enum aes67_timer_state {
     (x) == aes67_timer_state_expired \
 )
 
+#if AES67_TIMER_DECLARATION_INC == 1
+#include "arch/timer.h"
+#else //AES67_TIMER_DECLARATION_INC == 0
+
 struct aes67_timer {
     enum aes67_timer_state state;
 
@@ -48,10 +52,14 @@ struct aes67_timer {
     AES67_TIMER_DECLARATION
 #endif
 
-#if AES67_TIMER_DECLARATION_INC == 1
-#include "aes67timer.inc.h"
-#endif
 };
+
+#define AES67_TIMER_GETSTATE(ptimer) (ptimer)->state
+
+#endif //AES67_TIMER_DECLARATION_INC == 0
+
+extern void aes67_timer_init_system(void);
+extern void aes67_timer_deinit_system(void);
 
 extern void aes67_timer_init(struct aes67_timer *timer);
 extern void aes67_timer_deinit(struct aes67_timer *timer);
@@ -59,9 +67,9 @@ extern void aes67_timer_deinit(struct aes67_timer *timer);
 extern void aes67_timer_set(struct aes67_timer *timer, u32_t millisec);
 extern void aes67_timer_unset(struct aes67_timer *timer);
 
-inline enum aes67_timer_state aes67_timer_state(struct aes67_timer *timer)
+inline enum aes67_timer_state aes67_timer_getstate(struct aes67_timer *timer)
 {
-    return timer->state;
+    return AES67_TIMER_GETSTATE(timer);
 }
 
 

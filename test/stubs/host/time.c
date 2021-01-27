@@ -27,6 +27,15 @@ void time_add_now_ms(int32_t ms)
     counter_ms += ms;
 }
 
+void aes67_timestamp_init_system(void)
+{
+    // do nothing
+}
+
+void aes67_timestamp_deinit_system(void)
+{
+    // do nothing
+}
 
 void aes67_timestamp_now(aes67_timestamp_t * timestamp)
 {

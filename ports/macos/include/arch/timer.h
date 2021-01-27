@@ -16,36 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AES67_HOST_TIME_H
-#define AES67_HOST_TIME_H
+#ifndef AES67_ARCH_TIMER_H
+#define AES67_ARCH_TIMER_H
 
-#include "aes67/arch.h"
-#include "aes67/opt.h"
+#include <dispatch/dispatch.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#if AES67_TIME_DECLARATION_INC == 1
-#include "arch/time.h"
-#else //AES67_TIMER_DECLARATION_INC == 0
-typedef AES67_TIMESTAMP_TYPE aes67_time_t;
-#endif// AES67_TIMER_DECLARATION_INC == 0
+struct aes67_timer {
+    enum aes67_timer_state state;
 
-extern void aes67_time_init_system(void);
-extern void aes67_time_deinit_system(void);
+    dispatch_source_t dispatchSource;
+};
 
-extern void aes67_time_now(aes67_time_t *timestamp);
+#define AES67_TIMER_GETSTATE(ptimer) (ptimer)->state
 
-extern s32_t aes67_time_diffmsec(aes67_time_t *lhs, aes67_time_t *rhs);
-
-inline s32_t aes67_time_diffsec(aes67_time_t *lhs, aes67_time_t *rhs)
-{
-    return aes67_time_diffmsec(lhs, rhs) / 1000;
-}
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif //AES67_HOST_TIME_H
+#endif //AES67_ARCH_TIMER_H

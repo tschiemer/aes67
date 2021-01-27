@@ -5,7 +5,7 @@ set (CMAKE_CONFIGURATION_TYPES "Debug;Release")
 project(aes67)
 
 
-set(AES67_PORT "unix")
+set(AES67_PORT "macos")
 
 set(AES67_WITH_SAP TRUE)
 set(AES67_WITH_SIP TRUE)
@@ -54,6 +54,7 @@ endif()
 
 if(AES67_PORT)
     set(AES67_PORT_DIR "${AES67_DIR}/ports/${AES67_PORT}")
+    set(AES67_PORT_LIB "aes67-port-${AES67_PORT}")
     add_subdirectory("${AES67_PORT_DIR}")
 endif()
 
@@ -65,10 +66,12 @@ add_library(aes67 STATIC
         ${AES67_INCLUDES}
         ${AES67_SOURCE_FILES}
         )
-target_include_directories(aes67 PRIVATE ${AES67_DIR})
-target_include_directories(aes67 PUBLIC
-        "${AES67_DIR}/src/include"
+target_include_directories(aes67 PRIVATE
+        ${AES67_DIR}
         ${AES67_PORT_INCLUDE_DIRS}
+        )
+target_include_directories(aes67 PUBLIC
+        ${AES67_INCLUDE_DIRS}
         )
 
 set_property(TARGET aes67 PROPERTY C_STANDARD 99)
@@ -76,6 +79,8 @@ set_property(TARGET aes67 PROPERTY LINKER_LANGUAGE C)
 
 
 add_subdirectory("${AES67_DIR}/test" EXCLUDE_FROM_ALL)
+
+add_subdirectory("${AES67_DIR}/src/utils" EXCLUDE_FROM_ALL)
 
 #if(AES67_DEV_UTILS)
 #    include(contrib/dev/Targets.cmake)

@@ -54,6 +54,17 @@ void timer_check( struct aes67_timer * timer )
     }
 }
 
+
+void aes67_timer_init_system(void)
+{
+    // do nothing
+}
+
+void aes67_timer_deinit_system(void)
+{
+    // do nothing
+}
+
 void aes67_timer_init(struct aes67_timer * timer)
 {
     assert(timer != NULL);

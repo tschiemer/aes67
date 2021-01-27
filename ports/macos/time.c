@@ -16,36 +16,40 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AES67_HOST_TIME_H
-#define AES67_HOST_TIME_H
+#include "aes67/host/time.h"
 
-#include "aes67/arch.h"
-#include "aes67/opt.h"
+#include <assert.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+static clock_serv_t clock_service;
 
-#if AES67_TIME_DECLARATION_INC == 1
-#include "arch/time.h"
-#else //AES67_TIMER_DECLARATION_INC == 0
-typedef AES67_TIMESTAMP_TYPE aes67_time_t;
-#endif// AES67_TIMER_DECLARATION_INC == 0
 
-extern void aes67_time_init_system(void);
-extern void aes67_time_deinit_system(void);
-
-extern void aes67_time_now(aes67_time_t *timestamp);
-
-extern s32_t aes67_time_diffmsec(aes67_time_t *lhs, aes67_time_t *rhs);
-
-inline s32_t aes67_time_diffsec(aes67_time_t *lhs, aes67_time_t *rhs)
+void aes67_time_init_system(void)
 {
-    return aes67_time_diffmsec(lhs, rhs) / 1000;
+    kern_return_t ret = host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &clock_service);
+
+    assert(ret == 0);
 }
 
-#ifdef __cplusplus
+void aes67_time_deinit_system(void)
+{
+    mach_port_deallocate(mach_task_self(), clock_service);
 }
-#endif
 
-#endif //AES67_HOST_TIME_H
+void aes67_time_now(aes67_time_t *timestamp)
+{
+    assert(timestamp != NULL);
+
+    clock_get_time(clock_service, timestamp);
+}
+
+s32_t aes67_time_diffmsec(aes67_time_t *lhs, aes67_time_t *rhs)
+{
+    assert(lhs != NULL);
+    assert(rhs != NULL);
+
+
+    s32_t lhs_msec = 1000 * lhs->tv_sec + lhs->tv_nsec / 1000000;
+    s32_t rhs_msec = 1000 * rhs->tv_sec + rhs->tv_nsec / 1000000;
+
+    return lhs_msec - rhs_msec;
+}
