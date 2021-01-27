@@ -20,6 +20,8 @@
 #define AES67_HOST_TIMER_H
 
 #include "aes67/arch.h"
+#include "aes67/host/time.h"
+#include "aes67/opt.h"
 
 #define AES67_TIMER_NOW 0
 
@@ -42,7 +44,13 @@ enum aes67_timer_state {
 struct aes67_timer {
     enum aes67_timer_state state;
 
-    void *impl; // host implementation reference
+#ifdef AES67_TIMER_DECLARATION
+    AES67_TIMER_DECLARATION
+#endif
+
+#if AES67_TIMER_DECLARATION_INC == 1
+#include "aes67timer.inc.h"
+#endif
 };
 
 extern void aes67_timer_init(struct aes67_timer *timer);

@@ -21,4 +21,8 @@
 
 #define AES67_SAP_MEMORY_MAX_SESSIONS 3
 
+#define AES67_TIMER_DECLARATION \
+    aes67_timestamp_t started; \
+    u32_t timeout_ms;
+
 #endif //AES67_AES67OPTS_H_H

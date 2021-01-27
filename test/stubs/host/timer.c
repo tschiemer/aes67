@@ -21,17 +21,11 @@
 #include "time.h"
 
 #include <assert.h>
-#include <string.h>
 
-
-typedef struct {
-    aes67_timestamp_t started;
-    u32_t timeout_ms;
-} timer_info_t;
 
 uint32_t timer_gettimeout(struct aes67_timer *timer)
 {
-    return ((timer_info_t*)timer->impl)->timeout_ms;
+    return timer->timeout_ms;
 }
 
 void timer_expire( struct aes67_timer * timer )
@@ -52,9 +46,9 @@ void timer_check( struct aes67_timer * timer )
     aes67_timestamp_t now;
     aes67_timestamp_now( &now );
 
-    u32_t ms = ((timer_info_t*)timer->impl)->timeout_ms;
+    u32_t ms = timer->timeout_ms;
 
-    if (ms > aes67_timestamp_diffmsec(&((timer_info_t*)timer->impl)->started, &now))
+    if (ms > aes67_timestamp_diffmsec(&timer->started, &now))
     {
         timer->state = aes67_timer_state_expired;
     }
@@ -65,9 +59,6 @@ void aes67_timer_init(struct aes67_timer * timer)
     assert(timer != NULL);
 
     timer->state = aes67_timer_state_unset;
-
-    timer->impl = malloc(sizeof(timer_info_t));
-    memset(timer->impl, 0, sizeof(timer_info_t));
 }
 
 void aes67_timer_set(struct aes67_timer * timer, u32_t millisec)
@@ -76,8 +67,8 @@ void aes67_timer_set(struct aes67_timer * timer, u32_t millisec)
 
     timer->state = aes67_timer_state_set;
 
-    ((timer_info_t*)timer->impl)->timeout_ms = millisec;
-    aes67_timestamp_now( &((timer_info_t*)timer->impl)->started );
+    timer->timeout_ms = millisec;
+    aes67_timestamp_now( &timer->started );
 }
 
 void aes67_timer_unset(struct aes67_timer * timer)
@@ -92,6 +83,4 @@ void aes67_timer_deinit(struct aes67_timer * timer)
     assert(timer != NULL);
 
     timer->state = aes67_timer_state_unset;
-
-    free(timer->impl);
 }

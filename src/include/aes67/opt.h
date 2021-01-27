@@ -29,6 +29,15 @@
  */
 #include "aes67opts.h"
 
+/****** Core - Host *******/
+
+#ifndef AES67_TIMESTAMP_TYPE
+#define AES67_TIMESTAMP_TYPE uint32_t
+#endif
+
+
+/****** Core - Net *******/
+
 #ifndef AES67_USE_IPv6
 #define AES67_USE_IPv6 1
 #endif
