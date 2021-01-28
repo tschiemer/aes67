@@ -109,6 +109,10 @@
 #define AES67_SDP_MAXMEDIA 2
 #endif
 
+#ifndef AES67_SDP_MAXENCODINGS
+#define AES67_SDP_MAXENCODINGS 3
+#endif
+
 #ifndef AES67_SDP_MAXPTIME
 #define AES67_SDP_MAXPTIME 2
 #endif

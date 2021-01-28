@@ -28,8 +28,10 @@
 
 #define IS_CRNL(x) ((x) == CR || (x) == NL)
 
-static u16_t sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_data_list * cons, uint8_t flags){
+static u16_t sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_data_list * cons, aes67_sdp_flags flags){
     uint16_t len = 0;
+
+    flags = (flags & ~AES67_SDP_FLAG_SET_MASK) | AES67_SDP_FLAG_SET_YES;
 
     for(int i = 0; i < cons->count; i++){
         // skip all unwanted context
@@ -44,25 +46,26 @@ static u16_t sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_co
         str[len++] = ' ';
         str[len++] = 'I';
         str[len++] = 'P';
-        if (cons->data[i].addr.ipver == aes67_net_ipver_4){
+        if (cons->data[i].address_type == aes67_net_ipver_4){
             str[len++] = '4';
         } else {
             str[len++] = '6';
         }
         str[len++] = ' ';
 
-        // ip
-        len += aes67_net_addr2str(&str[len], &cons->data[i].addr);
+        // host
+        aes67_memcpy(&str[len], &cons->data[i].address.data, cons->data[i].address.length);
+        len += cons->data[i].address.length;
 
         // optional ttl for ipv4 multicast
-        if (cons->data[i].addr.ipver == aes67_net_ipver_4 && aes67_net_ismcastip(&cons->data[i].addr)){
+        if (cons->data[i].address_type == aes67_net_ipver_4 && (cons->data[i].flags & AES67_SDP_FLAG_MCAST_MASK) == AES67_SDP_FLAG_MCAST_YES){
             str[len++] = '/';
             len += aes67_itoa(cons->data[i].ttl, &str[len], 10);
         }
 
-        if (cons->data[i].no_of_addr > 0){
+        if (cons->data[i].naddr > 0){
             str[len++] = '/';
-            len += aes67_itoa(cons->data[i].no_of_addr, &str[len], 10);
+            len += aes67_itoa(cons->data[i].naddr, &str[len], 10);
         }
 
 

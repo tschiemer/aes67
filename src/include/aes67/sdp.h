@@ -7,10 +7,10 @@
  *
  * References:
  * Session Description Protocol (SDP) https://tools.ietf.org/html/rfc4566
- * Session Description Protocol (SDP) Capability Negotiation https://tools.ietf.org/html/rfc5939
- * An Offer/Answer Model with the Session Description Protocol (SDP) https://tools.ietf.org/html/rfc3264
  * RTP Profile for Audio and Video Conferences with Minimal Control https://tools.ietf.org/html/rfc3551
  * RTP Clock Source Signalling https://tools.ietf.org/html/rfc7273
+ * Session Description Protocol (SDP) Capability Negotiation https://tools.ietf.org/html/rfc5939
+ * An Offer/Answer Model with the Session Description Protocol (SDP) https://tools.ietf.org/html/rfc3264
  */
 
 /**
@@ -45,19 +45,29 @@ extern "C" {
 
 #define AES67_SDP_MIMETYPE "application/sdp"
 
+#define AES67_SDP_FLAG_SET_MASK         0b1000000000000000
+#define AES67_SDP_FLAG_DEFLVL_MASK      0b0100000000000000
+#define AES67_SDP_FLAG_STATE_MASK       0b0011000000000000
+#define AES67_SDP_FLAG_MCAST_MASK       0b0000100000000000
+#define AES67_SDP_FLAG_INDEX_MASK       0b0000000011111111
 
-#define AES67_SDP_FLAG_DEFLVL_MASK      0b10000000
-#define AES67_SDP_FLAG_DIR_MASK         0b00100000
-#define AES67_SDP_FLAG_INDEX_MASK       0b00001111
+#define AES67_SDP_FLAG_SET_YES          0b1000000000000000
+#define AES67_SDP_FLAG_SET_NO           0b0000000000000000
 
-#define AES67_SDP_FLAG_DEFLVL_SESSION   0b10000000
-#define AES67_SDP_FLAG_DEFLVL_MEDIA     0b00000000
+#define AES67_SDP_FLAG_DEFLVL_SESSION   0b1000000000000000
+#define AES67_SDP_FLAG_DEFLVL_MEDIA     0b0000000000000000
 
-#define AES67_SDP_FLAG_DIR_RECVONLY     0b00100000
-#define AES67_SDP_FLAG_DIR_SENDONLY     0b00000000
+#define AES67_SDP_FLAG_STATE_INACTIVE   0b0000000000000000
+#define AES67_SDP_FLAG_STATE_RECVONLY   0b0001000000000000
+#define AES67_SDP_FLAG_STATE_SENDONLY   0b0010000000000000
+#define AES67_SDP_FLAG_STATE_SENDRECV   0b0011000000000000
+
+#define AES67_SDP_FLAG_MCAST_YES        0b0000000000000000
+#define AES67_SDP_FLAG_MCAST_NO         0b0000100000000000
 
 #define AES67_SDP_PTP_DOMAIN_UNDEF  255
 
+typedef u16_t aes67_sdp_flags;
 
 struct aes67_sdp_originator {
 #if 0 < AES67_SDP_MAXUSERNAME
@@ -74,10 +84,11 @@ struct aes67_sdp_originator {
  *
  */
 struct aes67_sdp_connection_data {
-    u8_t flags; // internal association
+    aes67_sdp_flags flags;
     u8_t ttl;
-    u8_t no_of_addr;
-    struct aes67_net_addr addr;
+    u8_t naddr;
+    enum aes67_net_ipver address_type;
+    AES67_STRING(AES67_SDP_MAXADDRESS) address;
 };
 
 struct aes67_sdp_connection_data_list {
@@ -86,7 +97,7 @@ struct aes67_sdp_connection_data_list {
 };
 
 struct aes67_sdp_ptp_data {
-    u8_t flags; // internal association
+    aes67_sdp_flags flags;
     struct aes67_ptp ptp;
 };
 
@@ -97,12 +108,26 @@ struct aes67_sdp_ptp_data_list {
 
 struct aes67_sdp_attr_ptime {
     u16_t msec;
-    u16_t msec_fraq;
+    u16_t msec_frac;
+} PACK_STRUCT;
+
+struct aes67_sdp_attr_enc {
+    aes67_sdp_flags flags;
+    u8_t payloadtype;
+    u8_t nchannels;
+    u32_t samplerate;
+};
+
+struct aes67_sdp_attr_enc_list {
+    u8_t count;
+    struct aes67_sdp_attr_enc data[AES67_SDP_MAXENCODINGS];
 };
 
 struct aes67_sdp_media_data {
     u16_t port;
-    u8_t fmt;
+    u8_t nports;
+    u8_t nencodings;
+    u32_t mediaclock_offset; // TODO
     struct {
         u8_t count;
         struct aes67_sdp_attr_ptime data[AES67_SDP_MAXPTIME];
@@ -142,6 +167,8 @@ struct aes67_sdp {
     struct aes67_sdp_ptp_data_list ptps;
 
     struct aes67_sdp_media_data_list media;
+
+    struct aes67_sdp_attr_enc_list encodings;
 };
 
 void aes67_sdp_origin_init(struct aes67_sdp_originator * origin);
