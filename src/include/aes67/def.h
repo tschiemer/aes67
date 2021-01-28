@@ -90,7 +90,7 @@ u32_t aes67_htonl(u32_t x);
 struct { \
     u16_t length; \
     u8_t data[__len__]; \
-}
+} PACK_STRUCT
 
 typedef AES67_STRING() aes67_str;
 

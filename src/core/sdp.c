@@ -28,6 +28,69 @@
 
 #define IS_CRNL(x) ((x) == CR || (x) == NL)
 
+static u16_t sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_data_list * cons, uint8_t flags){
+    uint16_t len = 0;
+
+    for(int i = 0; i < cons->count; i++){
+        // skip all unwanted context
+        if ( cons->data[i].flags != flags ){
+            continue;
+        }
+
+        str[len++] = 'c';
+        str[len++] = '=';
+        str[len++] = 'I';
+        str[len++] = 'N';
+        str[len++] = ' ';
+        str[len++] = 'I';
+        str[len++] = 'P';
+        if (cons->data[i].addr.ipver == aes67_net_ipver_4){
+            str[len++] = '4';
+        } else {
+            str[len++] = '6';
+        }
+        str[len++] = ' ';
+
+        // ip
+        len += aes67_net_addr2str(&str[len], &cons->data[i].addr);
+
+        // optional ttl for ipv4 multicast
+        if (cons->data[i].addr.ipver == aes67_net_ipver_4 && aes67_net_ismcastip(&cons->data[i].addr)){
+            str[len++] = '/';
+            len += aes67_itoa(cons->data[i].ttl, &str[len], 10);
+        }
+
+        if (cons->data[i].no_of_addr > 0){
+            str[len++] = '/';
+            len += aes67_itoa(cons->data[i].no_of_addr, &str[len], 10);
+        }
+
+
+        str[len++] = CR;
+        str[len++] = NL;
+    }
+
+    return len;
+}
+
+void aes67_sdp_origin_init(struct aes67_sdp_originator * origin)
+{
+    AES67_ASSERT("origin != NULL", origin != NULL);
+
+    origin->username.length = 0;
+    origin->session_id.length = 0;
+    origin->session_version.length = 0;
+    origin->address.length = 0;
+}
+
+void aes67_sdp_init(struct aes67_sdp * sdp)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+
+    aes67_sdp_origin_init(&sdp->originator);
+
+    sdp->ptp_domain = AES67_SDP_PTP_DOMAIN_UNDEF;
+}
 
 u32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin)
 {
@@ -88,7 +151,8 @@ u32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_origina
     str[len++] = ' ';
 
     //<address>
-    //TODO
+    aes67_memcpy(&str[len], origin->address.data, origin->address.length);
+    len += origin->address.length;
 
     str[len++] = CR;
     str[len++] = NL;
@@ -152,7 +216,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     AES67_ASSERT("sdp != NULL", sdp != NULL);
 
     // length of sdp packet
-    u32_t len = 0;
+    u32_t len = 0, l;
 
 
     //v=0
@@ -164,10 +228,6 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
     // originator (o=..)
     len += aes67_sdp_origin_tostr(&str[len], maxlen - 5, &sdp->originator);
-
-//    str[len++] = CR;
-//    str[len++] = NL;
-
 
     //s=<session_data name>
     str[len++] = 's';
@@ -183,7 +243,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
 
     // i=<session_data info>
-#if 0 < AES67_SDP_MASSESSIONINFO
+#if 0 < AES67_SDP_MAXSESSIONINFO
     if (0 < sdp->session_info.length){
         aes67_memcpy(&str[len], sdp->session_info.data, sdp->session_info.length);
         len += sdp->session_info.length;
@@ -194,30 +254,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 #endif
 
     // c=<connection data> (0-N)
-    for(int i = 0; i < sdp->connections.count; i++){
-        str[len++] = 'c';
-        str[len++] = '=';
-        str[len++] = 'I';
-        str[len++] = 'N';
-        str[len++] = ' ';
-        str[len++] = 'I';
-        str[len++] = 'P';
-        if (sdp->originator.address_type == aes67_net_ipver_4){
-            str[len++] = '4';
-        } else {
-            str[len++] = '6';
-        }
-        str[len++] = ' ';
-
-        //TODO write address
-
-        //TODO TTL?
-
-        //TODO layers?
-
-        str[len++] = CR;
-        str[len++] = NL;
-    }
+    len += sdp_connections_tostr(&str[len], maxlen - len, &sdp->connections, AES67_SDP_FLAG_DEFLVL_SESSION);
 
     // b=<bwtype>:<bandwidth>
 
@@ -229,6 +266,51 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     str[len++] = '0';
     str[len++] = CR;
     str[len++] = NL;
+
+    // a=clock-domain:PTPv2 <domainNumber>
+    // RAVENNA SHALL session level attribute
+    if (sdp->ptp_domain != AES67_SDP_PTP_DOMAIN_UNDEF){
+        str[len++] = 'a';
+        str[len++] = '=';
+        str[len++] = 'c';
+        str[len++] = 'l';
+        str[len++] = 'o';
+        str[len++] = 'c';
+        str[len++] = 'k';
+        str[len++] = '-';
+        str[len++] = 'd';
+        str[len++] = 'o';
+        str[len++] = 'm';
+        str[len++] = 'a';
+        str[len++] = 'i';
+        str[len++] = 'n';
+        str[len++] = ':';
+        str[len++] = 'P';
+        str[len++] = 'T';
+        str[len++] = 'P';
+        str[len++] = 'v';
+        str[len++] = '2';
+        str[len++] = ' ';
+        str[len++] = '0' + sdp->ptp_domain;
+        str[len++] = CR;
+        str[len++] = NL;
+    }
+
+#if AES67_SDP_TOOL_ENABLED == 1
+    // a=tool:
+    str[len++] = 'a';
+    str[len++] = '=';
+    str[len++] = 't';
+    str[len++] = 'o';
+    str[len++] = 'o';
+    str[len++] = 'l';
+    aes67_memcpy(&str[len], AES67_SDP_TOOL, sizeof(AES67_SDP_TOOL)-1);
+    len += sizeof(AES67_SDP_TOOL)-1;
+    str[len++] = CR;
+    str[len++] = NL;
+#endif
+
+
 
     return len;
 }

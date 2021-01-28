@@ -3,8 +3,13 @@
  * Minimal (partial) Session Description Protocol (SDP) implementation as
  * required for AES67.
  *
+ * Also see avp.h
+ *
  * References:
  * Session Description Protocol (SDP) https://tools.ietf.org/html/rfc4566
+ * Session Description Protocol (SDP) Capability Negotiation https://tools.ietf.org/html/rfc5939
+ * An Offer/Answer Model with the Session Description Protocol (SDP) https://tools.ietf.org/html/rfc3264
+ * RTP Profile for Audio and Video Conferences with Minimal Control https://tools.ietf.org/html/rfc3551
  * RTP Clock Source Signalling https://tools.ietf.org/html/rfc7273
  */
 
@@ -40,6 +45,20 @@ extern "C" {
 
 #define AES67_SDP_MIMETYPE "application/sdp"
 
+
+#define AES67_SDP_FLAG_DEFLVL_MASK      0b10000000
+#define AES67_SDP_FLAG_DIR_MASK         0b00100000
+#define AES67_SDP_FLAG_INDEX_MASK       0b00001111
+
+#define AES67_SDP_FLAG_DEFLVL_SESSION   0b10000000
+#define AES67_SDP_FLAG_DEFLVL_MEDIA     0b00000000
+
+#define AES67_SDP_FLAG_DIR_RECVONLY     0b00100000
+#define AES67_SDP_FLAG_DIR_SENDONLY     0b00000000
+
+#define AES67_SDP_PTP_DOMAIN_UNDEF  255
+
+
 struct aes67_sdp_originator {
 #if 0 < AES67_SDP_MAXUSERNAME
     AES67_STRING(AES67_SDP_MAXUSERNAME) username;
@@ -55,11 +74,46 @@ struct aes67_sdp_originator {
  *
  */
 struct aes67_sdp_connection_data {
-    struct aes67_net_addr addr;
+    u8_t flags; // internal association
     u8_t ttl;
-    u8_t layers;
+    u8_t no_of_addr;
+    struct aes67_net_addr addr;
 };
 
+struct aes67_sdp_connection_data_list {
+    u8_t count;
+    struct aes67_sdp_connection_data data[AES67_SDP_MAXCONNECTIONS];
+};
+
+struct aes67_sdp_ptp_data {
+    u8_t flags; // internal association
+    struct aes67_ptp ptp;
+};
+
+struct aes67_sdp_ptp_data_list {
+    u8_t count;
+    struct aes67_sdp_ptp_data data[AES67_SDP_MAXPTPS];
+};
+
+struct aes67_sdp_attr_ptime {
+    u16_t msec;
+    u16_t msec_fraq;
+};
+
+struct aes67_sdp_media_data {
+    u16_t port;
+    u8_t fmt;
+    struct {
+        u8_t count;
+        struct aes67_sdp_attr_ptime data[AES67_SDP_MAXPTIME];
+    } ptime;
+    struct aes67_sdp_attr_ptime maxptime;
+};
+
+struct aes67_sdp_media_data_list {
+    u8_t count;
+    struct aes67_sdp_media_data data[AES67_SDP_MAXMEDIA];
+};
 
 /**
  * A session description struct.
@@ -67,8 +121,6 @@ struct aes67_sdp_connection_data {
  * Serves as container for programmatic handling of SDP strings.
  */
 struct aes67_sdp {
-    // leave out version
-    // always assume v=0
 
     struct aes67_sdp_originator originator;
 
@@ -80,20 +132,20 @@ struct aes67_sdp {
     AES67_STRING(AES67_SDP_MAXSESSIONINFO) session_info;
 #endif
 
-    // TODO are several connections required or is just one enough?
-    struct {
-        u8_t count;
-        struct aes67_sdp_connection_data data[AES67_SDP_MAXCONNECTIONDATA];
-    } connections;
+    u8_t ptp_domain; // session level ptp domain attribute (RAVENNA)
 
+    struct aes67_sdp_connection_data_list connections;
 
     // for the moment being, just forget about bandwidth ("b=.."), timing ("t=", assume "t=0 0"),
     // repeat times ("r="), time zones ("z="), encryption keys ("k=")
 
-    struct aes67_ptp ptp;
+    struct aes67_sdp_ptp_data_list ptps;
 
+    struct aes67_sdp_media_data_list media;
 };
 
+void aes67_sdp_origin_init(struct aes67_sdp_originator * origin);
+void aes67_sdp_init(struct aes67_sdp * sdp);
 
 /**
  * Writes originator line to given memory.
