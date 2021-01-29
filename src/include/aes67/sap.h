@@ -314,10 +314,32 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
  *                      AES67_SAP_STATUS_COMPRESSED_ZLIB (iff compression available)
  *                      AES67_SAP_STATUS_COMPRESSED_NONE
  * @param hash      session identifier (SHOULD be unique in combination with originating source/ip)
+ * @param ipver
+ * @param ip        ipv4/6 raw data
+ * @param payload       payload (including payload type)
+ * @param payloadlen
+ * @return
+ */
+u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip, u8_t * payload, u16_t payloadlen);
+
+/**
+ * Generates an SAP packet according to arguments.
+ * To be sent by external methods.
+ * (Convenience version for use of internal SDP packet descriptions only)
+ *
+ * @param sap
+ * @param msg       buffer to write to
+ * @param maxlen    maxlen of buffer msg
+ * @param opt       SAP status byte options. only accepts:
+ *                      AES67_SAP_STATUS_MSGTYPE_ANNOUNCE
+ *                      AES67_SAP_STATUS_MSGTYPE_DELETE
+ *                      AES67_SAP_STATUS_COMPRESSED_ZLIB (iff compression available)
+ *                      AES67_SAP_STATUS_COMPRESSED_NONE
+ * @param hash      session identifier (SHOULD be unique in combination with originating source/ip)
  * @param ip        ipv4/ipv6 to use as originating source
  * @param sdp       SDP data to add to packet
  */
-u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp);
+u16_t aes67_sap_service_msg_sdp(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp);
 
 
 /**

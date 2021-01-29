@@ -127,7 +127,7 @@ int main(int argc, char * argv[])
 
     uint8_t packet[1024];
 
-    uint16_t len = aes67_sap_service_msg(&sap, packet, sizeof(packet), opts.status, opts.hash, &opts.origin, &opts.sdp);
+    uint16_t len = aes67_sap_service_msg_sdp(&sap, packet, sizeof(packet), opts.status, opts.hash, &opts.origin, &opts.sdp);
 
     if (len == 0){
         fprintf(stderr, "ERROR failed to generate packet\n");

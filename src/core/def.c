@@ -83,6 +83,9 @@ int aes67_memcmp( const void * lhs, const void * rhs, size_t count )
 #ifndef aes67_memmove
 void * aes67_memmove(void* dest, const void* src, size_t count)
 {
+    if (dest == src){
+        return dest;
+    }
     // either start copying from start or from end depending on relative position in memory
     // (to allow for safe overlapping of memory regions)
     if (dest < src) {

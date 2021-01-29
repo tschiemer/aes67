@@ -20,31 +20,31 @@
 
 #include <assert.h>
 
-static aes67_timestamp_t counter_ms = 0;
+static aes67_time_t counter_ms = 0;
 
 void time_add_now_ms(int32_t ms)
 {
     counter_ms += ms;
 }
 
-void aes67_timestamp_init_system(void)
+void aes67_time_init_system(void)
 {
     // do nothing
 }
 
-void aes67_timestamp_deinit_system(void)
+void aes67_time_deinit_system(void)
 {
     // do nothing
 }
 
-void aes67_timestamp_now(aes67_timestamp_t * timestamp)
+void aes67_time_now(aes67_time_t * timestamp)
 {
     assert(timestamp != NULL);
 
     *timestamp = ++counter_ms;
 }
 
-s32_t aes67_timestamp_diffmsec(aes67_timestamp_t * lhs, aes67_timestamp_t * rhs)
+s32_t aes67_time_diffmsec(aes67_time_t * lhs, aes67_time_t * rhs)
 {
     assert(lhs != NULL);
     assert(rhs != NULL);

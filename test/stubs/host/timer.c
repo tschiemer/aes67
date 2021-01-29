@@ -43,12 +43,12 @@ void timer_check( struct aes67_timer * timer )
         return;
     }
 
-    aes67_timestamp_t now;
-    aes67_timestamp_now( &now );
+    aes67_time_t now;
+    aes67_time_now( &now );
 
     u32_t ms = timer->timeout_ms;
 
-    if (ms > aes67_timestamp_diffmsec(&timer->started, &now))
+    if (ms > aes67_time_diffmsec(&timer->started, &now))
     {
         timer->state = aes67_timer_state_expired;
     }
@@ -79,7 +79,7 @@ void aes67_timer_set(struct aes67_timer * timer, u32_t millisec)
     timer->state = aes67_timer_state_set;
 
     timer->timeout_ms = millisec;
-    aes67_timestamp_now( &timer->started );
+    aes67_time_now( &timer->started );
 }
 
 void aes67_timer_unset(struct aes67_timer * timer)

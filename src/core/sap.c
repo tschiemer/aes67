@@ -567,18 +567,19 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
 //    }
 }
 
-
-u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp)
+u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip, u8_t * payload, u16_t payloadlen)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
     AES67_ASSERT("msg != NULL", msg != NULL);
     AES67_ASSERT("maxlen > 64", maxlen > 64); // a somewhat meaningful min size
     AES67_ASSERT("(opt & ~(AES67_SAP_STATUS_MSGTYPE_MASK | AES67_SAP_STATUS_COMPRESSED_MASK)) == 0", (opt & ~(AES67_SAP_STATUS_MSGTYPE_MASK | AES67_SAP_STATUS_COMPRESSED_MASK)) == 0); // only allowed options
     AES67_ASSERT("hash != 0", hash != 0);
+    AES67_ASSERT("AES67_NET_IPVER_ISVALID(ipver)", AES67_NET_IPVER_ISVALID(ipver));
     AES67_ASSERT("ip != NULL", ip != NULL);
-    AES67_ASSERT("sdp != NULL", sdp != NULL);
+    AES67_ASSERT("payload != NULL", payload != NULL);
+    AES67_ASSERT("payloadlen > 0", payloadlen >0);
 
-    u8_t is_ipv4 = (ip->ipver == aes67_net_ipver_4);
+    u8_t is_ipv4 = (ipver == aes67_net_ipver_4);
 
     msg[AES67_SAP_STATUS] = AES67_SAP_STATUS_VERSION_2;
 
@@ -593,65 +594,27 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
 
     *(u16_t*)&msg[AES67_SAP_MSG_ID_HASH] = aes67_htons(hash);
 
-    aes67_memcpy(&msg[AES67_SAP_ORIGIN_SRC], ip->addr, (is_ipv4 ? 4 : 16));
+    aes67_memcpy(&msg[AES67_SAP_ORIGIN_SRC], ip, (is_ipv4 ? 4 : 16));
 
-    u16_t headerlen = 4 + (is_ipv4 ? 4 : 16);
+    u16_t headerlen = AES67_SAP_ORIGIN_SRC + (is_ipv4 ? 4 : 16);
     u16_t len = headerlen;
 
-    // always add payload type which MUST be supported by all SAPv2 capable recipients
-    msg[len++] = 'a';
-    msg[len++] = 'p';
-    msg[len++] = 'p';
-    msg[len++] = 'l';
-    msg[len++] = 'i';
-    msg[len++] = 'c';
-    msg[len++] = 'a';
-    msg[len++] = 't';
-    msg[len++] = 'i';
-    msg[len++] = 'o';
-    msg[len++] = 'n';
-    msg[len++] = '/';
-    msg[len++] = 's';
-    msg[len++] = 'd';
-    msg[len++] = 'p';
-    msg[len++] = '\0'; // null termination
+    // safe move payload
+    aes67_memmove(&msg[len], payload, payloadlen);
+    len += payloadlen;
 
-    struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ip->ipver, ip->addr);
+    // figure out we our own session was registered prior
+    struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ipver, ip);
 
-    if ( (opt & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE ){
-
-        u16_t l = aes67_sdp_tostr(&msg[len], maxlen - len, sdp);
-
-        if (l == 0){
-            // error
-            return 0;
-        }
-        len += l;
+    if ( (opt & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE  && session == NULL){
 
         // if own session was not registered prior, register now
-        if (session == NULL){
-            aes67_sap_service_register(sap, hash, ip->ipver, ip->addr);
-        }
+        aes67_sap_service_register(sap, hash, ipver, ip);
 
-    } else { // AES67_SAP_STATUS_MSGTYPE_DELETE
-
-        // when deleting a session, just add first line (after version) of SDP message
-        u16_t l = aes67_sdp_origin_tostr(&msg[len], maxlen - len, &sdp->originator);
-
-        if (l == 0){
-            // error
-            return 0;
-        }
-        len += l;
-
-        // above function does not add line termination
-//        msg[len++] = '\r';
-//        msg[len++] = '\n';
+    } else if ( (opt & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_DELETE  && session != NULL) {
 
         // if own session was registered prior, unregister now
-        if (session != NULL){
-            aes67_sap_service_register(sap, hash, ip->ipver, ip->addr);
-        }
+        aes67_sap_service_unregister(sap, hash, ipver, ip);
     }
 
 #if AES67_SAP_COMPRESS_ENABLED == 1
@@ -659,14 +622,14 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
     // only compress when explicitly requested
     if ( (opt & AES67_SAP_STATUS_COMPRESSED_MASK) == AES67_SAP_STATUS_COMPRESSED_ZLIB ){
 
-        u16_t payloadlen = aes67_sap_zlib_compress(&msg[headerlen], len - headerlen, maxlen - headerlen, sap->user_data);
+        u16_t l = aes67_sap_zlib_compress(&msg[headerlen], len - headerlen, maxlen - headerlen, sap->user_data);
 
         // on error, abort
-        if (payloadlen == 0){
+        if (l == 0){
             return 0;
         }
 
-        len = headerlen + payloadlen;
+        len = headerlen + l;
     }
 
 #endif //AES67_SAP_COMPRESS_ENABLED == 1
@@ -694,4 +657,53 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
     sap->announcement_size = len;
 
     return len;
+}
+
+
+u16_t aes67_sap_service_msg_sdp(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp)
+{
+    // now, this is kind of cool: we know exactly where the payload will end up (before compression and authentication)
+    // so we just write all the payload exactly there, thus the actual packet writer will not have to move anything and
+    // in particular no additional memory is required ;)
+
+    u16_t offset = (AES67_SAP_ORIGIN_SRC + sizeof(AES67_SDP_MIMETYPE)) + (ip->ipver == aes67_net_ipver_4 ? 4 : 16);
+
+    AES67_ASSERT("offset < maxlen", offset < maxlen);
+
+    u16_t payloadlen = 0;
+
+    if ( (opt & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE ) {
+        payloadlen = aes67_sdp_tostr(&msg[offset], maxlen - offset, sdp);
+    } else {
+        // when deleting a session, just add first line (after version) of SDP message
+        payloadlen = aes67_sdp_origin_tostr(&msg[offset], maxlen - offset, &sdp->originator);
+    }
+
+    if (payloadlen == 0){
+        return 0;
+    }
+
+    // always add payload type which MUST be supported by all SAPv2 capable recipients
+    offset -= sizeof(AES67_SDP_MIMETYPE);
+    msg[offset++] = 'a';
+    msg[offset++] = 'p';
+    msg[offset++] = 'p';
+    msg[offset++] = 'l';
+    msg[offset++] = 'i';
+    msg[offset++] = 'c';
+    msg[offset++] = 'a';
+    msg[offset++] = 't';
+    msg[offset++] = 'i';
+    msg[offset++] = 'o';
+    msg[offset++] = 'n';
+    msg[offset++] = '/';
+    msg[offset++] = 's';
+    msg[offset++] = 'd';
+    msg[offset++] = 'p';
+    msg[offset++] = '\0'; // null termination
+
+    offset -= sizeof(AES67_SDP_MIMETYPE);
+    payloadlen += sizeof(AES67_SDP_MIMETYPE);
+
+    return aes67_sap_service_msg(sap, msg, maxlen, opt, hash, ip->ipver, ip->addr, &msg[offset], payloadlen);
 }

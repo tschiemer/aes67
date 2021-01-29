@@ -291,7 +291,9 @@ TEST(SAP_TestGroup, sap_handle_v2)
 #else
     CHECK_EQUAL(1, sap.no_of_ads);
     CHECK_TRUE( sap_event.session_ptr != NULL );
+#if AES67_SAP_AUTH_ENABLED
     CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
+#endif
     CHECK_EQUAL(p1.msg_id_hash, sap_event.session_data.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.session_data.src.ipver );
     MEMCMP_EQUAL(p1.ip.addr, sap_event.session_data.src.addr, (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
@@ -348,7 +350,9 @@ TEST(SAP_TestGroup, sap_handle_v2)
     CHECK_TRUE( sap_event.session_data == NULL );
 #else
     CHECK_TRUE( sap_event.session_ptr != NULL );
+#if AES67_SAP_AUTH_ENABLED
     CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
+#endif
     CHECK_EQUAL(p2.msg_id_hash, sap_event.session_data.hash);
     CHECK_EQUAL(p2.ip.ipver, sap_event.session_data.src.ipver );
     MEMCMP_EQUAL(p2.ip.addr, sap_event.session_data.src.addr, (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
@@ -399,7 +403,9 @@ TEST(SAP_TestGroup, sap_handle_v1)
 #else
     CHECK_EQUAL(1, sap.no_of_ads);
     CHECK_TRUE( sap_event.session_ptr != NULL );
+#if AES67_SAP_AUTH_ENABLED
     CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
+#endif
     CHECK_EQUAL(p1.msg_id_hash, sap_event.session_data.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.session_data.src.ipver );
     MEMCMP_EQUAL(p1.ip.addr, sap_event.session_data.src.addr, (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
@@ -455,7 +461,9 @@ TEST(SAP_TestGroup, sap_handle_v1)
     CHECK_TRUE( sap_event.session_data == NULL );
 #else
     CHECK_TRUE( sap_event.session_ptr != NULL );
+#if AES67_SAP_AUTH_ENABLED
     CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
+#endif
     CHECK_EQUAL(p2.msg_id_hash, sap_event.session_data.hash);
     CHECK_EQUAL(p2.ip.ipver, sap_event.session_data.src.ipver );
     MEMCMP_EQUAL(p2.ip.addr, sap_event.session_data.src.addr, (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
@@ -624,7 +632,9 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
 #else
     CHECK_EQUAL( 1, sap.no_of_ads);
     CHECK_TRUE( sap_event.session_ptr != NULL );
+#if AES67_SAP_AUTH_ENABLED
     CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
+#endif
     CHECK_EQUAL(p1.msg_id_hash, sap_event.session_data.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.session_data.src.ipver );
     MEMCMP_EQUAL(p1.ip.addr, sap_event.session_data.src.addr, (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
@@ -741,6 +751,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
     };
     len = packet2mem(data, p2);
 
+#if AES67_SAP_AUTH_ENABLED == 1
     AUTH_NOT_OK();
 
     sap_event_reset();
@@ -748,7 +759,6 @@ TEST(SAP_TestGroup, sap_handle_auth)
 
     CHECK_FALSE(sap_event.isset);
     CHECK_EQUAL(1, sap.no_of_ads);
-
 
 
     // trying unauthorized deletion of previously authenticated packet p1
@@ -806,6 +816,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(0, sap.no_of_ads);
 
+#endif //AES67_SAP_AUTH_ENABLED == 1
 
     aes67_sap_service_deinit(&sap);
 }
@@ -850,7 +861,7 @@ TEST(SAP_TestGroup, sap_msg)
     };
 
     std::memset(data, 0, sizeof(data));
-    len = aes67_sap_service_msg(&sap, data, sizeof(data), p1.status, p1.msg_id_hash, &p1.ip,  &sdp);
+    len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p1.status, p1.msg_id_hash, &p1.ip,  &sdp);
 
     assert(len > 0);
 
@@ -888,7 +899,7 @@ TEST(SAP_TestGroup, sap_msg)
 
 
     std::memset(data, 0, sizeof(data));
-    len = aes67_sap_service_msg(&sap, data, sizeof(data), p2.status, p2.msg_id_hash, &p2.ip,  &sdp);
+    len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p2.status, p2.msg_id_hash, &p2.ip,  &sdp);
 
     assert(len > 0);
 
@@ -924,7 +935,7 @@ TEST(SAP_TestGroup, sap_msg)
     };
 
     std::memset(data, 0, sizeof(data));
-    len = aes67_sap_service_msg(&sap, data, sizeof(data), p3.status, p3.msg_id_hash, &p3.ip,  &sdp);
+    len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p3.status, p3.msg_id_hash, &p3.ip,  &sdp);
 
     assert(len > 0);
 
@@ -967,7 +978,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     // this should trigger the timer to be called as soon as possible.
     aes67_sap_service_set_announcement_timer(&sap);
 
-    CHECK_EQUAL(aes67_timer_state_set, aes67_timer_state(&sap.announcement_timer));
+    CHECK_EQUAL(aes67_timer_state_set, aes67_timer_getstate(&sap.announcement_timer));
     CHECK_EQUAL(AES67_TIMER_NOW , timer_gettimeout(&sap.announcement_timer));
 
     // ASYNC expire timer
@@ -1002,7 +1013,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     };
 
     std::memset(data, 0, sizeof(data));
-    len = aes67_sap_service_msg(&sap, data, sizeof(data), p1.status, p1.msg_id_hash, &p1.ip,  &sdp);
+    len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p1.status, p1.msg_id_hash, &p1.ip,  &sdp);
 
     CHECK_EQUAL(len, sap.announcement_size);
 
@@ -1015,7 +1026,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     // this should trigger the timer to be called as soon as possible.
     aes67_sap_service_set_announcement_timer(&sap);
 
-    CHECK_EQUAL(aes67_timer_state_set, aes67_timer_state(&sap.announcement_timer));
+    CHECK_EQUAL(aes67_timer_state_set, aes67_timer_getstate(&sap.announcement_timer));
     CHECK_COMPARE(0 , <, timer_gettimeout(&sap.announcement_timer));
 
     CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
@@ -1055,19 +1066,19 @@ TEST(SAP_TestGroup, sap_timeouts)
     };
     len = packet2mem(data, p1);
 
-    aes67_timestamp_t t1b, t1a; // before/after timestamps
-    aes67_timestamp_now(&t1b);
+    aes67_time_t t1b, t1a; // before/after timestamps
+    aes67_time_now(&t1b);
 
     sap_event_reset();
     aes67_sap_service_handle(&sap, data, len);
 
-    aes67_timestamp_now(&t1a);
+    aes67_time_now(&t1a);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(1, sap.no_of_ads);
     // t1a < p1.last_announcement < t1b
-    CHECK_COMPARE(0, <, aes67_timestamp_diffmsec(&t1b, &sap_event.session_data.last_announcement));
-    CHECK_COMPARE(0, <, aes67_timestamp_diffmsec(&sap_event.session_data.last_announcement, &t1a));
+    CHECK_COMPARE(0, <, aes67_time_diffmsec(&t1b, &sap_event.session_data.last_announcement));
+    CHECK_COMPARE(0, <, aes67_time_diffmsec(&sap_event.session_data.last_announcement, &t1a));
 
     sap_packet_t p2 = {
             .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
@@ -1082,21 +1093,21 @@ TEST(SAP_TestGroup, sap_timeouts)
     };
     len = packet2mem(data, p2);
 
-    aes67_timestamp_t t2b, t2a; // before/after timestamps
-    aes67_timestamp_now(&t2b);
+    aes67_time_t t2b, t2a; // before/after timestamps
+    aes67_time_now(&t2b);
 
     sap_event_reset();
     aes67_sap_service_handle(&sap, data, len);
 
-    aes67_timestamp_now(&t2a);
+    aes67_time_now(&t2a);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(2, sap.no_of_ads);
 
     // t1b < t2b < p2.last_announcement < t2a
-    CHECK_COMPARE(0, <, aes67_timestamp_diffmsec(&t1a, &t2b));
-    CHECK_COMPARE(0, <, aes67_timestamp_diffmsec(&t2b, &sap_event.session_data.last_announcement));
-    CHECK_COMPARE(0, <, aes67_timestamp_diffmsec(&sap_event.session_data.last_announcement, &t2a));
+    CHECK_COMPARE(0, <, aes67_time_diffmsec(&t1a, &t2b));
+    CHECK_COMPARE(0, <, aes67_time_diffmsec(&t2b, &sap_event.session_data.last_announcement));
+    CHECK_COMPARE(0, <, aes67_time_diffmsec(&sap_event.session_data.last_announcement, &t2a));
 
 
     u32_t timeout_sec = aes67_sap_service_get_timeout_sec(&sap);
