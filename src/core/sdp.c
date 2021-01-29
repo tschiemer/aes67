@@ -133,17 +133,18 @@ static u16_t sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list *
             len += sizeof(AES67_PTP_TYPE_STR_IEEE802AS_2011) - 1;
         }
 
-        str[len++] = ":";
+        str[len++] = ':';
 
         //
         for(int j = 0; j < sizeof(union aes67_ptp_eui64); j++){
-            aes67_itoa(&str[len], ptps->data[i].ptp.gmid.u8[j], 16);
+            aes67_itoa(ptps->data[i].ptp.gmid.u8[j], &str[len], 16);
             len += 2;
+            str[len] = '-';
         }
 
         // add PTP domain only if 2008 or 2019 version
         if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2008 || ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2019){
-            len += aes67_itoa(&str[len], ptps->data[i].ptp.domain, 10);
+            len += aes67_itoa(ptps->data[i].ptp.domain, &str[len], 10);
         }
 
         str[len++] = CR;
