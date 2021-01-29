@@ -3,6 +3,8 @@
  * Minimal (partial) Session Description Protocol (SDP) implementation as
  * required for AES67.
  *
+ * Designed to support (limited) capability negotiation (encoding, ptime alternatives) and RAVENNA specific attributes.
+ *
  * Also see avp.h
  *
  * References:
@@ -11,6 +13,7 @@
  * RTP Clock Source Signalling https://tools.ietf.org/html/rfc7273
  * Session Description Protocol (SDP) Capability Negotiation https://tools.ietf.org/html/rfc5939
  * An Offer/Answer Model with the Session Description Protocol (SDP) https://tools.ietf.org/html/rfc3264
+ * RAVENNA Operating Principles (Draft 1.0 2011-06-01, final), ALC NetworX GmbH
  */
 
 /**
