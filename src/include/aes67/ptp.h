@@ -45,6 +45,13 @@ enum aes67_ptp_type {
     aes67_ptp_type_IEEE802AS_2011 = 4,
 };
 
+#define AES67_PTP_TYPE_ISVALID(__type__) ( \
+    (__type__) == aes67_ptp_type_IEEE1588_2002 || \
+    (__type__) == aes67_ptp_type_IEEE1588_2008 || \
+    (__type__) == aes67_ptp_type_IEEE1588_2019 || \
+    (__type__) == aes67_ptp_type_IEEE802AS_2011 \
+)
+
 /**
  * EUI64 as used for PTP clock identifiers
  */
@@ -52,7 +59,7 @@ union aes67_ptp_eui64 {
     u8_t u8[8];
     u32_t u32[2];
 //    u64_t u64;
-};
+} PACK_STRUCT;
 
 /**
  * PTP clock datastruct

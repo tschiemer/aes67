@@ -29,6 +29,9 @@
 #define IS_CRNL(x) ((x) == CR || (x) == NL)
 
 static u16_t sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_list * cons, aes67_sdp_flags flags){
+    AES67_ASSERT( "str != NULL", str != NULL );
+    AES67_ASSERT("cons != NULL", cons != NULL );
+
     uint16_t len = 0;
 
     flags = (flags & ~AES67_SDP_FLAG_SET_MASK) | AES67_SDP_FLAG_SET_YES;
@@ -76,6 +79,80 @@ static u16_t sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_co
     return len;
 }
 
+static u16_t sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags)
+{
+    AES67_ASSERT( "str != NULL", str != NULL );
+    AES67_ASSERT("ptps != NULL", ptps != NULL );
+
+    uint16_t len = 0;
+
+    flags = (flags & ~AES67_SDP_FLAG_SET_MASK) | AES67_SDP_FLAG_SET_YES;
+
+    for(int i = 0; i < ptps->count; i++){
+        // skip all unwanted context
+        if ( ptps->data[i].flags != flags ){
+            continue;
+        }
+
+        AES67_ASSERT("AES67_PTP_TYPE_ISVALID(ptps->data[i].ptp.type)", AES67_PTP_TYPE_ISVALID(ptps->data[i].ptp.type));
+
+        str[len++] = 'a';
+        str[len++] = '=';
+        str[len++] = 't';
+        str[len++] = 's';
+        str[len++] = '-';
+        str[len++] = 'r';
+        str[len++] = 'e';
+        str[len++] = 'f';
+        str[len++] = 'c';
+        str[len++] = 'l';
+        str[len++] = 'o';
+        str[len++] = 'c';
+        str[len++] = 'k';
+        str[len++] = ':';
+        str[len++] = 'p';
+        str[len++] = 't';
+        str[len++] = 'p';
+        str[len++] = '=';
+
+        // add ptp variant
+        if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2002){
+            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2002, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2002) - 1);
+            len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2002) - 1;
+        }
+        else if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2008){
+            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2008, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2008) - 1);
+            len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2008) - 1;
+        }
+        else if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2019){
+            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2019, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2019) - 1);
+            len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2019) - 1;
+        }
+        else if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE802AS_2011){
+            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE802AS_2011, sizeof(AES67_PTP_TYPE_STR_IEEE802AS_2011) - 1);
+            len += sizeof(AES67_PTP_TYPE_STR_IEEE802AS_2011) - 1;
+        }
+
+        str[len++] = ":";
+
+        //
+        for(int j = 0; j < sizeof(union aes67_ptp_eui64); j++){
+            aes67_itoa(&str[len], ptps->data[i].ptp.gmid.u8[j], 16);
+            len += 2;
+        }
+
+        // add PTP domain only if 2008 or 2019 version
+        if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2008 || ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2019){
+            len += aes67_itoa(&str[len], ptps->data[i].ptp.domain, 10);
+        }
+
+        str[len++] = CR;
+        str[len++] = NL;
+    }
+
+    return len;
+}
+
 void aes67_sdp_origin_init(struct aes67_sdp_originator * origin)
 {
     AES67_ASSERT("origin != NULL", origin != NULL);
@@ -92,7 +169,7 @@ void aes67_sdp_init(struct aes67_sdp * sdp)
 
     aes67_sdp_origin_init(&sdp->originator);
 
-    sdp->ptp_domain = AES67_SDP_PTP_DOMAIN_UNDEF;
+//    aes67_memset()
 }
 
 struct aes67_sdp_connection * aes67_sdp_get_connection(struct aes67_sdp * sdp, aes67_sdp_flags flags)
@@ -348,9 +425,23 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     str[len++] = CR;
     str[len++] = NL;
 
+#if AES67_SDP_TOOL_ENABLED == 1
+    // a=tool:
+    str[len++] = 'a';
+    str[len++] = '=';
+    str[len++] = 't';
+    str[len++] = 'o';
+    str[len++] = 'o';
+    str[len++] = 'l';
+    aes67_memcpy(&str[len], AES67_SDP_TOOL, sizeof(AES67_SDP_TOOL)-1);
+    len += sizeof(AES67_SDP_TOOL)-1;
+    str[len++] = CR;
+    str[len++] = NL;
+#endif
+
     // a=clock-domain:PTPv2 <domainNumber>
     // RAVENNA SHALL session level attribute
-    if (sdp->ptp_domain != AES67_SDP_PTP_DOMAIN_UNDEF){
+    if ((sdp->ptp_domain & AES67_SDP_PTP_DOMAIN_SET) == AES67_SDP_PTP_DOMAIN_SET){
         str[len++] = 'a';
         str[len++] = '=';
         str[len++] = 'c';
@@ -372,24 +463,10 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         str[len++] = 'v';
         str[len++] = '2';
         str[len++] = ' ';
-        str[len++] = '0' + sdp->ptp_domain;
+        len += aes67_itoa(sdp->ptp_domain, &str[len], 10);
         str[len++] = CR;
         str[len++] = NL;
     }
-
-#if AES67_SDP_TOOL_ENABLED == 1
-    // a=tool:
-    str[len++] = 'a';
-    str[len++] = '=';
-    str[len++] = 't';
-    str[len++] = 'o';
-    str[len++] = 'o';
-    str[len++] = 'l';
-    aes67_memcpy(&str[len], AES67_SDP_TOOL, sizeof(AES67_SDP_TOOL)-1);
-    len += sizeof(AES67_SDP_TOOL)-1;
-    str[len++] = CR;
-    str[len++] = NL;
-#endif
 
 
 

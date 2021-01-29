@@ -49,29 +49,34 @@ extern "C" {
 
 #define AES67_SDP_MIMETYPE "application/sdp"
 
-#define AES67_SDP_FLAG_SET_MASK         0b1000000000000000
-#define AES67_SDP_FLAG_DEFLVL_MASK      0b0110000000000000
-#define AES67_SDP_FLAG_STATE_MASK       0b0001100000000000
-#define AES67_SDP_FLAG_MCAST_MASK       0b0000010000000000
-#define AES67_SDP_FLAG_STREAM_INDEX_MASK       0b0000000011111111
+#define AES67_SDP_FLAG_SET_MASK             0b1000000000000000
+#define AES67_SDP_FLAG_DEFLVL_MASK          0b0110000000000000
+#define AES67_SDP_FLAG_MCAST_MASK           0b0000010000000000
+#define AES67_SDP_FLAG_STREAM_INDEX_MASK    0b0000000011111111
 
+// Internally used bit (is entry set?)
 #define AES67_SDP_FLAG_SET_YES          0b1000000000000000
 #define AES67_SDP_FLAG_SET_NO           0b0000000000000000
 
 #define AES67_SDP_FLAG_DEFLVL_SESSION   0b0100000000000000
 #define AES67_SDP_FLAG_DEFLVL_STREAM    0b0010000000000000
 
-#define AES67_SDP_FLAG_STATE_INACTIVE   0b0000000000000000
-#define AES67_SDP_FLAG_STATE_RECVONLY   0b0000100000000000
-#define AES67_SDP_FLAG_STATE_SENDONLY   0b0001000000000000
-#define AES67_SDP_FLAG_STATE_SENDRECV   0b0001100000000000
 
 #define AES67_SDP_FLAG_MCAST_YES        0b0000000000000000
 #define AES67_SDP_FLAG_MCAST_NO         0b0000010000000000
 
-#define AES67_SDP_PTP_DOMAIN_UNDEF  255
+#define AES67_SDP_PTP_DOMAIN_SET        0b10000000
+#define AES67_SDP_PTP_DOMAIN_VALUE      0b01111111
 
 typedef u16_t aes67_sdp_flags;
+
+enum aes67_sdp_attr_mode {
+    aes67_sdp_attr_mode_undef    = 0,
+    aes67_sdp_attr_mode_inactive = 1,
+    aes67_sdp_attr_mode_recvonly = 2,
+    aes67_sdp_attr_mode_sendonly = 3,
+    aes67_sdp_attr_mode_sendrecv = 4
+} PACK_STRUCT;
 
 struct aes67_sdp_originator {
 #if 0 < AES67_SDP_MAXUSERNAME
@@ -109,6 +114,7 @@ struct aes67_sdp_ptp_list {
     u8_t count;
     struct aes67_sdp_ptp data[AES67_SDP_MAXPTPS];
 };
+
 
 struct aes67_sdp_attr_ptime {
     u16_t msec;
@@ -163,12 +169,15 @@ struct aes67_sdp {
     AES67_STRING(AES67_SDP_MAXSESSIONINFO) session_info;
 #endif
 
-    u8_t ptp_domain; // session level ptp domain attribute (RAVENNA)
 
     // for the moment being, just forget about bandwidth ("b=.."), timing ("t=", assume "t=0 0"),
     // repeat times ("r="), time zones ("z="), encryption keys ("k=")
 
+    enum aes67_sdp_attr_mode mode;
+
     u8_t nptp; // count of session level ptps
+
+    u8_t ptp_domain; // session level ptp domain attribute (RAVENNA)
 
     struct aes67_sdp_connection_list connections;
 
