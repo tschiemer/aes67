@@ -28,7 +28,7 @@
 
 #define IS_CRNL(x) ((x) == CR || (x) == NL)
 
-static u16_t sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_data_list * cons, aes67_sdp_flags flags){
+static u16_t sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_list * cons, aes67_sdp_flags flags){
     uint16_t len = 0;
 
     flags = (flags & ~AES67_SDP_FLAG_SET_MASK) | AES67_SDP_FLAG_SET_YES;
@@ -93,6 +93,84 @@ void aes67_sdp_init(struct aes67_sdp * sdp)
     aes67_sdp_origin_init(&sdp->originator);
 
     sdp->ptp_domain = AES67_SDP_PTP_DOMAIN_UNDEF;
+}
+
+struct aes67_sdp_connection * aes67_sdp_get_connection(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+
+    struct aes67_sdp_connection * session_level = NULL;
+
+    for (int i = 0; i < AES67_SDP_MAXCONNECTIONS; i++){
+
+        // if explicitly session level requested
+        if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_SESSION && (sdp->connections.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION) ) {
+            return &sdp->connections.data[i];
+        }
+        // or if level unspecified (remember value)
+        else if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_STREAM && (sdp->connections.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION) ){
+            session_level = &sdp->connections.data[i];
+        }
+        // but unless session level explicitly requested, always prioritize stream level
+        else if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_SESSION && (sdp->connections.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK | AES67_SDP_FLAG_STREAM_INDEX_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION | flags)){
+            return &sdp->connections.data[i];
+        }
+    }
+
+    return session_level;
+}
+
+struct aes67_sdp_attr_encoding * aes67_sdp_get_stream_encoding(struct aes67_sdp * sdp, u8_t si, u8_t ei)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+    AES67_ASSERT("si < sdp->streams.count", si < sdp->streams.count);
+    AES67_ASSERT("ei < sdp->encodings.count", ei < sdp->encodings.count);
+
+    for(int i = 0, ec = 0; i < AES67_SDP_MAXENCODINGS; i++){
+        // stream level attribute only
+        if ((sdp->encodings.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK | AES67_SDP_FLAG_STREAM_INDEX_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION | si) ){
+            if (ec == ei){
+                return &sdp->encodings.data[i];
+            }
+            ec++;
+        }
+    }
+
+    return NULL;
+}
+
+struct aes67_sdp_ptp * aes67_sdp_get_ptp(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t pi)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+    AES67_ASSERT("(flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count", (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count);
+    AES67_ASSERT("pi < sdp->ptps.count", pi < sdp->ptps.count);
+
+//    struct aes67_sdp_ptp * session_level = NULL;
+
+    for(int i = 0, pc = 0, found = 0; i < AES67_SDP_MAXPTPS; i++, found = 0){
+        // if session level explicitly requested and found there
+        if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_SESSION &&  (sdp->ptps.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION)){
+            found = 1;
+        }
+        // if stream level not explicitly requested and found on session level
+        else if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_STREAM && (sdp->ptps.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION) ){
+            found = 1;
+        }
+        // if not session level explicitly requested and found on stream level
+        else if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_SESSION && (sdp->ptps.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK | AES67_SDP_FLAG_STREAM_INDEX_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION | flags)){
+            found = 1;
+        }
+        if (found == 1){
+
+            if (pc == pi){
+                return &sdp->ptps.data[i];
+            }
+
+            pc++;
+        }
+    }
+
+    return NULL;
 }
 
 u32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin)

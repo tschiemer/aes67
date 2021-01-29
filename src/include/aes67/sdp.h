@@ -35,6 +35,7 @@
 #define AES67_SDP_H
 
 #include "aes67/arch.h"
+#include "aes67/debug.h"
 #include "aes67/net.h"
 #include "aes67/ptp.h"
 
@@ -46,24 +47,24 @@ extern "C" {
 #define AES67_SDP_MIMETYPE "application/sdp"
 
 #define AES67_SDP_FLAG_SET_MASK         0b1000000000000000
-#define AES67_SDP_FLAG_DEFLVL_MASK      0b0100000000000000
-#define AES67_SDP_FLAG_STATE_MASK       0b0011000000000000
-#define AES67_SDP_FLAG_MCAST_MASK       0b0000100000000000
-#define AES67_SDP_FLAG_INDEX_MASK       0b0000000011111111
+#define AES67_SDP_FLAG_DEFLVL_MASK      0b0110000000000000
+#define AES67_SDP_FLAG_STATE_MASK       0b0001100000000000
+#define AES67_SDP_FLAG_MCAST_MASK       0b0000010000000000
+#define AES67_SDP_FLAG_STREAM_INDEX_MASK       0b0000000011111111
 
 #define AES67_SDP_FLAG_SET_YES          0b1000000000000000
 #define AES67_SDP_FLAG_SET_NO           0b0000000000000000
 
-#define AES67_SDP_FLAG_DEFLVL_SESSION   0b1000000000000000
-#define AES67_SDP_FLAG_DEFLVL_MEDIA     0b0000000000000000
+#define AES67_SDP_FLAG_DEFLVL_SESSION   0b0100000000000000
+#define AES67_SDP_FLAG_DEFLVL_STREAM    0b0010000000000000
 
 #define AES67_SDP_FLAG_STATE_INACTIVE   0b0000000000000000
-#define AES67_SDP_FLAG_STATE_RECVONLY   0b0001000000000000
-#define AES67_SDP_FLAG_STATE_SENDONLY   0b0010000000000000
-#define AES67_SDP_FLAG_STATE_SENDRECV   0b0011000000000000
+#define AES67_SDP_FLAG_STATE_RECVONLY   0b0000100000000000
+#define AES67_SDP_FLAG_STATE_SENDONLY   0b0001000000000000
+#define AES67_SDP_FLAG_STATE_SENDRECV   0b0001100000000000
 
 #define AES67_SDP_FLAG_MCAST_YES        0b0000000000000000
-#define AES67_SDP_FLAG_MCAST_NO         0b0000100000000000
+#define AES67_SDP_FLAG_MCAST_NO         0b0000010000000000
 
 #define AES67_SDP_PTP_DOMAIN_UNDEF  255
 
@@ -83,7 +84,7 @@ struct aes67_sdp_originator {
 /**
  *
  */
-struct aes67_sdp_connection_data {
+struct aes67_sdp_connection {
     aes67_sdp_flags flags;
     u8_t ttl;
     u8_t naddr;
@@ -91,19 +92,19 @@ struct aes67_sdp_connection_data {
     AES67_STRING(AES67_SDP_MAXADDRESS) address;
 };
 
-struct aes67_sdp_connection_data_list {
+struct aes67_sdp_connection_list {
     u8_t count;
-    struct aes67_sdp_connection_data data[AES67_SDP_MAXCONNECTIONS];
+    struct aes67_sdp_connection data[AES67_SDP_MAXCONNECTIONS];
 };
 
-struct aes67_sdp_ptp_data {
+struct aes67_sdp_ptp {
     aes67_sdp_flags flags;
     struct aes67_ptp ptp;
 };
 
-struct aes67_sdp_ptp_data_list {
+struct aes67_sdp_ptp_list {
     u8_t count;
-    struct aes67_sdp_ptp_data data[AES67_SDP_MAXPTPS];
+    struct aes67_sdp_ptp data[AES67_SDP_MAXPTPS];
 };
 
 struct aes67_sdp_attr_ptime {
@@ -111,22 +112,24 @@ struct aes67_sdp_attr_ptime {
     u16_t msec_frac;
 } PACK_STRUCT;
 
-struct aes67_sdp_attr_enc {
+struct aes67_sdp_attr_encoding {
     aes67_sdp_flags flags;
     u8_t payloadtype;
     u8_t nchannels;
     u32_t samplerate;
 };
 
-struct aes67_sdp_attr_enc_list {
+struct aes67_sdp_attr_encoding_list {
     u8_t count;
-    struct aes67_sdp_attr_enc data[AES67_SDP_MAXENCODINGS];
+    struct aes67_sdp_attr_encoding data[AES67_SDP_MAXENCODINGS];
 };
 
-struct aes67_sdp_media_data {
+struct aes67_sdp_stream {
     u16_t port;
     u8_t nports;
     u8_t nencodings;
+    // count of stream level ptps
+    u8_t nptp;
     u32_t mediaclock_offset; // TODO
     struct {
         u8_t count;
@@ -135,9 +138,9 @@ struct aes67_sdp_media_data {
     struct aes67_sdp_attr_ptime maxptime;
 };
 
-struct aes67_sdp_media_data_list {
+struct aes67_sdp_stream_list {
     u8_t count;
-    struct aes67_sdp_media_data data[AES67_SDP_MAXMEDIA];
+    struct aes67_sdp_stream data[AES67_SDP_MAXMEDIA];
 };
 
 /**
@@ -159,20 +162,130 @@ struct aes67_sdp {
 
     u8_t ptp_domain; // session level ptp domain attribute (RAVENNA)
 
-    struct aes67_sdp_connection_data_list connections;
-
     // for the moment being, just forget about bandwidth ("b=.."), timing ("t=", assume "t=0 0"),
     // repeat times ("r="), time zones ("z="), encryption keys ("k=")
 
-    struct aes67_sdp_ptp_data_list ptps;
+    u8_t nptp; // count of session level ptps
 
-    struct aes67_sdp_media_data_list media;
+    struct aes67_sdp_connection_list connections;
 
-    struct aes67_sdp_attr_enc_list encodings;
+    struct aes67_sdp_stream_list streams;
+
+    struct aes67_sdp_ptp_list ptps;
+
+    struct aes67_sdp_attr_encoding_list encodings;
 };
 
 void aes67_sdp_origin_init(struct aes67_sdp_originator * origin);
 void aes67_sdp_init(struct aes67_sdp * sdp);
+
+/**
+ * Get total connection setting count.
+ *
+ * @param sdp
+ * @return
+ */
+inline u8_t aes67_sdp_get_connection_count(struct aes67_sdp * sdp)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+
+    return sdp->connections.count;
+}
+
+/**
+ * Get connection for session and/or streams (preferred).
+ *
+ * Can be specified to return..
+ *  - only session level connection (flags = AES67_SDP_FLAG_DEFLVL_SESSION)
+ *  - only stream level connection (flags = AES67_SDP_FLAG_DEFLVL_STREAM | <streams-index> )
+ *  - the final connection (flags = <streams-index>) ie session level connection or overriding stream level connection
+ *
+ * @param sdp
+ * @param flags
+ * @return
+ */
+struct aes67_sdp_connection * aes67_sdp_get_connection(struct aes67_sdp * sdp, aes67_sdp_flags flags);
+
+/**
+ * Get total stream count.
+ *
+ * @param sdp
+ * @return
+ */
+inline u8_t aes67_sdp_get_stream_count(struct aes67_sdp * sdp)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+
+    return sdp->streams.count;
+}
+
+/**
+ * Get ith stream.
+ *
+ * @param sdp
+ * @param si    stream index
+ * @return
+ */
+inline struct aes67_sdp_stream * aes67_sdp_get_stream(struct aes67_sdp * sdp, u8_t si)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+    AES67_ASSERT("si < sdp->streams.count", si < sdp->streams.count);
+
+    return &sdp->streams.data[si];
+}
+
+/**
+ * Get number of (alternative) encodings for specific stream
+ *
+ * @param sdp
+ * @param si    stream index
+ * @return
+ */
+inline u8_t aes67_sdp_get_stream_encoding_count(struct aes67_sdp * sdp, u8_t si)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+    AES67_ASSERT("si < sdp->streams.count", si < sdp->streams.count);
+
+    return sdp->streams.data[si].nencodings;
+}
+
+/**
+ * Get ith encoding (alternative) for jth stream.
+ *
+ * @param sdp
+ * @param si    stream index
+ * @param ei    encoding index
+ * @return
+ */
+struct aes67_sdp_attr_encoding * aes67_sdp_get_stream_encoding(struct aes67_sdp * sdp, u8_t si, u8_t ei);
+
+
+inline u8_t aes67_sdp_get_ptp_count(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+    AES67_ASSERT("(flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count", (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count);
+
+    if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_SESSION ){
+        return sdp->nptp;
+    }
+
+    return sdp->nptp + sdp->streams.data[(flags & AES67_SDP_FLAG_STREAM_INDEX_MASK)].nptp;
+}
+
+/**
+ * Get ith PTP clock for given flags.
+ *
+ * Where either
+ * - session level ptp declarations are considered only (flags = AES67_SDP_FLAG_DEFLVL_SESSION)
+ * - stream level ptp declarations are considered only (flags = AES67_SDP_FLAG_DEFLVL_STREAM | <stream-index>)
+ * - session and stream level ptp declarations are considered (flags = <stream-index>), ie all ptp declarations valid for a stream
+ *
+ * @param sdp
+ * @param flags
+ * @param pi
+ * @return
+ */
+struct aes67_sdp_ptp * aes67_sdp_get_ptp(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t pi);
 
 /**
  * Writes originator line to given memory.
@@ -221,6 +334,7 @@ u32_t aes67_sdp_tostr(u8_t *str, u32_t maxlen, struct aes67_sdp *sdp);
  * Parse SDP string into struct.
  */
 u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len);
+
 
 
 #ifdef __cplusplus
