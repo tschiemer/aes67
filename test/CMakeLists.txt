@@ -28,6 +28,7 @@ set(TEST_UNIT_SOURCE_FILES
         unit/def.cpp
         unit/net.cpp
         unit/sap.cpp
+        unit/sdp.cpp
         )
 
 

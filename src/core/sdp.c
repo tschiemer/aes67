@@ -79,6 +79,20 @@ static u16_t sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_co
     return len;
 }
 
+// ptp domain 0 - 127
+inline u16_t ptpdomain_tostr(u8_t * str, u8_t domain)
+{
+    u16_t len = 0;
+    if (domain >= 100){
+        str[len++] = '1';
+    }
+    if (domain >= 10){
+        str[len++] = '0' + ((domain % 100) / 10);
+    }
+    str[len++] = '0' + (domain % 10);
+    return len;
+}
+
 static u16_t sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags)
 {
     AES67_ASSERT( "str != NULL", str != NULL );
@@ -144,7 +158,8 @@ static u16_t sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list *
 
         // add PTP domain only if 2008 or 2019 version
         if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2008 || ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2019){
-            len += aes67_itoa(ptps->data[i].ptp.domain, &str[len], 10);
+            // domain values 0 - 127
+            len += ptpdomain_tostr(&str[len], ptps->data[i].ptp.domain);
         }
 
         str[len++] = CR;
@@ -176,6 +191,8 @@ void aes67_sdp_init(struct aes67_sdp * sdp)
 struct aes67_sdp_connection * aes67_sdp_get_connection(struct aes67_sdp * sdp, aes67_sdp_flags flags)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
+    AES67_ASSERT("not both session and stream req", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_MASK);
+    AES67_ASSERT("stream level requested -> valid stream index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_STREAM || ((flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count) );
 
     struct aes67_sdp_connection * session_level = NULL;
 
@@ -190,7 +207,7 @@ struct aes67_sdp_connection * aes67_sdp_get_connection(struct aes67_sdp * sdp, a
             session_level = &sdp->connections.data[i];
         }
         // but unless session level explicitly requested, always prioritize stream level
-        else if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_SESSION && (sdp->connections.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK | AES67_SDP_FLAG_STREAM_INDEX_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION | flags)){
+        else if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_SESSION && (sdp->connections.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK | AES67_SDP_FLAG_STREAM_INDEX_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | flags)){
             return &sdp->connections.data[i];
         }
     }
@@ -206,7 +223,7 @@ struct aes67_sdp_attr_encoding * aes67_sdp_get_stream_encoding(struct aes67_sdp 
 
     for(int i = 0, ec = 0; i < AES67_SDP_MAXENCODINGS; i++){
         // stream level attribute only
-        if ((sdp->encodings.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK | AES67_SDP_FLAG_STREAM_INDEX_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION | si) ){
+        if ((sdp->encodings.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK | AES67_SDP_FLAG_STREAM_INDEX_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | si) ){
             if (ec == ei){
                 return &sdp->encodings.data[i];
             }
@@ -220,8 +237,10 @@ struct aes67_sdp_attr_encoding * aes67_sdp_get_stream_encoding(struct aes67_sdp 
 struct aes67_sdp_ptp * aes67_sdp_get_ptp(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t pi)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
-    AES67_ASSERT("(flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count", (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count);
     AES67_ASSERT("pi < sdp->ptps.count", pi < sdp->ptps.count);
+    AES67_ASSERT("valid session level index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_SESSION || pi < sdp->nptp);
+    AES67_ASSERT("valid stream level index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_STREAM || (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count);
+    AES67_ASSERT("valid stream level index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != 0 || (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count + sdp->nptp);
 
 //    struct aes67_sdp_ptp * session_level = NULL;
 
@@ -235,7 +254,7 @@ struct aes67_sdp_ptp * aes67_sdp_get_ptp(struct aes67_sdp * sdp, aes67_sdp_flags
             found = 1;
         }
         // if not session level explicitly requested and found on stream level
-        else if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_SESSION && (sdp->ptps.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK | AES67_SDP_FLAG_STREAM_INDEX_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION | flags)){
+        else if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_SESSION && (sdp->ptps.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK | AES67_SDP_FLAG_STREAM_INDEX_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | flags)){
             found = 1;
         }
         if (found == 1){
@@ -250,6 +269,47 @@ struct aes67_sdp_ptp * aes67_sdp_get_ptp(struct aes67_sdp * sdp, aes67_sdp_flags
 
     return NULL;
 }
+
+u8_t aes67_sdp_origin_eq(struct aes67_sdp_originator * lhs, struct aes67_sdp_originator * rhs)
+{
+    AES67_ASSERT("lhs != NULL", lhs != NULL);
+    AES67_ASSERT("rhs != NULL", rhs != NULL);
+
+    // compare usename
+    if (lhs->username.length != rhs->username.length) return 0;
+    if (aes67_memcmp(lhs->username.data, rhs->username.data, lhs->username.length) != 0) return 0;
+
+    // compare session_data id
+    if (lhs->session_id.length != rhs->session_id.length) return 0;
+    if (aes67_memcmp(lhs->session_id.data, rhs->session_id.data, lhs->session_id.length) != 0) return 0;
+
+    // do NOT compare session_data version
+
+    // do NOT compare nettype + addrtype (do implicitly through unicast address)
+
+    // compare unicast address
+    // TODO as hostnames are allowed, in principle we should resolve the name and compare but the ips
+    if (lhs->address.length != rhs->address.length) return 0;
+    if (aes67_memcmp(lhs->address.data, rhs->address.data, lhs->address.length) != 0) return 0;
+
+    // now we can assume it's the same stream
+
+    return 1;
+}
+
+s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp_originator * lhs, struct aes67_sdp_originator * rhs)
+{
+    AES67_ASSERT("lhs != NULL", lhs != NULL);
+    AES67_ASSERT("rhs != NULL", rhs != NULL);
+
+    // assuming the session_data version is given as integer, if the version differs in number of digits, the case is clear
+    if (lhs->session_version.length < rhs->session_version.length) return -1;
+    if (lhs->session_version.length > rhs->session_version.length) return 1;
+
+    // otherwise do a bytewise comparison (which works because character representations of integers are in the right order)
+    return aes67_memcmp(lhs->session_version.data, rhs->session_version.data, lhs->session_version.length);
+}
+
 
 u32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin)
 {
@@ -325,48 +385,6 @@ u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str,
 }
 
 
-u8_t aes67_sdp_origin_cmp(struct aes67_sdp_originator * lhs, struct aes67_sdp_originator * rhs)
-{
-    AES67_ASSERT("lhs != NULL", lhs != NULL);
-    AES67_ASSERT("rhs != NULL", rhs != NULL);
-
-    // compare usename
-    if (lhs->username.length < rhs->username.length) return 1;
-    if (lhs->username.length > rhs->username.length) return 1;
-    if (aes67_memcmp(lhs->username.data, rhs->username.data, lhs->username.length) != 0) return 1;
-
-    // compare session_data id
-    if (lhs->session_id.length < rhs->session_id.length) return 1;
-    if (lhs->session_id.length > rhs->session_id.length) return 1;
-    if (aes67_memcmp(lhs->session_id.data, rhs->session_id.data, lhs->session_id.length) != 0) return 1;
-
-    // do NOT compare session_data version
-
-    // do NOT compare nettype + addrtype (do implicitly through unicast address)
-
-    // compare unicast address
-    if (lhs->session_id.length < rhs->session_id.length) return 1;
-    if (lhs->session_id.length > rhs->session_id.length) return 1;
-    if (aes67_memcmp(lhs->session_id.data, rhs->session_id.data, lhs->session_id.length) != 0) return 1;
-
-    // now we can assume it's the same stream
-
-    return 0;
-}
-
-s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp_originator * lhs, struct aes67_sdp_originator * rhs)
-{
-    AES67_ASSERT("lhs != NULL", lhs != NULL);
-    AES67_ASSERT("rhs != NULL", rhs != NULL);
-
-    // assuming the session_data version is given as integer, if the version differs in number of digits, the case is clear
-    if (lhs->session_version.length < rhs->session_version.length) return -1;
-    if (lhs->session_version.length > rhs->session_version.length) return 1;
-
-    // otherwise do a bytewise comparison (which works because character representations of integers are in the right order)
-    return aes67_memcmp(lhs->session_version.data, rhs->session_version.data, lhs->session_version.length);
-}
-
 
 u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 {
@@ -375,7 +393,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     AES67_ASSERT("sdp != NULL", sdp != NULL);
 
     // length of sdp packet
-    u32_t len = 0, l;
+    u32_t len = 0;
 
 
     //v=0
@@ -464,7 +482,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         str[len++] = 'v';
         str[len++] = '2';
         str[len++] = ' ';
-        len += aes67_itoa(sdp->ptp_domain, &str[len], 10);
+        len += ptpdomain_tostr(&str[len], sdp->ptp_domain);
         str[len++] = CR;
         str[len++] = NL;
     }

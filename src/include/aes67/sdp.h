@@ -149,7 +149,7 @@ struct aes67_sdp_stream {
 
 struct aes67_sdp_stream_list {
     u8_t count;
-    struct aes67_sdp_stream data[AES67_SDP_MAXMEDIA];
+    struct aes67_sdp_stream data[AES67_SDP_MAXSTREAMS];
 };
 
 /**
@@ -275,10 +275,14 @@ struct aes67_sdp_attr_encoding * aes67_sdp_get_stream_encoding(struct aes67_sdp 
 inline u8_t aes67_sdp_get_ptp_count(struct aes67_sdp * sdp, aes67_sdp_flags flags)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
-    AES67_ASSERT("(flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count", (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count);
+
+    AES67_ASSERT("non-session level -> valid stream index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_SESSION || (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count);
 
     if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_SESSION ){
         return sdp->nptp;
+    }
+    if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_STREAM){
+        return sdp->streams.data[(flags & AES67_SDP_FLAG_STREAM_INDEX_MASK)].nptp;
     }
 
     return sdp->nptp + sdp->streams.data[(flags & AES67_SDP_FLAG_STREAM_INDEX_MASK)].nptp;
@@ -300,28 +304,17 @@ inline u8_t aes67_sdp_get_ptp_count(struct aes67_sdp * sdp, aes67_sdp_flags flag
 struct aes67_sdp_ptp * aes67_sdp_get_ptp(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t pi);
 
 /**
- * Writes originator line to given memory.
- *
- * NOTE does not add CRNL
- */
-u32_t aes67_sdp_origin_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin);
-
-
-u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str, u32_t len);
-
-
-/**
  * Compares two SDP structs w.r.t. originator (not considering the (ever increasing) session version)
  *
- * If the originator is identical       -> 0
- * If the originator is NOT identical   -> 1
+ * If the originator is identical       -> 1
+ * If the originator is NOT identical   -> 0
  *
  * Note: the unicast address is compared bytewise, ie if one is given as IP and the other as hostname it will
  * not be considered equal even if it may indeed be the same device.
  *
  * Also see aes67_sdp_origin_cmpversion
  */
-u8_t aes67_sdp_origin_cmp(struct aes67_sdp_originator *lhs, struct aes67_sdp_originator *rhs);
+u8_t aes67_sdp_origin_eq(struct aes67_sdp_originator *lhs, struct aes67_sdp_originator *rhs);
 
 /**
  * Compares two SDP structs denoting the same originator w.r.t. the version.
@@ -330,9 +323,24 @@ u8_t aes67_sdp_origin_cmp(struct aes67_sdp_originator *lhs, struct aes67_sdp_ori
  * If the version is identical  -> 0
  * If the version is later      -> 1
  *
- * Note: only compares version. Requires prior originator match (see aes67_sdp_origin_cmp)
+ * Note: only compares version. Requires prior originator match (see aes67_sdp_origin_eq)
  */
 s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp_originator *lhs, struct aes67_sdp_originator *rhs);
+
+
+/**
+ * Writes originator line to given memory.
+ *
+ * @param str
+ * @param maxlen
+ * @param origin
+ * @return
+ */
+u32_t aes67_sdp_origin_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin);
+
+
+u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str, u32_t len);
+
 
 
 /**
