@@ -390,51 +390,6 @@ TEST(SDP_TestGroup, sdp_get_ptps)
     CHECK_EQUAL(&s3.ptps.data[4], aes67_sdp_get_ptp(&s3, 1, 3));
 }
 
-TEST(SDP_TestGroup, sdp_origin_tostr)
-{
-    uint8_t str[512];
-    uint16_t len;
-
-    struct aes67_sdp_originator o1 = {
-            .username = AES67_STRING_INIT_BYTES(""),
-            .session_id = AES67_STRING_INIT_BYTES(""),
-            .session_version = AES67_STRING_INIT_BYTES(""),
-            .address_type = aes67_net_ipver_4,
-            .address = AES67_STRING_INIT_BYTES("")
-    };
-
-    len = aes67_sdp_origin_tostr(str, sizeof(str), &o1);
-
-    CHECK_COMPARE(0, <, len);
-    str[len] = '\0';
-    STRCMP_EQUAL("o=-   IN IP4 \r\n", (const char *)str);
-
-
-    struct aes67_sdp_originator o2 = {
-            .username = AES67_STRING_INIT_BYTES("joe"),
-            .session_id = AES67_STRING_INIT_BYTES("123456789012345678901234567890123456789"),
-            .session_version = AES67_STRING_INIT_BYTES("098765432109876543210987654321098765432"),
-            .address_type = aes67_net_ipver_4,
-            .address = AES67_STRING_INIT_BYTES("random.host.name")
-    };
-
-    len = aes67_sdp_origin_tostr(str, sizeof(str), &o2);
-
-    CHECK_COMPARE(0, <, len);
-    str[len] = '\0';
-    STRCMP_EQUAL("o=joe 123456789012345678901234567890123456789 098765432109876543210987654321098765432 IN IP4 random.host.name\r\n", (const char *)str);
-
-
-    o2.address_type = aes67_net_ipver_6;
-
-    len = aes67_sdp_origin_tostr(str, sizeof(str), &o2);
-
-    CHECK_COMPARE(0, <, len);
-    str[len] = '\0';
-    STRCMP_EQUAL("o=joe 123456789012345678901234567890123456789 098765432109876543210987654321098765432 IN IP6 random.host.name\r\n", (const char *)str);
-
-}
-
 
 TEST(SDP_TestGroup, sdp_origin_compare)
 {
@@ -492,4 +447,370 @@ TEST(SDP_TestGroup, sdp_origin_compare)
     };
 
     CHECK_EQUAL(0, aes67_sdp_origin_eq(&o1, &o4));
+}
+
+
+TEST(SDP_TestGroup, sdp_origin_tostr)
+{
+    uint8_t str[512];
+    uint32_t len;
+
+    struct aes67_sdp_originator o1 = {
+            .username = AES67_STRING_INIT_BYTES(""),
+            .session_id = AES67_STRING_INIT_BYTES(""),
+            .session_version = AES67_STRING_INIT_BYTES(""),
+            .address_type = aes67_net_ipver_4,
+            .address = AES67_STRING_INIT_BYTES("")
+    };
+
+    len = aes67_sdp_origin_tostr(str, sizeof(str), &o1);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL("o=-   IN IP4 \r\n", (const char *)str);
+
+
+    struct aes67_sdp_originator o2 = {
+            .username = AES67_STRING_INIT_BYTES("joe"),
+            .session_id = AES67_STRING_INIT_BYTES("123456789012345678901234567890123456789"),
+            .session_version = AES67_STRING_INIT_BYTES("098765432109876543210987654321098765432"),
+            .address_type = aes67_net_ipver_4,
+            .address = AES67_STRING_INIT_BYTES("random.host.name")
+    };
+
+    len = aes67_sdp_origin_tostr(str, sizeof(str), &o2);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL("o=joe 123456789012345678901234567890123456789 098765432109876543210987654321098765432 IN IP4 random.host.name\r\n", (const char *)str);
+
+
+    o2.address_type = aes67_net_ipver_6;
+
+    len = aes67_sdp_origin_tostr(str, sizeof(str), &o2);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL("o=joe 123456789012345678901234567890123456789 098765432109876543210987654321098765432 IN IP6 random.host.name\r\n", (const char *)str);
+
+}
+
+
+TEST(SDP_TestGroup, aes67_sdp_connections_tostr)
+{
+    uint8_t str[512];
+    uint32_t len;
+
+    struct aes67_sdp_connection_list c1 = {
+            .count = 0
+    };
+
+    len = aes67_sdp_connections_tostr(str, sizeof(str), &c1, AES67_SDP_FLAG_DEFLVL_SESSION);
+
+    CHECK_COMPARE(0, ==, len);
+
+    len = aes67_sdp_connections_tostr(str, sizeof(str), &c1, AES67_SDP_FLAG_DEFLVL_STREAM | 0);
+
+    CHECK_COMPARE(0, ==, len);
+
+
+    struct aes67_sdp_connection_list c2 = {
+            .count = 5,
+            .data = {
+                    {
+                            .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
+                            .address_type = aes67_net_ipver_4,
+                            .address = {
+                                    .data = "10.0.0.1",
+                                    .length = sizeof("10.0.0.1")-1
+                            },
+                            .ttl = 0,
+                            .naddr = 1
+                    },
+                    {
+                            .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 1,
+                            .address_type = aes67_net_ipver_4,
+                            .address = {
+                                    .data = "10.0.0.2",
+                                    .length = sizeof("10.0.0.2")-1
+                            },
+                            .ttl = 33,
+                            .naddr = 1
+                    },
+                    {
+                            .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 1,
+                            .address_type = aes67_net_ipver_4,
+                            .address = {
+                                    .data = "10.0.0.3",
+                                    .length = sizeof("10.0.0.3")-1
+                            },
+                            .ttl = 44,
+                            .naddr = 2
+                    },
+                    {
+                            .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
+                            .address_type = aes67_net_ipver_6,
+                            .address = {
+                                    .data = "host1",
+                                    .length = sizeof("host1")-1
+                            },
+                            .ttl = 0,
+                            .naddr = 0
+                    },
+                    {
+                            .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
+                            .address_type = aes67_net_ipver_6,
+                            .address = {
+                                    .data = "host2",
+                                    .length = sizeof("host2")-1
+                            },
+                            .ttl = 0,
+                            .naddr = 32
+                    }
+            }
+    };
+
+
+    len = aes67_sdp_connections_tostr(str, sizeof(str), &c2, AES67_SDP_FLAG_DEFLVL_SESSION);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL(
+            "c=IN IP4 10.0.0.1\r\n"
+            "c=IN IP6 host2/32\r\n",
+            (const char*)str
+    );
+
+
+    len = aes67_sdp_connections_tostr(str, sizeof(str), &c2, AES67_SDP_FLAG_DEFLVL_STREAM | 0);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL(
+            "c=IN IP6 host1\r\n",
+            (const char*)str
+    );
+
+
+    len = aes67_sdp_connections_tostr(str, sizeof(str), &c2, AES67_SDP_FLAG_DEFLVL_STREAM | 1);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL(
+            "c=IN IP4 10.0.0.2/33\r\n"
+            "c=IN IP4 10.0.0.3/44/2\r\n",
+            (const char*)str
+    );
+}
+
+TEST(SDP_TestGroup, aes67_sdp_ptp_tostr)
+{
+    uint8_t str[512];
+    uint32_t len;
+
+    struct aes67_sdp_ptp_list p1 = {
+            .count = 0
+    };
+
+    len = aes67_sdp_ptp_tostr(str, sizeof(str), &p1, AES67_SDP_FLAG_DEFLVL_SESSION);
+
+    CHECK_COMPARE(0, ==, len);
+
+    len = aes67_sdp_ptp_tostr(str, sizeof(str), &p1, AES67_SDP_FLAG_DEFLVL_STREAM | 0);
+
+    CHECK_COMPARE(0, ==, len);
+
+
+    struct aes67_sdp_ptp_list p2 = {
+            .count = 5,
+            .data = {
+                    { // a=ts-refclk:ptp=IEEE1588-2002:01-02-03-04-05-06-07-08
+                            .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
+                            .ptp = {
+                                    .type = aes67_ptp_type_IEEE1588_2002,
+                                    .gmid.u8 = {1,2,3,4,5,6,7,8}
+                            }
+                    },
+                    { // a=ts-refclk:ptp=IEEE1588-2008:02-03-04-05-06-07-08-09:10
+                            .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 1,
+                            .ptp = {
+                                    .type = aes67_ptp_type_IEEE1588_2008,
+                                    .gmid.u8 = {2,3,4,5,6,7,8,9},
+                                    .domain = 10
+                            }
+                    },
+                    { // a=ts-refclk:ptp=IEEE1588-2019:03-04-05-06-07-08-09-0A:11
+                            .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
+                            .ptp = {
+                                    .type = aes67_ptp_type_IEEE1588_2019,
+                                    .gmid.u8 = {3,4,5,6,7,8,9,10},
+                                    .domain = 11
+                            }
+                    },
+                    { // a=ts-refclk:ptp=IEEE802.1AS-2011:04-05-06-07-08-09-0A-0B
+                        .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
+                        .ptp = {
+                                .type = aes67_ptp_type_IEEE802AS_2011,
+                                .gmid.u8 = {4,5,6,7,8,9,10,11}
+                        }
+                    },
+                    { // a=ts-refclk:ptp=IEEE1588-2019:05-06-07-08-09-0A-0B-0C:12
+                            .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 1,
+                            .ptp = {
+                                    .type = aes67_ptp_type_IEEE1588_2019,
+                                    .gmid.u8 = {5,6,7,8,9,10,11,12},
+                                    .domain = 12
+                            }
+                    }
+            }
+    };
+
+    std::memset(str, 0, sizeof(str));
+
+    len = aes67_sdp_ptp_tostr(str, sizeof(str), &p2, AES67_SDP_FLAG_DEFLVL_SESSION);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL(
+            "a=ts-refclk:ptp=IEEE1588-2002:01-02-03-04-05-06-07-08\r\n"
+            "a=ts-refclk:ptp=IEEE802.1AS-2011:04-05-06-07-08-09-0A-0B\r\n"
+            ,
+            (const char*)str
+            );
+
+
+    std::memset(str, 0, sizeof(str));
+
+    len = aes67_sdp_ptp_tostr(str, sizeof(str), &p2, AES67_SDP_FLAG_DEFLVL_STREAM | 0);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL(
+            "a=ts-refclk:ptp=IEEE1588-2019:03-04-05-06-07-08-09-0A:11\r\n"
+    ,
+            (const char*)str
+    );
+
+
+    std::memset(str, 0, sizeof(str));
+
+    len = aes67_sdp_ptp_tostr(str, sizeof(str), &p2, AES67_SDP_FLAG_DEFLVL_STREAM | 1);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL(
+            "a=ts-refclk:ptp=IEEE1588-2008:02-03-04-05-06-07-08-09:10\r\n"
+            "a=ts-refclk:ptp=IEEE1588-2019:05-06-07-08-09-0A-0B-0C:12\r\n"
+    ,
+            (const char*)str
+    );
+}
+
+TEST(SDP_TestGroup, sdp_tostr)
+{
+    uint8_t str[1024];
+    uint32_t len;
+
+    struct aes67_sdp s1 = {
+            .originator = {
+                .username = AES67_STRING_INIT_BYTES("joe"),
+                .session_id = AES67_STRING_INIT_BYTES("1234567890"),
+                .session_version = AES67_STRING_INIT_BYTES("9876543210"),
+                .address_type = aes67_net_ipver_4,
+                .address = AES67_STRING_INIT_BYTES("random.host.name")
+            },
+            .session_name = AES67_STRING_INIT_BYTES("")
+    };
+
+    len = aes67_sdp_tostr(str, sizeof(str), &s1);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL(
+            "v=0\r\n"
+            "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
+            "s= \r\n"
+            "t=0 0\r\n"
+#if AES67_SDP_TOOL_ENABLED == 1
+            "a=tool:" AES67_SDP_TOOL "\r\n"
+#endif
+            , (const char *)str);
+
+
+    std::memcpy(s1.session_name.data, "1337 $3$$i0n", sizeof("1337 $3$$i0n")-1);
+    s1.session_name.length = sizeof("1337 $3$$i0n")-1;
+
+#if 0 < AES67_SDP_MAXSESSIONINFO
+    std::memcpy(s1.session_info.data, "more info", sizeof("more info")-1);
+    s1.session_info.length = sizeof("more info")-1;
+#endif
+
+    std::memset(str, 0, sizeof(str));
+    len = aes67_sdp_tostr(str, sizeof(str), &s1);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL(
+            "v=0\r\n"
+            "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
+            "s=1337 $3$$i0n\r\n"
+#if 0 < AES67_SDP_MAXSESSIONINFO
+            "i=more info\r\n"
+#endif
+            "t=0 0\r\n"
+#if AES67_SDP_TOOL_ENABLED == 1
+            "a=tool:" AES67_SDP_TOOL "\r\n"
+#endif
+    , (const char *)str);
+
+    s1.connections.count = 4;
+    s1.connections.data[0].flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION;
+    s1.connections.data[0].address_type = aes67_net_ipver_4;
+    std::memcpy(s1.connections.data[0].address.data, "10.0.0.1", sizeof("10.0.0.1")-1);
+    s1.connections.data[0].address.length = sizeof("10.0.0.1")-1;
+    s1.connections.data[0].ttl = 33;
+    s1.connections.data[0].naddr = 1;
+
+    s1.connections.data[1].flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION;
+    s1.connections.data[1].address_type = aes67_net_ipver_4;
+    std::memcpy(s1.connections.data[1].address.data, "10.0.0.2", sizeof("10.0.0.2")-1);
+    s1.connections.data[1].address.length = sizeof("10.0.0.2")-1;
+    s1.connections.data[1].ttl = 44;
+    s1.connections.data[1].naddr = 8;
+
+    s1.connections.data[2].flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION;
+    s1.connections.data[2].address_type = aes67_net_ipver_6;
+    std::memcpy(s1.connections.data[2].address.data, "host1", sizeof("host1")-1);
+    s1.connections.data[2].address.length = sizeof("host1")-1;
+    s1.connections.data[2].ttl = 0;
+    s1.connections.data[2].naddr = 1;
+
+    s1.connections.data[3].flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION;
+    s1.connections.data[3].address_type = aes67_net_ipver_6;
+    std::memcpy(s1.connections.data[3].address.data, "host2", sizeof("host2")-1);
+    s1.connections.data[3].address.length = sizeof("host2")-1;
+    s1.connections.data[3].ttl = 0;
+    s1.connections.data[3].naddr = 2;
+
+    std::memset(str, 0, sizeof(str));
+    len = aes67_sdp_tostr(str, sizeof(str), &s1);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL(
+            "v=0\r\n"
+            "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
+            "s=1337 $3$$i0n\r\n"
+#if 0 < AES67_SDP_MAXSESSIONINFO
+            "i=more info\r\n"
+#endif
+            "c=IN IP4 10.0.0.1/33\r\n"
+            "c=IN IP4 10.0.0.2/44/8\r\n"
+            "c=IN IP6 host1\r\n"
+            "c=IN IP6 host2/2\r\n"
+            "t=0 0\r\n"
+#if AES67_SDP_TOOL_ENABLED == 1
+            "a=tool:" AES67_SDP_TOOL "\r\n"
+#endif
+    , (const char *)str);
 }
