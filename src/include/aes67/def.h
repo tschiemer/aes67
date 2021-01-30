@@ -122,7 +122,9 @@ void * aes67_memmove(void* dest, const void* src, size_t count);
 void * aes67_memchr( const void * ptr, int ch, size_t count );
 #endif
 
-
+#ifndef aes67_atohex
+void aes67_atohex(u8_t * bytes, u32_t len, u8_t * str);
+#endif
 
 u16_t aes67_itoa(s32_t value, u8_t * str, s32_t base);
 s32_t aes67_atoi(u8_t * str, size_t len, s32_t base, u16_t * readlen);
