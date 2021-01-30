@@ -51,7 +51,6 @@ extern "C" {
 
 #define AES67_SDP_FLAG_SET_MASK             0b1000000000000000
 #define AES67_SDP_FLAG_DEFLVL_MASK          0b0110000000000000
-#define AES67_SDP_FLAG_MCAST_MASK           0b0000010000000000
 #define AES67_SDP_FLAG_STREAM_INDEX_MASK    0b0000000011111111
 
 // Internally used bit (is entry set?)
@@ -60,10 +59,6 @@ extern "C" {
 
 #define AES67_SDP_FLAG_DEFLVL_SESSION   0b0100000000000000
 #define AES67_SDP_FLAG_DEFLVL_STREAM    0b0010000000000000
-
-
-#define AES67_SDP_FLAG_MCAST_YES        0b0000000000000000
-#define AES67_SDP_FLAG_MCAST_NO         0b0000010000000000
 
 #define AES67_SDP_PTP_DOMAIN_SET        0b10000000
 #define AES67_SDP_PTP_DOMAIN_VALUE      0b01111111
@@ -338,10 +333,10 @@ s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp_originator *lhs, struct aes67
  */
 u32_t aes67_sdp_origin_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin);
 
+u32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_list * cons, aes67_sdp_flags flags);
 
-u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str, u32_t len);
 
-
+u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags);
 
 /**
  * Generate SDP string from struct.
@@ -349,6 +344,7 @@ u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str,
 u32_t aes67_sdp_tostr(u8_t *str, u32_t maxlen, struct aes67_sdp *sdp);
 
 
+u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str, u32_t len);
 
 /**
  * Parse SDP string into struct.

@@ -28,57 +28,6 @@
 
 #define IS_CRNL(x) ((x) == CR || (x) == NL)
 
-static u16_t sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_list * cons, aes67_sdp_flags flags){
-    AES67_ASSERT( "str != NULL", str != NULL );
-    AES67_ASSERT("cons != NULL", cons != NULL );
-
-    uint16_t len = 0;
-
-    flags = (flags & ~AES67_SDP_FLAG_SET_MASK) | AES67_SDP_FLAG_SET_YES;
-
-    for(int i = 0; i < cons->count; i++){
-        // skip all unwanted context
-        if ( cons->data[i].flags != flags ){
-            continue;
-        }
-
-        str[len++] = 'c';
-        str[len++] = '=';
-        str[len++] = 'I';
-        str[len++] = 'N';
-        str[len++] = ' ';
-        str[len++] = 'I';
-        str[len++] = 'P';
-        if (cons->data[i].address_type == aes67_net_ipver_4){
-            str[len++] = '4';
-        } else {
-            str[len++] = '6';
-        }
-        str[len++] = ' ';
-
-        // host
-        aes67_memcpy(&str[len], &cons->data[i].address.data, cons->data[i].address.length);
-        len += cons->data[i].address.length;
-
-        // optional ttl for ipv4 multicast
-        if (cons->data[i].address_type == aes67_net_ipver_4 && (cons->data[i].flags & AES67_SDP_FLAG_MCAST_MASK) == AES67_SDP_FLAG_MCAST_YES){
-            str[len++] = '/';
-            len += aes67_itoa(cons->data[i].ttl, &str[len], 10);
-        }
-
-        if (cons->data[i].naddr > 0){
-            str[len++] = '/';
-            len += aes67_itoa(cons->data[i].naddr, &str[len], 10);
-        }
-
-
-        str[len++] = CR;
-        str[len++] = NL;
-    }
-
-    return len;
-}
-
 // ptp domain 0 - 127
 inline u16_t ptpdomain_tostr(u8_t * str, u8_t domain)
 {
@@ -90,82 +39,6 @@ inline u16_t ptpdomain_tostr(u8_t * str, u8_t domain)
         str[len++] = '0' + ((domain % 100) / 10);
     }
     str[len++] = '0' + (domain % 10);
-    return len;
-}
-
-static u16_t sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags)
-{
-    AES67_ASSERT( "str != NULL", str != NULL );
-    AES67_ASSERT("ptps != NULL", ptps != NULL );
-
-    uint16_t len = 0;
-
-    flags = (flags & ~AES67_SDP_FLAG_SET_MASK) | AES67_SDP_FLAG_SET_YES;
-
-    for(int i = 0; i < ptps->count; i++){
-        // skip all unwanted context
-        if ( ptps->data[i].flags != flags ){
-            continue;
-        }
-
-        AES67_ASSERT("AES67_PTP_TYPE_ISVALID(ptps->data[i].ptp.type)", AES67_PTP_TYPE_ISVALID(ptps->data[i].ptp.type));
-
-        str[len++] = 'a';
-        str[len++] = '=';
-        str[len++] = 't';
-        str[len++] = 's';
-        str[len++] = '-';
-        str[len++] = 'r';
-        str[len++] = 'e';
-        str[len++] = 'f';
-        str[len++] = 'c';
-        str[len++] = 'l';
-        str[len++] = 'o';
-        str[len++] = 'c';
-        str[len++] = 'k';
-        str[len++] = ':';
-        str[len++] = 'p';
-        str[len++] = 't';
-        str[len++] = 'p';
-        str[len++] = '=';
-
-        // add ptp variant
-        if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2002){
-            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2002, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2002) - 1);
-            len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2002) - 1;
-        }
-        else if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2008){
-            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2008, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2008) - 1);
-            len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2008) - 1;
-        }
-        else if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2019){
-            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2019, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2019) - 1);
-            len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2019) - 1;
-        }
-        else if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE802AS_2011){
-            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE802AS_2011, sizeof(AES67_PTP_TYPE_STR_IEEE802AS_2011) - 1);
-            len += sizeof(AES67_PTP_TYPE_STR_IEEE802AS_2011) - 1;
-        }
-
-        str[len++] = ':';
-
-        //
-        for(int j = 0; j < sizeof(union aes67_ptp_eui64); j++){
-            aes67_itoa(ptps->data[i].ptp.gmid.u8[j], &str[len], 16);
-            len += 2;
-            str[len] = '-';
-        }
-
-        // add PTP domain only if 2008 or 2019 version
-        if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2008 || ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2019){
-            // domain values 0 - 127
-            len += ptpdomain_tostr(&str[len], ptps->data[i].ptp.domain);
-        }
-
-        str[len++] = CR;
-        str[len++] = NL;
-    }
-
     return len;
 }
 
@@ -379,12 +252,135 @@ u32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_origina
     return len;
 }
 
-u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str, u32_t len)
+u32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_list * cons, aes67_sdp_flags flags)
 {
-    return 0;
+    AES67_ASSERT( "str != NULL", str != NULL );
+    AES67_ASSERT("cons != NULL", cons != NULL );
+
+    u32_t len = 0;
+
+    flags = (flags & ~AES67_SDP_FLAG_SET_MASK) | AES67_SDP_FLAG_SET_YES;
+
+    for(int i = 0; i < cons->count; i++){
+        // skip all unwanted context
+        if ( cons->data[i].flags != flags ){
+            continue;
+        }
+
+        str[len++] = 'c';
+        str[len++] = '=';
+        str[len++] = 'I';
+        str[len++] = 'N';
+        str[len++] = ' ';
+        str[len++] = 'I';
+        str[len++] = 'P';
+        if (cons->data[i].address_type == aes67_net_ipver_4){
+            str[len++] = '4';
+        } else {
+            str[len++] = '6';
+        }
+        str[len++] = ' ';
+
+        // host
+        aes67_memcpy(&str[len], &cons->data[i].address.data, cons->data[i].address.length);
+        len += cons->data[i].address.length;
+
+        // optional ttl for ipv4 multicast (we assume ttl > 0 iff is multicast)
+        if (cons->data[i].address_type == aes67_net_ipver_4 && 0 < cons->data[i].ttl){
+            str[len++] = '/';
+            len += aes67_itoa(cons->data[i].ttl, &str[len], 10);
+        }
+
+        if (cons->data[i].naddr > 1){
+            str[len++] = '/';
+            len += aes67_itoa(cons->data[i].naddr, &str[len], 10);
+        }
+
+
+        str[len++] = CR;
+        str[len++] = NL;
+    }
+
+    return len;
 }
 
 
+u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags)
+{
+    AES67_ASSERT( "str != NULL", str != NULL );
+    AES67_ASSERT("ptps != NULL", ptps != NULL );
+
+    u32_t len = 0;
+
+    flags = (flags & ~AES67_SDP_FLAG_SET_MASK) | AES67_SDP_FLAG_SET_YES;
+
+    for(int i = 0; i < ptps->count; i++){
+        // skip all unwanted context
+        if ( ptps->data[i].flags != flags ){
+            continue;
+        }
+
+        AES67_ASSERT("AES67_PTP_TYPE_ISVALID(ptps->data[i].ptp.type)", AES67_PTP_TYPE_ISVALID(ptps->data[i].ptp.type));
+
+        str[len++] = 'a';
+        str[len++] = '=';
+        str[len++] = 't';
+        str[len++] = 's';
+        str[len++] = '-';
+        str[len++] = 'r';
+        str[len++] = 'e';
+        str[len++] = 'f';
+        str[len++] = 'c';
+        str[len++] = 'l';
+        str[len++] = 'k';
+        str[len++] = ':';
+        str[len++] = 'p';
+        str[len++] = 't';
+        str[len++] = 'p';
+        str[len++] = '=';
+
+        // add ptp variant
+        if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2002){
+            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2002, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2002) - 1);
+            len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2002) - 1;
+        }
+        else if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2008){
+            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2008, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2008) - 1);
+            len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2008) - 1;
+        }
+        else if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2019){
+            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2019, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2019) - 1);
+            len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2019) - 1;
+        }
+        else if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE802AS_2011){
+            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE802AS_2011, sizeof(AES67_PTP_TYPE_STR_IEEE802AS_2011) - 1);
+            len += sizeof(AES67_PTP_TYPE_STR_IEEE802AS_2011) - 1;
+        }
+
+        str[len++] = ':';
+
+        //
+        aes67_atohex(&ptps->data[i].ptp.gmid.u8[0], 1, &str[len]);
+        len += 2;
+        for(int j = 1; j < sizeof(union aes67_ptp_eui64); j++){
+            str[len++] = '-';
+            aes67_atohex(&ptps->data[i].ptp.gmid.u8[j], 1, &str[len]);
+            len += 2;
+        }
+
+        // add PTP domain only if 2008 or 2019 version
+        if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2008 || ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2019){
+            // domain values 0 - 127
+            str[len++] = ':';
+            len += ptpdomain_tostr(&str[len], ptps->data[i].ptp.domain);
+        }
+
+        str[len++] = CR;
+        str[len++] = NL;
+    }
+
+    return len;
+}
 
 u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 {
@@ -422,6 +418,9 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     // i=<session_data info>
 #if 0 < AES67_SDP_MAXSESSIONINFO
     if (0 < sdp->session_info.length){
+        str[len++] = 'i';
+        str[len++] = '=';
+
         aes67_memcpy(&str[len], sdp->session_info.data, sdp->session_info.length);
         len += sdp->session_info.length;
 
@@ -431,11 +430,12 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 #endif
 
     // c=<connection data> (0-N)
-    len += sdp_connections_tostr(&str[len], maxlen - len, &sdp->connections, AES67_SDP_FLAG_DEFLVL_SESSION);
+    len += aes67_sdp_connections_tostr(&str[len], maxlen - len, &sdp->connections, AES67_SDP_FLAG_DEFLVL_SESSION);
 
     // b=<bwtype>:<bandwidth>
 
     // t=<start-time> <stop-time>
+    // ALWAYS t=0 0
     str[len++] = 't';
     str[len++] = '=';
     str[len++] = '0';
@@ -452,6 +452,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     str[len++] = 'o';
     str[len++] = 'o';
     str[len++] = 'l';
+    str[len++] = ':';
     aes67_memcpy(&str[len], AES67_SDP_TOOL, sizeof(AES67_SDP_TOOL)-1);
     len += sizeof(AES67_SDP_TOOL)-1;
     str[len++] = CR;
@@ -491,6 +492,14 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
     return len;
 }
+
+
+u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str, u32_t len)
+{
+    return 0;
+}
+
+
 
 
 u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
