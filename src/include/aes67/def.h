@@ -94,6 +94,9 @@ struct { \
 
 typedef AES67_STRING() aes67_str;
 
+#define AES67_STRING_INIT(__str__) {.length = sizeof(__str__), .data = __str__ }
+#define AES67_STRING_INIT_BYTES(__bytes__) {.length = sizeof(__bytes__)-1, .data = __bytes__ }
+
 typedef struct {
     u16_t length;
     u8_t * data;
