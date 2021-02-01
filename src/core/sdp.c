@@ -26,6 +26,7 @@
 #define NL 10
 #define SP ' ';
 
+#define IS_NL(x) ((x) == NL)
 #define IS_CRNL(x) ((x) == CR || (x) == NL)
 
 
@@ -269,7 +270,7 @@ u32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_con
         str[len++] = ' ';
         str[len++] = 'I';
         str[len++] = 'P';
-        if (cons->data[i].address_type == aes67_net_ipver_4){
+        if (cons->data[i].ipver == aes67_net_ipver_4){
             str[len++] = '4';
         } else {
             str[len++] = '6';
@@ -281,7 +282,7 @@ u32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_con
         len += cons->data[i].address.length;
 
         // optional ttl for ipv4 multicast (we assume ttl > 0 iff is multicast)
-        if (cons->data[i].address_type == aes67_net_ipver_4 && 0 < cons->data[i].ttl){
+        if (cons->data[i].ipver == aes67_net_ipver_4 && 0 < cons->data[i].ttl){
             str[len++] = '/';
             len += aes67_itoa(cons->data[i].ttl, &str[len], 10);
         }
@@ -400,11 +401,11 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     //s=<session_data name>
     str[len++] = 's';
     str[len++] = '=';
-    if (sdp->session_name.length == 0){
+    if (sdp->name.length == 0){
         str[len++] = ' '; // use single space if no meaningful name
     } else {
-        aes67_memcpy(&str[len], sdp->session_name.data, sdp->session_name.length);
-        len += sdp->session_name.length;
+        aes67_memcpy(&str[len], sdp->name.data, sdp->name.length);
+        len += sdp->name.length;
     }
     str[len++] = CR;
     str[len++] = NL;
@@ -412,12 +413,12 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
     // i=<session_data info>
 #if 0 < AES67_SDP_MAXSESSIONINFO
-    if (0 < sdp->session_info.length){
+    if (0 < sdp->info.length){
         str[len++] = 'i';
         str[len++] = '=';
 
-        aes67_memcpy(&str[len], sdp->session_info.data, sdp->session_info.length);
-        len += sdp->session_info.length;
+        aes67_memcpy(&str[len], sdp->info.data, sdp->info.length);
+        len += sdp->info.length;
 
         str[len++] = CR;
         str[len++] = NL;
@@ -541,12 +542,12 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         // optional stream/media information
         // i=<stream info>
 
-        if (sdp->streams.data[s].stream_info.length > 0){
+        if (sdp->streams.data[s].info.length > 0){
             str[len++] = 'i';
             str[len++] = '=';
 
-            aes67_memcpy(&str[len], sdp->streams.data[s].stream_info.data, sdp->streams.data[s].stream_info.length);
-            len += sdp->streams.data[s].stream_info.length;
+            aes67_memcpy(&str[len], sdp->streams.data[s].info.data, sdp->streams.data[s].info.length);
+            len += sdp->streams.data[s].info.length;
 
             str[len++] = CR;
             str[len++] = NL;
@@ -809,11 +810,258 @@ u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str,
     return 0;
 }
 
-
-
+//inline static u32_t connection_fromstr(struct aes67_sdp * sdp, u8_t * line, u32_t llen)
+//{
+//
+//}
 
 u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 {
-    return 0;
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+    AES67_ASSERT("str != NULL", str != NULL);
+
+    // make sure SDP data starts with v=0
+    if (len < 5 || str[0] != 'v' || str[1] != '=' || str[2] != '0'){
+        return AES67_SDP_ERROR;
+    }
+
+    u32_t pos = 3;
+
+    // abort if no line termination
+    if (!IS_CRNL(str[pos])){
+        return AES67_SDP_ERROR;
+    }
+
+    pos++;
+
+    // if only NL skip (ie 2 chars for newline CRNL)
+    if (IS_NL(str[pos])) {
+        pos++;
+    }
+
+    aes67_sdp_flags context = AES67_SDP_FLAG_DEFLVL_SESSION;
+    u8_t stream_index = 0;
+
+#define SEEN_O  1
+#define SEEN_S  2
+#define SEEN_C  4
+#define SEEN_M  8
+#define SEEN_T  16
+#define SEEN_MODE   0
+#define SEEN_RTPMAP 0
+#define SEEN_REFCLK 0
+#define SEEN_PTIME 0
+#define SEEN_MEDIACLK 0
+#define SEEN_ALL (SEEN_O | SEEN_S | SEEN_C | SEEN_M | SEEN_T | SEEN_MODE | SEEN_RTPMAP | SEEN_REFCLK | SEEN_PTIME | SEEN_MEDIACLK)
+
+    u16_t seen = 0; // for basic (but incomplete) checking if required fields have been seen
+    size_t llen = 0; // line length
+
+    // until end was reached
+    while(pos < len){
+        u8_t * line = &str[pos];
+        llen = 0;
+
+        // determine line length
+        while (pos < len && line[llen] != NL){
+            pos++;
+            llen++;
+        }
+
+        // move position beyond newline
+        pos++;
+
+        // discard carriage return, if given
+        if (line[llen-1] == CR){
+            llen--;
+        }
+
+        // if line length is too short/invalid, abort or when second char not =
+        if (llen < 3 || line[1] != '='){
+            return AES67_SDP_ERROR;
+        }
+
+        // for comfort, let line start at actual data part
+//        u8_t f = line[0];
+//        line += 2;
+//        llen -= 2;
+
+        // now parse given line
+        switch(line[0]){
+
+            case 'o': // o=<user> <id> <version> IN (IP4|IP6) <originating-host>
+                seen |= SEEN_O;
+                break;
+
+            case 's': //
+                seen |= SEEN_S;
+
+#if 0 < AES67_SDP_MAXSESSIONNAME
+                if (llen == 3 && line[2] == ' '){
+                    sdp->name.length = 0;
+                } else {
+                    u32_t min = AES67_SDP_MAXSESSIONNAME < llen - 2 ? AES67_SDP_MAXSESSIONNAME : llen - 2;
+                    aes67_memcpy(sdp->name.data, &line[2], min);
+                    sdp->name.length = min;
+                }
+#endif // 0 < AES67_SDP_MAXSESSIONNAME
+                break;
+
+            case 'i': // i=<session info>
+#if 0 < AES67_SDP_MAXSESSIONINFO
+                if (context == AES67_SDP_FLAG_DEFLVL_SESSION){
+                    u32_t min = AES67_SDP_MAXSESSIONINFO < llen - 2 ? AES67_SDP_MAXSESSIONINFO : llen - 2;
+                    aes67_memcpy(sdp->info.data, &line[2], min);
+                    sdp->info.length = min;
+                }
+#if 0 < AES67_SDP_MAXSTREAMINFO
+                else
+#endif
+#endif // 0 < AES67_SDP_MAXSESSIONNAME
+#if 0 < AES67_SDP_MAXSTREAMINFO
+                if (context == AES67_SDP_FLAG_DEFLVL_STREAM){
+                    u32_t min = AES67_SDP_MAXSTREAMINFO < llen - 2 ? AES67_SDP_MAXSTREAMINFO : llen - 2;
+                    aes67_memcpy(sdp->streams.data[stream_index].info.data, &line[2], min);
+                    sdp->streams.data[stream_index].info.length = min;
+                }
+#endif // 0 < AES67_SDP_MAXSTREAMINFO
+                break;
+
+            case 'c':  // c=IN (IP4|IP6) <host>[/<ttl>][/<no-of-addresses>]
+                seen |= SEEN_C;
+
+                if (llen < sizeof("c=IN IP4 a")-1 || line[2] != 'I' || line[3] != 'N' || line[4] != ' ' ||
+                    line[5] != 'I' || line[6] != 'P' || line[8] != ' ') {
+                    //TODO report format error
+                    return AES67_SDP_ERROR;
+                }
+
+                // enough poolspace for another connection?
+                if (sdp->connections.count >= AES67_SDP_MAXCONNECTIONS){
+                    //TODO report insufficient memory
+                    return AES67_SDP_NOMEMORY;
+                }
+
+                // get new connection pointer and increase connection counter
+                struct aes67_sdp_connection * con = &sdp->connections.data[sdp->connections.count++];
+
+                // set context flag accordingly
+                con->flags = AES67_SDP_FLAG_SET_YES | context;
+
+                // default attributes
+                con->address.length = 0;
+                con->ttl = 0;
+                con->naddr = 1;
+
+                if (line[7] == '4') {
+                    con->ipver = aes67_net_ipver_4;
+                } else if (line[7] == '6') {
+                    con->ipver = aes67_net_ipver_6;
+                } else {
+                    // unknown format
+                    return AES67_SDP_ERROR;
+                }
+
+                // locate optional delimiter '/'
+                u8_t * delim = aes67_memchr(&line[8], '/', llen - 9);
+
+                size_t hostlen = llen-9;
+
+                // if a delimiter found it is definitely a multicast address
+                if (delim != NULL){
+                    hostlen = delim - line - 9;
+
+                    // move to beginning of first number
+                    delim++;
+
+                    // safety check
+                    if (delim - line >= llen) {
+                        //invalid format, ie missing number after delimiter ("<addr>/")
+                        return AES67_SDP_ERROR;
+                    }
+
+                    u16_t readlen = 0;
+                    s32_t v = aes67_atoi(delim, llen - (delim - line), 10, &readlen);
+
+                    // if there is nothing else, it's either..
+                    if (&delim[readlen] == &line[llen]) {
+
+                        // the ipv4 required ttl or ipv6 number of addresses
+                        if (con->ipver == aes67_net_ipver_4 ) {
+                            con->ttl = v;
+                        }
+
+                    } else { // there is more data
+
+                        //advance to /
+                        delim += readlen;
+
+                        // sanity check delimiter and at least one char
+                        if (delim[0] != '/' || &delim[1] >= &line[llen]) {
+                            return AES67_SDP_ERROR;
+                        }
+
+                        //a second delimiter can only be given when it is an ipv4 multicast address which requires
+                        //a ttl value first
+                        con->ttl = v;
+
+                        v = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+
+                    }
+
+                    con->naddr = v;
+                }
+
+                aes67_memcpy(con->address.data, &line[8], hostlen);
+                con->address.length = hostlen;
+
+                break;
+
+
+            case 't': // t=<start-time> <end-time>
+                seen |= SEEN_T;
+
+//                u16_t readlen = 0;
+//                s32_t start = aes67_atoi(&line[2], llen-2, 10, &readlen);
+//
+//                // check if there is the beginning of a second number
+//                if (4+readlen >= llen){
+//                    return AES67_SDP_ERROR;
+//                }
+//
+//                s32_t end = aes67_atoi(&line[3+readlen], llen-2, 10, &readlen);
+//
+//                // TODO note: this is just a basic format check, at the moment this is not used
+//                if (start != 0 || end != 0){
+//                    return AES67_SDP_NOTSUPPORTED;
+//                }
+
+                break;
+
+
+            case 'm':
+                seen |= SEEN_M;
+                break;
+
+            case 'a':
+                break;
+
+            case 'u':
+            case 'e':
+            case 'p':
+            case 'b':
+            case 'z':
+            case 'k':
+            case 'r':
+                // fall through to default, ie ignore
+
+            default:
+                break;
+        }
+    }
+
+
+
+    return (seen & SEEN_ALL) == SEEN_ALL ? AES67_SDP_OK : AES67_SDP_INCOMPLETE;
 }
 

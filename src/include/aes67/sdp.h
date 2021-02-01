@@ -70,6 +70,14 @@ extern "C" {
 #define AES67_SDP_CAP_ACTIVE            0b01000000
 #define AES67_SDP_CAP_VALUE             0b00111111
 
+enum {
+    AES67_SDP_OK            = 0,
+    AES67_SDP_ERROR,                // generic error
+    AES67_SDP_NOMEMORY,             // not enough memory / too small pool sizes
+    AES67_SDP_INCOMPLETE,           // missing some required fields
+    AES67_SDP_NOTSUPPORTED          // unsupported feature
+};
+
 typedef u16_t aes67_sdp_flags;
 
 enum aes67_sdp_attr_mode {
@@ -105,7 +113,7 @@ struct aes67_sdp_connection {
     aes67_sdp_flags flags;
     u8_t ttl;
     u8_t naddr;
-    enum aes67_net_ipver address_type;
+    enum aes67_net_ipver ipver;
     AES67_STRING(AES67_SDP_MAXADDRESS) address;
 };
 
@@ -159,7 +167,7 @@ struct aes67_sdp_stream {
     } ptimes;
     struct aes67_sdp_attr_ptime maxptime;
 #if 0 < AES67_SDP_MAXSTREAMINFO
-    AES67_STRING(AES67_SDP_MAXSTREAMINFO) stream_info;
+    AES67_STRING(AES67_SDP_MAXSTREAMINFO) info;
 #endif
 };
 
@@ -178,11 +186,11 @@ struct aes67_sdp {
     struct aes67_sdp_originator originator;
 
 #if 0 < AES67_SDP_MAXSESSIONNAME
-    AES67_STRING(AES67_SDP_MAXSESSIONNAME) session_name;
+    AES67_STRING(AES67_SDP_MAXSESSIONNAME) name;
 #endif
 
 #if 0 < AES67_SDP_MAXSESSIONINFO
-    AES67_STRING(AES67_SDP_MAXSESSIONINFO) session_info;
+    AES67_STRING(AES67_SDP_MAXSESSIONINFO) info;
 #endif
 
 
@@ -369,6 +377,11 @@ u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str,
 
 /**
  * Parse SDP string into struct.
+ *
+ * @param sdp
+ * @param str
+ * @param len
+ * @return 0 on success, 1 on error
  */
 u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len);
 

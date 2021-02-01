@@ -519,7 +519,7 @@ TEST(SDP_TestGroup, aes67_sdp_connections_tostr)
             .data = {
                     {
                             .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
-                            .address_type = aes67_net_ipver_4,
+                            .ipver = aes67_net_ipver_4,
                             .address = {
                                     .data = "10.0.0.1",
                                     .length = sizeof("10.0.0.1")-1
@@ -529,7 +529,7 @@ TEST(SDP_TestGroup, aes67_sdp_connections_tostr)
                     },
                     {
                             .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 1,
-                            .address_type = aes67_net_ipver_4,
+                            .ipver = aes67_net_ipver_4,
                             .address = {
                                     .data = "10.0.0.2",
                                     .length = sizeof("10.0.0.2")-1
@@ -539,7 +539,7 @@ TEST(SDP_TestGroup, aes67_sdp_connections_tostr)
                     },
                     {
                             .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 1,
-                            .address_type = aes67_net_ipver_4,
+                            .ipver = aes67_net_ipver_4,
                             .address = {
                                     .data = "10.0.0.3",
                                     .length = sizeof("10.0.0.3")-1
@@ -549,7 +549,7 @@ TEST(SDP_TestGroup, aes67_sdp_connections_tostr)
                     },
                     {
                             .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
-                            .address_type = aes67_net_ipver_6,
+                            .ipver = aes67_net_ipver_6,
                             .address = {
                                     .data = "host1",
                                     .length = sizeof("host1")-1
@@ -559,7 +559,7 @@ TEST(SDP_TestGroup, aes67_sdp_connections_tostr)
                     },
                     {
                             .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
-                            .address_type = aes67_net_ipver_6,
+                            .ipver = aes67_net_ipver_6,
                             .address = {
                                     .data = "host2",
                                     .length = sizeof("host2")-1
@@ -719,7 +719,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                 .address_type = aes67_net_ipver_4,
                 .address = AES67_STRING_INIT_BYTES("random.host.name")
             },
-            .session_name = AES67_STRING_INIT_BYTES("")
+            .name = AES67_STRING_INIT_BYTES("")
     };
 
     len = aes67_sdp_tostr(str, sizeof(str), &s1);
@@ -737,12 +737,12 @@ TEST(SDP_TestGroup, sdp_tostr)
             , (const char *)str);
 
 
-    std::memcpy(s1.session_name.data, "1337 $3$$i0n", sizeof("1337 $3$$i0n")-1);
-    s1.session_name.length = sizeof("1337 $3$$i0n")-1;
+    std::memcpy(s1.name.data, "1337 $3$$i0n", sizeof("1337 $3$$i0n") - 1);
+    s1.name.length = sizeof("1337 $3$$i0n") - 1;
 
 #if 0 < AES67_SDP_MAXSESSIONINFO
-    std::memcpy(s1.session_info.data, "more info", sizeof("more info")-1);
-    s1.session_info.length = sizeof("more info")-1;
+    std::memcpy(s1.info.data, "more info", sizeof("more info") - 1);
+    s1.info.length = sizeof("more info") - 1;
 #endif
 
     std::memset(str, 0, sizeof(str));
@@ -772,23 +772,23 @@ TEST(SDP_TestGroup, sdp_tostr)
                     .address_type = aes67_net_ipver_4,
                     .address = AES67_STRING_INIT_BYTES("random.host.name")
             },
-            .session_name = AES67_STRING_INIT_BYTES("1337 $3$$10N"),
+            .name = AES67_STRING_INIT_BYTES("1337 $3$$10N"),
 #if 0 < AES67_SDP_MAXSESSIONINFO
-            .session_info = AES67_STRING_INIT_BYTES("my session info"),
+            .info = AES67_STRING_INIT_BYTES("my session info"),
 #endif
             .connections = {
                     .count = 2,
                     .data = {
                             {
                                     .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
-                                    .address_type = aes67_net_ipver_4,
+                                    .ipver = aes67_net_ipver_4,
                                     .address = AES67_STRING_INIT_BYTES("224.0.0.1"),
                                     .ttl = 33,
                                     .naddr = 1
                             },
                             {
                                     .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 1,
-                                    .address_type = aes67_net_ipver_6,
+                                    .ipver = aes67_net_ipver_6,
                                     .address = AES67_STRING_INIT_BYTES("some.host.name"),
                                     .naddr = 1
                             }
@@ -820,7 +820,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                     .count = 2,
                     .data = {
                             {
-                                    .stream_info = AES67_STRING_INIT_BYTES("stream level info"),
+                                    .info = AES67_STRING_INIT_BYTES("stream level info"),
                                     .port = 5000,
                                     .nports = 2,
                                     .mode = aes67_sdp_attr_mode_inactive,
@@ -850,7 +850,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     }
                             },
                             {
-                                    .stream_info = AES67_STRING_INIT_BYTES(""),
+                                    .info = AES67_STRING_INIT_BYTES(""),
                                     .port = 5002,
                                     .nports = 0,
                                     .mode = aes67_sdp_attr_mode_recvonly,
@@ -948,3 +948,47 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=mediaclk:direct=98765\r\n"
     , (const char *)str);
 }
+
+
+TEST(SDP_TestGroup, sdp_fromstr)
+{
+    struct aes67_sdp sdp;
+
+
+    uint8_t s1[] = "random";
+
+    std::memset(&sdp, 0, sizeof(struct aes67_sdp));
+    CHECK_EQUAL(AES67_SDP_ERROR,aes67_sdp_fromstr(&sdp, s1, sizeof(s1)-1));
+
+
+    uint8_t s2[] = "v=0\r\n"
+                   "o=- 123 45678 IN IP4 ipaddr1\r\n"
+                   "s= \r\n"
+                   "c=IN IP4 ipaddr2/44/36\r\n"
+                   "t=0 0\r\n"
+                   "m=f";
+
+
+    std::memset(&sdp, 0, sizeof(struct aes67_sdp));
+    CHECK_EQUAL(AES67_SDP_OK,aes67_sdp_fromstr(&sdp, s2, sizeof(s2)-1));
+    // originator
+//    CHECK_EQUAL(0, sdp.originator.username.length);
+//    CHECK_EQUAL(sizeof("123")-1, sdp.originator.session_id.length);
+//    MEMCMP_EQUAL("123", sdp.originator.session_id.data, sizeof("123")-1);
+//    CHECK_EQUAL(sizeof("45678")-1, sdp.originator.session_version.length);
+//    MEMCMP_EQUAL("45678", sdp.originator.session_version.data, sizeof("123")-1);
+//    CHECK_EQUAL(aes67_net_ipver_4, sdp.originator.address_type);
+//    CHECK_EQUAL(sizeof("ipaddr1")-1, sdp.originator.address.length);
+//    MEMCMP_EQUAL("ipaddr1", sdp.originator.address.data, sizeof("ipaddr1")-1);
+    //session name
+    CHECK_EQUAL(0, sdp.name.length);
+
+    //connection
+    CHECK_EQUAL(1, sdp.connections.count);
+    CHECK_EQUAL(aes67_net_ipver_4, sdp.connections.data[0].ipver);
+    CHECK_EQUAL(36, sdp.connections.data[0].naddr);
+    CHECK_EQUAL(44, sdp.connections.data[0].ttl);
+
+
+}
+
