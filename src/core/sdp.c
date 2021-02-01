@@ -28,19 +28,14 @@
 
 #define IS_CRNL(x) ((x) == CR || (x) == NL)
 
+
+#define U8TOSTR(u8, str, len) \
+    if (u8 >= 100){ str[len++] = '0' + (u8 / 100); } \
+    if (u8 >= 10){ str[len++] = '0' + ((u8 % 100) / 10); } \
+    str[len++] = '0' + (u8 % 10);
+
 // ptp domain 0 - 127
-inline u16_t ptpdomain_tostr(u8_t * str, u8_t domain)
-{
-    u16_t len = 0;
-    if (domain >= 100){
-        str[len++] = '1';
-    }
-    if (domain >= 10){
-        str[len++] = '0' + ((domain % 100) / 10);
-    }
-    str[len++] = '0' + (domain % 10);
-    return len;
-}
+
 
 void aes67_sdp_origin_init(struct aes67_sdp_originator * origin)
 {
@@ -372,7 +367,7 @@ u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * 
         if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2008 || ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2019){
             // domain values 0 - 127
             str[len++] = ':';
-            len += ptpdomain_tostr(&str[len], ptps->data[i].ptp.domain);
+            U8TOSTR(ptps->data[i].ptp.domain, str, len);
         }
 
         str[len++] = CR;
@@ -389,7 +384,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     AES67_ASSERT("sdp != NULL", sdp != NULL);
 
     // length of sdp packet
-    u32_t len = 0;
+    u32_t len = 0, l;
 
 
     //v=0
@@ -444,6 +439,9 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     str[len++] = CR;
     str[len++] = NL;
 
+
+    //// session level-attributes
+
 #if AES67_SDP_TOOL_ENABLED == 1
     // a=tool:
     str[len++] = 'a';
@@ -483,12 +481,285 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         str[len++] = 'v';
         str[len++] = '2';
         str[len++] = ' ';
-        len += ptpdomain_tostr(&str[len], sdp->ptp_domain);
+        u8_t d = (AES67_SDP_PTP_DOMAIN_VALUE & sdp->ptp_domain);
+        U8TOSTR(d, str, len);
         str[len++] = CR;
         str[len++] = NL;
     }
 
+    len += aes67_sdp_ptp_tostr(&str[len], maxlen - len, &sdp->ptps, AES67_SDP_FLAG_DEFLVL_SESSION);
 
+    for(u8_t s = 0; s < sdp->streams.count; s++){
+
+        // m=audio port[/<no-of-ports>] RTP/AVP <fmt1> ..
+        str[len++] = 'm';
+        str[len++] = '=';
+        str[len++] = 'a';
+        str[len++] = 'u';
+        str[len++] = 'd';
+        str[len++] = 'i';
+        str[len++] = 'o';
+        str[len++] = ' ';
+
+        len += aes67_itoa(sdp->streams.data[s].port, &str[len], 10);
+
+        if (1 < sdp->streams.data[s].nports){
+            str[len++] = '/';
+            len += aes67_itoa(sdp->streams.data[s].nports, &str[len], 10);
+        }
+
+        str[len++] = ' ';
+        str[len++] = 'R';
+        str[len++] = 'T';
+        str[len++] = 'P';
+        str[len++] = '/';
+        str[len++] = 'A';
+        str[len++] = 'V';
+        str[len++] = 'P';
+        str[len++] = ' ';
+
+        struct aes67_sdp_attr_encoding * attrenc = aes67_sdp_get_stream_encoding(sdp, s, 0);
+
+        AES67_ASSERT("attrenc != NULL", attrenc != NULL);
+
+        U8TOSTR(attrenc->payloadtype, str, len);
+
+        for(u8_t e = 1; e < sdp->streams.data[s].nencodings; e++){
+            str[len++] = ' ';
+            attrenc = aes67_sdp_get_stream_encoding(sdp, s, e);
+            U8TOSTR(attrenc->payloadtype, str, len);
+        }
+
+        str[len++] = CR;
+        str[len++] = NL;
+
+        // c=<connection data> (0-N)
+        len += aes67_sdp_connections_tostr(&str[len], maxlen - len, &sdp->connections, AES67_SDP_FLAG_DEFLVL_STREAM | s);
+
+
+#if 0 < AES67_SDP_MAXSTREAMINFO
+        // optional stream/media information
+        // i=<stream info>
+
+        if (sdp->streams.data[s].stream_info.length > 0){
+            str[len++] = 'i';
+            str[len++] = '=';
+
+            aes67_memcpy(&str[len], sdp->streams.data[s].stream_info.data, sdp->streams.data[s].stream_info.length);
+            len += sdp->streams.data[s].stream_info.length;
+
+            str[len++] = CR;
+            str[len++] = NL;
+        }
+
+#endif //0 < AES67_SDP_MAXSTREAMINFO
+
+
+
+        // each possible encoding for a stream
+        // a=rtpmap:<fmtX> (L16|L24)/<sample-rate>[/<nchannels>]
+        for(u8_t e = 0; e < sdp->streams.data[s].nencodings; e++){
+
+            attrenc = aes67_sdp_get_stream_encoding(sdp, s, e);
+
+            str[len++] = 'a';
+            str[len++] = '=';
+            str[len++] = 'r';
+            str[len++] = 't';
+            str[len++] = 'p';
+            str[len++] = 'm';
+            str[len++] = 'a';
+            str[len++] = 'p';
+            str[len++] = ':';
+
+            U8TOSTR(attrenc->payloadtype, str, len);
+
+            str[len++] = ' ';
+
+            AES67_ASSERT("AES67_AUDIO_ENCODING_ISVALID(attrenc->encoding)", AES67_AUDIO_ENCODING_ISVALID(attrenc->encoding));
+
+            if (attrenc->encoding == aes67_audio_encoding_L16){
+                str[len++] = 'L';
+                str[len++] = '1';
+                str[len++] = '6';
+            } else { // L24
+                str[len++] = 'L';
+                str[len++] = '2';
+                str[len++] = '4';
+            }
+
+            str[len++] = '/';
+
+            AES67_ASSERT("attrenc->samplerate > 0",attrenc->samplerate > 0);
+
+            len += aes67_itoa(attrenc->samplerate, &str[len], 10);
+
+            if (attrenc->nchannels > 1){
+                str[len++] = '/';
+                len += aes67_itoa(attrenc->nchannels, &str[len], 10);
+            }
+
+            str[len++] = CR;
+            str[len++] = NL;
+        }
+
+
+        //all possible ptimes
+        //first (as currently configured): a=ptime:<millisec>[.<millisec decimal>]
+        //more (as capabilities): a=acap:<N> ptime:<millisec>[.<millisec decimal>]
+
+        AES67_ASSERT("sdp->streams.data[s].ptime.count > 0", sdp->streams.data[s].ptime.count > 0);
+
+        str[len++] = 'a';
+        str[len++] = '=';
+        str[len++] = 'p';
+        str[len++] = 't';
+        str[len++] = 'i';
+        str[len++] = 'm';
+        str[len++] = 'e';
+        str[len++] = ':';
+
+        len += aes67_itoa(sdp->streams.data[s].ptime.data[0].msec, &str[len], 10);
+
+        if (sdp->streams.data[s].ptime.data[0].msec_frac > 0){
+            str[len++] = '.';
+            len += aes67_itoa(sdp->streams.data[s].ptime.data[0].msec_frac, &str[len], 10);
+        }
+
+        str[len++] = CR;
+        str[len++] = NL;
+
+        if (sdp->streams.data[s].ptime.count > 1){
+
+            for(u8_t p = 0; p < sdp->streams.data[s].ptime.count; p++){
+
+                str[len++] = 'a';
+                str[len++] = '=';
+                str[len++] = 'a';
+                str[len++] = 'c';
+                str[len++] = 'a';
+                str[len++] = 'p';
+                str[len++] = ':';
+
+                U8TOSTR(p, str, len);
+
+                str[len++] = ' ';
+                str[len++] = 'p';
+                str[len++] = 't';
+                str[len++] = 'i';
+                str[len++] = 'm';
+                str[len++] = 'e';
+                str[len++] = '=';
+
+                len += aes67_itoa(sdp->streams.data[s].ptime.data[p].msec, &str[len], 10);
+
+                if (sdp->streams.data[s].ptime.data[p].msec_frac > 0){
+                    str[len++] = '.';
+                    len += aes67_itoa(sdp->streams.data[s].ptime.data[p].msec_frac, &str[len], 10);
+                }
+
+                str[len++] = CR;
+                str[len++] = NL;
+            }
+
+            //a=maxptime:<millisec>[.<millisec frac>]
+            str[len++] = 'a';
+            str[len++] = '=';
+            str[len++] = 'm';
+            str[len++] = 'a';
+            str[len++] = 'x';
+            str[len++] = 'p';
+            str[len++] = 't';
+            str[len++] = 'i';
+            str[len++] = 'm';
+            str[len++] = 'e';
+            str[len++] = ':';
+
+            len += aes67_itoa(sdp->streams.data[s].maxptime.msec, &str[len], 10);
+
+            if (sdp->streams.data[s].maxptime.msec_frac > 0){
+                str[len++] = '.';
+                len += aes67_itoa(sdp->streams.data[s].maxptime.msec_frac, &str[len], 10);
+            }
+
+            str[len++] = CR;
+            str[len++] = NL;
+        }
+
+        // add stream level ptps
+        // ie a=ts-refclk:ptp=.....
+        len += aes67_sdp_ptp_tostr(&str[len], maxlen - len, &sdp->ptps, AES67_SDP_FLAG_DEFLVL_STREAM | s);
+
+        // a=mediaclk:direct=<offset>
+        str[len++] = 'a';
+        str[len++] = '=';
+        str[len++] = 'm';
+        str[len++] = 'e';
+        str[len++] = 'd';
+        str[len++] = 'i';
+        str[len++] = 'a';
+        str[len++] = 'c';
+        str[len++] = 'l';
+        str[len++] = 'k';
+        str[len++] = ':';
+        str[len++] = 'd';
+        str[len++] = 'i';
+        str[len++] = 'r';
+        str[len++] = 'e';
+        str[len++] = 'c';
+        str[len++] = 't';
+        str[len++] = '=';
+
+        str[len++] = 'T';
+        str[len++] = 'O';
+        str[len++] = 'D';
+        str[len++] = 'O';
+
+        str[len++] = CR;
+        str[len++] = NL;
+
+
+        AES67_ASSERT("AES67_SDP_ATTR_MODE_ISVALID(sdp->streams.data[s].mode)", AES67_SDP_ATTR_MODE_ISVALID(sdp->streams.data[s].mode));
+
+        str[len++] = 'a';
+        str[len++] = '=';
+
+        switch(sdp->streams.data[s].mode){
+            case aes67_sdp_attr_mode_inactive:
+                str[len] = 'i';
+                str[len] = 'n';
+                str[len] = 'a';
+                str[len] = 'c';
+                str[len] = 't';
+                str[len] = 'i';
+                str[len] = 'v';
+                str[len] = 'e';
+                break;
+            case aes67_sdp_attr_mode_recvonly:
+                str[len] = 'r';
+                str[len] = 'e';
+                str[len] = 'c';
+                str[len] = 'v';
+                str[len] = 'o';
+                str[len] = 'n';
+                str[len] = 'l';
+                str[len] = 'y';
+                break;
+            case aes67_sdp_attr_mode_sendonly:
+                str[len] = 's';
+                str[len] = 'e';
+                str[len] = 'n';
+                str[len] = 'd';
+                str[len] = 'o';
+                str[len] = 'n';
+                str[len] = 'l';
+                str[len] = 'y';
+                break;
+        }
+
+        str[len++] = CR;
+        str[len++] = NL;
+    }
 
     return len;
 }

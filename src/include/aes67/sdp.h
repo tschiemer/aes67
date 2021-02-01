@@ -41,6 +41,8 @@
 #include "aes67/debug.h"
 #include "aes67/net.h"
 #include "aes67/ptp.h"
+#include "aes67/avp.h"
+#include "aes67/audio.h"
 
 
 #ifdef __cplusplus
@@ -72,6 +74,13 @@ enum aes67_sdp_attr_mode {
     aes67_sdp_attr_mode_sendonly = 3,
     aes67_sdp_attr_mode_sendrecv = 4
 } PACK_STRUCT;
+
+#define AES67_SDP_ATTR_MODE_ISVALID(x) ( \
+    (x) == aes67_sdp_attr_mode_inactive || \
+    (x) == aes67_sdp_attr_mode_recvonly || \
+    (x) == aes67_sdp_attr_mode_sendonly || \
+    (x) == aes67_sdp_attr_mode_sendrecv \
+)
 
 struct aes67_sdp_originator {
 #if 0 < AES67_SDP_MAXUSERNAME
@@ -119,8 +128,9 @@ struct aes67_sdp_attr_ptime {
 struct aes67_sdp_attr_encoding {
     aes67_sdp_flags flags;
     u8_t payloadtype;
-    u8_t nchannels;
+    enum aes67_audio_encoding encoding;
     u32_t samplerate;
+    u8_t nchannels;
 };
 
 struct aes67_sdp_attr_encoding_list {
@@ -134,12 +144,18 @@ struct aes67_sdp_stream {
     u8_t nencodings;
     // count of stream level ptps
     u8_t nptp;
+    enum aes67_sdp_attr_mode mode;
     u32_t mediaclock_offset; // TODO
     struct {
         u8_t count;
+        u8_t pcap;
+        u8_t acap;
         struct aes67_sdp_attr_ptime data[AES67_SDP_MAXPTIME];
     } ptime;
     struct aes67_sdp_attr_ptime maxptime;
+#if 0 < AES67_SDP_MAXSTREAMINFO
+    AES67_STRING(AES67_SDP_MAXSTREAMINFO) stream_info;
+#endif
 };
 
 struct aes67_sdp_stream_list {

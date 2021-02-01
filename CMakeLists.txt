@@ -27,6 +27,7 @@ set(AES67_INCLUDES
         ${AES67_DIR}/src/include/aes67/ptp.h
         ${AES67_DIR}/src/include/aes67/sdp.h
         ${AES67_DIR}/src/include/aes67/avp.h
+        ${AES67_DIR}/src/include/aes67/audio.h
 
         ${AES67_DIR}/src/include/aes67/host/time.h
         ${AES67_DIR}/src/include/aes67/host/timer.h

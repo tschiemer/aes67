@@ -763,54 +763,178 @@ TEST(SDP_TestGroup, sdp_tostr)
 #endif
     , (const char *)str);
 
-    s1.connections.count = 4;
-    s1.connections.data[0].flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION;
-    s1.connections.data[0].address_type = aes67_net_ipver_4;
-    std::memcpy(s1.connections.data[0].address.data, "10.0.0.1", sizeof("10.0.0.1")-1);
-    s1.connections.data[0].address.length = sizeof("10.0.0.1")-1;
-    s1.connections.data[0].ttl = 33;
-    s1.connections.data[0].naddr = 1;
 
-    s1.connections.data[1].flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION;
-    s1.connections.data[1].address_type = aes67_net_ipver_4;
-    std::memcpy(s1.connections.data[1].address.data, "10.0.0.2", sizeof("10.0.0.2")-1);
-    s1.connections.data[1].address.length = sizeof("10.0.0.2")-1;
-    s1.connections.data[1].ttl = 44;
-    s1.connections.data[1].naddr = 8;
-
-    s1.connections.data[2].flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION;
-    s1.connections.data[2].address_type = aes67_net_ipver_6;
-    std::memcpy(s1.connections.data[2].address.data, "host1", sizeof("host1")-1);
-    s1.connections.data[2].address.length = sizeof("host1")-1;
-    s1.connections.data[2].ttl = 0;
-    s1.connections.data[2].naddr = 1;
-
-    s1.connections.data[3].flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION;
-    s1.connections.data[3].address_type = aes67_net_ipver_6;
-    std::memcpy(s1.connections.data[3].address.data, "host2", sizeof("host2")-1);
-    s1.connections.data[3].address.length = sizeof("host2")-1;
-    s1.connections.data[3].ttl = 0;
-    s1.connections.data[3].naddr = 2;
+    struct aes67_sdp s2 = {
+            .originator = {
+                    .username = AES67_STRING_INIT_BYTES("joe"),
+                    .session_id = AES67_STRING_INIT_BYTES("1234567890"),
+                    .session_version = AES67_STRING_INIT_BYTES("9876543210"),
+                    .address_type = aes67_net_ipver_4,
+                    .address = AES67_STRING_INIT_BYTES("random.host.name")
+            },
+            .session_name = AES67_STRING_INIT_BYTES("1337 $3$$10N"),
+#if 0 < AES67_SDP_MAXSESSIONINFO
+            .session_info = AES67_STRING_INIT_BYTES("my session info"),
+#endif
+            .connections = {
+                    .count = 2,
+                    .data = {
+                            {
+                                    .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
+                                    .address_type = aes67_net_ipver_4,
+                                    .address = AES67_STRING_INIT_BYTES("224.0.0.1"),
+                                    .ttl = 33,
+                                    .naddr = 1
+                            },
+                            {
+                                    .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 1,
+                                    .address_type = aes67_net_ipver_6,
+                                    .address = AES67_STRING_INIT_BYTES("some.host.name"),
+                                    .naddr = 1
+                            }
+                    }
+            },
+            .ptp_domain = AES67_SDP_PTP_DOMAIN_SET | 2,
+            .nptp = 1,
+            .ptps = {
+                    .count = 2,
+                    .data = {
+                            {
+                                .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
+                                .ptp = {
+                                        .type = aes67_ptp_type_IEEE802AS_2011,
+                                        .gmid.u8 = {8,7,6,5,4,3,2,1}
+                                }
+                            },
+                            {
+                                .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
+                                .ptp = {
+                                        .type = aes67_ptp_type_IEEE1588_2008,
+                                        .gmid.u8 = {1,2,3,4,5,6,7,8},
+                                        .domain = 1,
+                                }
+                            }
+                    }
+            },
+            .streams = {
+                    .count = 2,
+                    .data = {
+                            {
+                                    .stream_info = AES67_STRING_INIT_BYTES("stream level info"),
+                                    .port = 5000,
+                                    .nports = 2,
+                                    .mode = aes67_sdp_attr_mode_inactive,
+                                    .nptp = 1,
+                                    .nencodings = 3,
+                                    .ptime = {
+                                            .count = 2,
+//                                            .pcap =
+                                            .data = {
+                                                    {
+                                                            .msec = 1,
+                                                            .msec_frac = 0
+                                                    },
+                                                    {
+                                                            .msec = 0,
+                                                            .msec_frac = 33
+                                                    }
+                                            }
+                                    },
+                                    .maxptime = {
+                                            .msec = 1,
+                                            .msec_frac = 0
+                                    },
+                            },
+                            {
+                                    .stream_info = AES67_STRING_INIT_BYTES(""),
+                                    .port = 5002,
+                                    .nports = 0,
+                                    .mode = aes67_sdp_attr_mode_recvonly,
+                                    .nptp = 0,
+                                    .nencodings = 1,
+                                    .ptime = {
+                                            .count = 1,
+                                            .data = {
+                                                    {
+                                                            .msec = 4,
+                                                            .msec_frac = 0
+                                                    }
+                                            }
+                                    },
+                            },
+                    }
+            },
+            .encodings = {
+                    .count = 4,
+                    .data = {
+                            {
+                                    .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
+                                    .payloadtype = AES67_AVP_PAYLOADTYPE_DYNAMIC_START,
+                                    .encoding = aes67_audio_encoding_L16,
+                                    .samplerate = 48000,
+                                    .nchannels = 2
+                            },
+                            {
+                                    .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
+                                    .payloadtype = AES67_AVP_PAYLOADTYPE_DYNAMIC_START + 1,
+                                    .encoding = aes67_audio_encoding_L24,
+                                    .samplerate = 48000,
+                                    .nchannels = 2
+                            },
+                            {
+                                    .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
+                                    .payloadtype = AES67_AVP_PAYLOADTYPE_DYNAMIC_START + 2,
+                                    .encoding = aes67_audio_encoding_L24,
+                                    .samplerate = 96000,
+                                    .nchannels = 2
+                            },
+                            {
+                                    .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 1,
+                                    .payloadtype = AES67_AVP_PAYLOADTYPE_DYNAMIC_START,
+                                    .encoding = aes67_audio_encoding_L24,
+                                    .samplerate = 192000,
+                                    .nchannels = 1
+                            }
+                    }
+            }
+    };
 
     std::memset(str, 0, sizeof(str));
-    len = aes67_sdp_tostr(str, sizeof(str), &s1);
+    len = aes67_sdp_tostr(str, sizeof(str), &s2);
 
     CHECK_COMPARE(0, <, len);
     str[len] = '\0';
     STRCMP_EQUAL(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
-            "s=1337 $3$$i0n\r\n"
+            "s=1337 $3$$10N\r\n"
 #if 0 < AES67_SDP_MAXSESSIONINFO
-            "i=more info\r\n"
+            "i=my session info\r\n"
 #endif
-            "c=IN IP4 10.0.0.1/33\r\n"
-            "c=IN IP4 10.0.0.2/44/8\r\n"
-            "c=IN IP6 host1\r\n"
-            "c=IN IP6 host2/2\r\n"
+            "c=IN IP4 224.0.0.1/33\r\n"
             "t=0 0\r\n"
 #if AES67_SDP_TOOL_ENABLED == 1
             "a=tool:" AES67_SDP_TOOL "\r\n"
 #endif
+            "a=clock-domain:PTPv2 2\r\n"
+            "a=ts-refclk:ptp=IEEE802.1AS-2011:08-07-06-05-04-03-02-01\r\n"
+            "m=audio 5000/2 RTP/AVP 96 97 98\r\n"
+            "i=stream level info\r\n"
+            "a=rtpmap:96 L16/48000/2\r\n"
+            "a=rtpmap:97 L24/48000/2\r\n"
+            "a=rtpmap:98 L24/96000/2\r\n"
+            "a=ptime:1\r\n"
+            "a=acap:1 ptime=1\r\n"
+            "a=acap:2 ptime=0.33\r\n"
+            "a=\r\n"
+            "a=maxptime:1\r\n"
+            "a=ts-refclk:ptp=IEEE1588-2008:01-02-03-04-05-06-07-08:1\r\n"
+            "a=mediaclk:direct=TODO\r\n"
+            "a=inactive\r\n"
+            "m=audio 5002 RTP/AVP 96\r\n"
+            "c=IN IP6 some.host.name\r\n"
+            "a=rtpmap:96 L24/192000\r\n"
+            "a=ptime:4\r\n"
+            "a=recvonly\r\n"
     , (const char *)str);
 }
