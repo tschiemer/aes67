@@ -65,6 +65,11 @@ extern "C" {
 #define AES67_SDP_PTP_DOMAIN_SET        0b10000000
 #define AES67_SDP_PTP_DOMAIN_VALUE      0b01111111
 
+#define AES67_SDP_CAP_SET               0b11000000
+#define AES67_SDP_CAP_PROPOSED          0b10000000
+#define AES67_SDP_CAP_ACTIVE            0b01000000
+#define AES67_SDP_CAP_VALUE             0b00111111
+
 typedef u16_t aes67_sdp_flags;
 
 enum aes67_sdp_attr_mode {
@@ -121,6 +126,7 @@ struct aes67_sdp_ptp_list {
 
 
 struct aes67_sdp_attr_ptime {
+    u32_t cap;
     u16_t msec;
     u16_t msec_frac;
 } PACK_STRUCT;
@@ -141,17 +147,16 @@ struct aes67_sdp_attr_encoding_list {
 struct aes67_sdp_stream {
     u16_t port;
     u8_t nports;
-    u8_t nencodings;
-    // count of stream level ptps
-    u8_t nptp;
+    u8_t nencodings;                // count of alternative stream encodings (in separate list)
     enum aes67_sdp_attr_mode mode;
-    u32_t mediaclock_offset; // TODO
+    u8_t nptp;                      // count of stream level ptps (in separate list)
+    u32_t mediaclock_offset;        //
     struct {
         u8_t count;
-        u8_t pcap;
-        u8_t acap;
+        u8_t cfg;                   // (AES67_SDP_CAP_PROPOSED | AES67_SDP_CAP_ACTIVE) | AES67_SDP_CAP_VALUE
+        u8_t cfg_a;                 // propsed/active attribute index (internal index of stream ptimes)
         struct aes67_sdp_attr_ptime data[AES67_SDP_MAXPTIME];
-    } ptime;
+    } ptimes;
     struct aes67_sdp_attr_ptime maxptime;
 #if 0 < AES67_SDP_MAXSTREAMINFO
     AES67_STRING(AES67_SDP_MAXSTREAMINFO) stream_info;

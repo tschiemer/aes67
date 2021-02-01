@@ -825,16 +825,20 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     .nports = 2,
                                     .mode = aes67_sdp_attr_mode_inactive,
                                     .nptp = 1,
+                                    .mediaclock_offset = 12345,
                                     .nencodings = 3,
-                                    .ptime = {
+                                    .ptimes = {
                                             .count = 2,
-//                                            .pcap =
+                                            .cfg = AES67_SDP_CAP_PROPOSED | 1,
+                                            .cfg_a = 0,
                                             .data = {
                                                     {
+                                                            .cap = 1,
                                                             .msec = 1,
                                                             .msec_frac = 0
                                                     },
                                                     {
+                                                            .cap = 2,
                                                             .msec = 0,
                                                             .msec_frac = 33
                                                     }
@@ -843,7 +847,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     .maxptime = {
                                             .msec = 1,
                                             .msec_frac = 0
-                                    },
+                                    }
                             },
                             {
                                     .stream_info = AES67_STRING_INIT_BYTES(""),
@@ -851,11 +855,15 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     .nports = 0,
                                     .mode = aes67_sdp_attr_mode_recvonly,
                                     .nptp = 0,
+                                    .mediaclock_offset = 98765,
                                     .nencodings = 1,
-                                    .ptime = {
+                                    .ptimes = {
                                             .count = 1,
+                                            .cfg = AES67_SDP_CAP_ACTIVE | 3,
+                                            .cfg_a = 0,
                                             .data = {
                                                     {
+                                                            .cap = 12,
                                                             .msec = 4,
                                                             .msec_frac = 0
                                                     }
@@ -920,21 +928,23 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=ts-refclk:ptp=IEEE802.1AS-2011:08-07-06-05-04-03-02-01\r\n"
             "m=audio 5000/2 RTP/AVP 96 97 98\r\n"
             "i=stream level info\r\n"
+            "a=inactive\r\n"
             "a=rtpmap:96 L16/48000/2\r\n"
             "a=rtpmap:97 L24/48000/2\r\n"
             "a=rtpmap:98 L24/96000/2\r\n"
             "a=ptime:1\r\n"
-            "a=acap:1 ptime=1\r\n"
-            "a=acap:2 ptime=0.33\r\n"
-            "a=\r\n"
+            "a=pcap:1 ptime:1\r\n"
+            "a=pcap:2 ptime:0.33\r\n"
             "a=maxptime:1\r\n"
+            "a=pcfg:1 a=1\r\n"
             "a=ts-refclk:ptp=IEEE1588-2008:01-02-03-04-05-06-07-08:1\r\n"
-            "a=mediaclk:direct=TODO\r\n"
-            "a=inactive\r\n"
+            "a=mediaclk:direct=12345\r\n"
             "m=audio 5002 RTP/AVP 96\r\n"
             "c=IN IP6 some.host.name\r\n"
+            "a=recvonly\r\n"
             "a=rtpmap:96 L24/192000\r\n"
             "a=ptime:4\r\n"
-            "a=recvonly\r\n"
+            "a=acfg:3 a=12\r\n"
+            "a=mediaclk:direct=98765\r\n"
     , (const char *)str);
 }

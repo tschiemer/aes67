@@ -555,6 +555,53 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 #endif //0 < AES67_SDP_MAXSTREAMINFO
 
 
+        //// Media/stream attributes
+
+        //a=(inactive|recvonly|sendonly)
+
+        AES67_ASSERT("AES67_SDP_ATTR_MODE_ISVALID(sdp->streams.data[s].mode)", AES67_SDP_ATTR_MODE_ISVALID(sdp->streams.data[s].mode));
+
+        str[len++] = 'a';
+        str[len++] = '=';
+
+        switch(sdp->streams.data[s].mode){
+            case aes67_sdp_attr_mode_inactive:
+                str[len++] = 'i';
+                str[len++] = 'n';
+                str[len++] = 'a';
+                str[len++] = 'c';
+                str[len++] = 't';
+                str[len++] = 'i';
+                str[len++] = 'v';
+                str[len++] = 'e';
+                break;
+            case aes67_sdp_attr_mode_recvonly:
+                str[len++] = 'r';
+                str[len++] = 'e';
+                str[len++] = 'c';
+                str[len++] = 'v';
+                str[len++] = 'o';
+                str[len++] = 'n';
+                str[len++] = 'l';
+                str[len++] = 'y';
+                break;
+            case aes67_sdp_attr_mode_sendonly:
+                str[len++] = 's';
+                str[len++] = 'e';
+                str[len++] = 'n';
+                str[len++] = 'd';
+                str[len++] = 'o';
+                str[len++] = 'n';
+                str[len++] = 'l';
+                str[len++] = 'y';
+                break;
+            default:
+                AES67_ASSERT("invalid mode", false);
+                break;
+        }
+
+        str[len++] = CR;
+        str[len++] = NL;
 
         // each possible encoding for a stream
         // a=rtpmap:<fmtX> (L16|L24)/<sample-rate>[/<nchannels>]
@@ -608,7 +655,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         //first (as currently configured): a=ptime:<millisec>[.<millisec decimal>]
         //more (as capabilities): a=acap:<N> ptime:<millisec>[.<millisec decimal>]
 
-        AES67_ASSERT("sdp->streams.data[s].ptime.count > 0", sdp->streams.data[s].ptime.count > 0);
+        AES67_ASSERT("sdp->streams.data[s].ptimes.count > 0", sdp->streams.data[s].ptimes.count > 0);
 
         str[len++] = 'a';
         str[len++] = '=';
@@ -619,71 +666,106 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         str[len++] = 'e';
         str[len++] = ':';
 
-        len += aes67_itoa(sdp->streams.data[s].ptime.data[0].msec, &str[len], 10);
+        len += aes67_itoa(sdp->streams.data[s].ptimes.data[0].msec, &str[len], 10);
 
-        if (sdp->streams.data[s].ptime.data[0].msec_frac > 0){
+        if (sdp->streams.data[s].ptimes.data[0].msec_frac > 0){
             str[len++] = '.';
-            len += aes67_itoa(sdp->streams.data[s].ptime.data[0].msec_frac, &str[len], 10);
+            len += aes67_itoa(sdp->streams.data[s].ptimes.data[0].msec_frac, &str[len], 10);
         }
 
         str[len++] = CR;
         str[len++] = NL;
 
-        if (sdp->streams.data[s].ptime.count > 1){
+        if ( (sdp->streams.data[s].ptimes.cfg & AES67_SDP_CAP_SET) != 0){
 
-            for(u8_t p = 0; p < sdp->streams.data[s].ptime.count; p++){
+            // when proposing ptime capabilities, just list them
+            if ( (sdp->streams.data[s].ptimes.cfg & AES67_SDP_CAP_PROPOSED) == AES67_SDP_CAP_PROPOSED && sdp->streams.data[s].ptimes.count > 1){
 
+                for(u8_t p = 0; p < sdp->streams.data[s].ptimes.count; p++){
+
+                    str[len++] = 'a';
+                    str[len++] = '=';
+                    str[len++] = 'p';
+                    str[len++] = 'c';
+                    str[len++] = 'a';
+                    str[len++] = 'p';
+                    str[len++] = ':';
+
+                    U8TOSTR(sdp->streams.data[s].ptimes.data[p].cap, str, len);
+
+                    str[len++] = ' ';
+                    str[len++] = 'p';
+                    str[len++] = 't';
+                    str[len++] = 'i';
+                    str[len++] = 'm';
+                    str[len++] = 'e';
+                    str[len++] = ':';
+
+                    len += aes67_itoa(sdp->streams.data[s].ptimes.data[p].msec, &str[len], 10);
+
+                    if (sdp->streams.data[s].ptimes.data[p].msec_frac > 0){
+                        str[len++] = '.';
+                        len += aes67_itoa(sdp->streams.data[s].ptimes.data[p].msec_frac, &str[len], 10);
+                    }
+
+                    str[len++] = CR;
+                    str[len++] = NL;
+                }
+
+                // when multiple ptimes are possible maxptime is required..
+                //a=maxptime:<millisec>[.<millisec frac>]
                 str[len++] = 'a';
                 str[len++] = '=';
+                str[len++] = 'm';
                 str[len++] = 'a';
-                str[len++] = 'c';
-                str[len++] = 'a';
-                str[len++] = 'p';
-                str[len++] = ':';
-
-                U8TOSTR(p, str, len);
-
-                str[len++] = ' ';
+                str[len++] = 'x';
                 str[len++] = 'p';
                 str[len++] = 't';
                 str[len++] = 'i';
                 str[len++] = 'm';
                 str[len++] = 'e';
-                str[len++] = '=';
+                str[len++] = ':';
 
-                len += aes67_itoa(sdp->streams.data[s].ptime.data[p].msec, &str[len], 10);
+                len += aes67_itoa(sdp->streams.data[s].maxptime.msec, &str[len], 10);
 
-                if (sdp->streams.data[s].ptime.data[p].msec_frac > 0){
+                if (sdp->streams.data[s].maxptime.msec_frac > 0){
                     str[len++] = '.';
-                    len += aes67_itoa(sdp->streams.data[s].ptime.data[p].msec_frac, &str[len], 10);
+                    len += aes67_itoa(sdp->streams.data[s].maxptime.msec_frac, &str[len], 10);
                 }
 
                 str[len++] = CR;
                 str[len++] = NL;
             }
 
-            //a=maxptime:<millisec>[.<millisec frac>]
+            // make sure to write which cfg is proposed/active
             str[len++] = 'a';
             str[len++] = '=';
-            str[len++] = 'm';
-            str[len++] = 'a';
-            str[len++] = 'x';
-            str[len++] = 'p';
-            str[len++] = 't';
-            str[len++] = 'i';
-            str[len++] = 'm';
-            str[len++] = 'e';
+            if ( (sdp->streams.data[s].ptimes.cfg & AES67_SDP_CAP_PROPOSED) == AES67_SDP_CAP_PROPOSED) {
+                str[len++] = 'p';
+            } else {
+                str[len++] = 'a';
+            }
+
+            str[len++] = 'c';
+            str[len++] = 'f';
+            str[len++] = 'g';
             str[len++] = ':';
 
-            len += aes67_itoa(sdp->streams.data[s].maxptime.msec, &str[len], 10);
+            len += aes67_itoa((sdp->streams.data[s].ptimes.cfg & AES67_SDP_CAP_VALUE), &str[len], 10);
 
-            if (sdp->streams.data[s].maxptime.msec_frac > 0){
-                str[len++] = '.';
-                len += aes67_itoa(sdp->streams.data[s].maxptime.msec_frac, &str[len], 10);
-            }
+            str[len++] = ' ';
+
+            str[len++] = 'a';
+            str[len++] = '=';
+
+            AES67_ASSERT("valid cfg_a index", sdp->streams.data[s].ptimes.cfg_a < sdp->streams.data[s].ptimes.count);
+
+            len += aes67_itoa(sdp->streams.data[s].ptimes.data[sdp->streams.data[s].ptimes.cfg_a].cap, &str[len], 10);
 
             str[len++] = CR;
             str[len++] = NL;
+
+
         }
 
         // add stream level ptps
@@ -710,55 +792,12 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         str[len++] = 't';
         str[len++] = '=';
 
-        str[len++] = 'T';
-        str[len++] = 'O';
-        str[len++] = 'D';
-        str[len++] = 'O';
+        len += aes67_itoa(sdp->streams.data[s].mediaclock_offset, &str[len], 10);
 
         str[len++] = CR;
         str[len++] = NL;
 
 
-        AES67_ASSERT("AES67_SDP_ATTR_MODE_ISVALID(sdp->streams.data[s].mode)", AES67_SDP_ATTR_MODE_ISVALID(sdp->streams.data[s].mode));
-
-        str[len++] = 'a';
-        str[len++] = '=';
-
-        switch(sdp->streams.data[s].mode){
-            case aes67_sdp_attr_mode_inactive:
-                str[len] = 'i';
-                str[len] = 'n';
-                str[len] = 'a';
-                str[len] = 'c';
-                str[len] = 't';
-                str[len] = 'i';
-                str[len] = 'v';
-                str[len] = 'e';
-                break;
-            case aes67_sdp_attr_mode_recvonly:
-                str[len] = 'r';
-                str[len] = 'e';
-                str[len] = 'c';
-                str[len] = 'v';
-                str[len] = 'o';
-                str[len] = 'n';
-                str[len] = 'l';
-                str[len] = 'y';
-                break;
-            case aes67_sdp_attr_mode_sendonly:
-                str[len] = 's';
-                str[len] = 'e';
-                str[len] = 'n';
-                str[len] = 'd';
-                str[len] = 'o';
-                str[len] = 'n';
-                str[len] = 'l';
-                str[len] = 'y';
-                break;
-        }
-
-        str[len++] = CR;
-        str[len++] = NL;
     }
 
     return len;
