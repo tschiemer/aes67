@@ -966,7 +966,9 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "s= \r\n"
                    "c=IN IP4 ipaddr2/44/36\r\n"
                    "t=0 0\r\n"
-                   "m=audio 5000 RTP/AVP 96";
+                   "m=audio 5000 RTP/AVP 96\r\n"
+                   "a=recvonly\r\n"
+                   "a=rtpmap:96 L16/48000";
 
 
     std::memset(&sdp, 0, sizeof(struct aes67_sdp));
@@ -996,5 +998,6 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(1, sdp.streams.count);
     CHECK_EQUAL(5000, sdp.streams.data[0].port);
     CHECK_EQUAL(2, sdp.streams.data[0].nports);
+    CHECK_EQUAL(aes67_sdp_attr_mode_recvonly, sdp.streams.data[0].mode);
 }
 

@@ -1217,7 +1217,49 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
             }
                 break;
 
-            case 'a':
+            case 'a':{
+                u8_t * delim = aes67_memchr(line, ':', llen);
+
+                if (delim == NULL){
+
+                    if ((context & AES67_SDP_FLAG_DEFLVL_STREAM) == AES67_SDP_FLAG_DEFLVL_STREAM){
+
+                        if (llen == sizeof("a=recvonly") - 1 && line[2] == 'r' && line[3] == 'e' && line[4] == 'c' && line[5] == 'v' && line[6] == 'o' && line[7] == 'n' && line[8] == 'l' | line[9] == 'y'){
+                            sdp->streams.data[stream_index].mode = aes67_sdp_attr_mode_recvonly;
+                        }
+                        else if (llen == sizeof("a=sendrecv") - 1 && line[2] == 's' && line[3] == 'e' && line[4] == 'n' && line[5] == 'd' && line[6] == 'r' && line[7] == 'e' && line[8] == 'c' | line[9] == 'v'){
+                            sdp->streams.data[stream_index].mode = aes67_sdp_attr_mode_sendrecv;
+                        }
+                        else if (llen == sizeof("a=sendonly") - 1 && line[2] == 's' && line[3] == 'e' && line[4] == 'n' && line[5] == 'd' && line[6] == 'o' && line[7] == 'n' && line[8] == 'l' | line[9] == 'y'){
+                            sdp->streams.data[stream_index].mode = aes67_sdp_attr_mode_sendonly;
+                        }
+                        else if (llen == sizeof("a=inactive") - 1 && line[2] == 'i' && line[3] == 'n' && line[4] == 'a' && line[5] == 'c' && line[6] == 't' && line[7] == 'i' && line[8] == 'v' | line[9] == 'e'){
+                            sdp->streams.data[stream_index].mode = aes67_sdp_attr_mode_inactive;
+                        }
+
+                    }
+                } else if ((context & AES67_SDP_FLAG_DEFLVL_STREAM) == AES67_SDP_FLAG_DEFLVL_STREAM){
+
+                    if (delim - line == sizeof("a=rtpmap")-1 && line[2] == 'r' && line[3] == 't' && line[4] == 'p' && line[5] == 'm' && line[6] == 'a' && line[7] == 'p'){
+                        //encoding
+                        printf("foobar\n");
+                    }
+                    else if (delim - line == sizeof("a=ptime")-1 && line[2] == 'p' && line[3] == 't' && line[4] == 'i' && line[5] == 'm' && line[6] == 'e' ){
+
+                    }
+                    else if (delim - line == sizeof("a=maxptime")-1 && line[2] == 'm' && line[3] == 'a' && line[4] == 'x' &&  line[5] == 'p' && line[6] == 't' && line[7] == 'i' && line[8] == 'm' && line[9] == 'e'){
+
+                    }
+                    else if (delim - line == sizeof("a=mediaclk")-1 && line[2] == 'm' && line[3] == 'e' && line[4] == 'd' &&  line[5] == 'i' && line[6] == 'a' && line[7] == 'c' && line[8] == 'l' && line[9] == 'k'){
+
+                    }
+                }
+
+                if (delim - line == sizeof("a=ts-refclk")-1 && line[2] == 't' && line[3] == 's' && line[4] == '-' &&  line[5] == 'r' && line[6] == 'e' && line[7] == 'f' && line[8] == 'c' && line[9] == 'l' && line[10] == 'k'){
+
+                }
+
+            }
                 break;
 
             case 'u':
