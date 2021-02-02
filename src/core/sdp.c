@@ -231,7 +231,7 @@ u32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_origina
 
     str[len++] = 'I';
     str[len++] = 'P';
-    if (origin->address_type == aes67_net_ipver_4){
+    if (origin->ipver == aes67_net_ipver_4){
         str[len++] = '4';
     } else {
         str[len++] = '6';
@@ -807,7 +807,92 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
 u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str, u32_t len)
 {
-    return 0;
+    AES67_ASSERT("origin != NULL", origin != NULL);
+    AES67_ASSERT("str != NULL", str != NULL);
+
+    if (len < sizeof("o=- 1 1 IN IP4 a")-1 || str[0] != 'o' || str[1] != '='){
+        return AES67_SDP_ERROR;
+    }
+
+    u8_t * pos = &str[2];
+    u8_t * delim = NULL;
+
+    // username
+    if (pos[0] == '-'){
+        origin->username.length = 0;
+        pos += 2;
+    } else {
+        delim = aes67_memchr(pos, ' ', len-2);
+
+        if (delim == NULL || delim == pos){
+            return AES67_SDP_ERROR;
+        }
+
+        origin->username.length = delim - pos;
+        aes67_memcpy(origin->username.data, pos, delim - pos);
+
+        // move past delimiter
+        pos = delim + 1;
+    }
+
+    // session id
+    if (pos >= &str[len]){
+        return AES67_SDP_ERROR;
+    }
+
+    delim = aes67_memchr(pos, ' ', &str[len] - pos);
+
+    if (delim == NULL || delim == pos){
+        return AES67_SDP_ERROR;
+    }
+
+    origin->session_id.length = delim - pos;
+    aes67_memcpy(origin->session_id.data, pos, delim - pos);
+
+    // move past delimiter
+    pos = delim + 1;
+
+
+    // session version
+    if (pos >= &str[len]){
+        return AES67_SDP_ERROR;
+    }
+
+    delim = aes67_memchr(pos, ' ', &str[len] - pos);
+
+    if (delim == NULL || delim == pos){
+        return AES67_SDP_ERROR;
+    }
+
+    origin->session_version.length = delim - pos;
+    aes67_memcpy(origin->session_version.data, pos, delim - pos);
+
+    // move past delimiter
+    pos = delim + 1;
+
+
+    if (pos + (sizeof("IN IP4 a")-1) >= &str[len] || pos[0] != 'I' || pos[1] != 'N' || pos[2] != ' ' || pos[3] != 'I' || pos[4] != 'P' || pos[6] != ' '){
+        return AES67_SDP_ERROR;
+    }
+
+    if (pos[5] == '4'){
+        origin->ipver = aes67_net_ipver_4;
+    } else if (pos[6] == '6'){
+        origin->ipver = aes67_net_ipver_6;
+    } else {
+        return AES67_SDP_ERROR;
+    }
+
+    pos += sizeof("IN IP4 ")-1;
+
+    if (pos >= &str[len]){
+        return AES67_SDP_ERROR;
+    }
+
+    origin->address.length = &str[len] - pos;
+    aes67_memcpy(origin->address.data, pos, &str[len] - pos);
+
+    return AES67_SDP_OK;
 }
 
 //inline static u32_t connection_fromstr(struct aes67_sdp * sdp, u8_t * line, u32_t llen)
@@ -891,6 +976,13 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 
             case 'o': // o=<user> <id> <version> IN (IP4|IP6) <originating-host>
                 seen |= SEEN_O;
+
+                u32_t r = aes67_sdp_origin_fromstr(&sdp->originator, line, llen);
+
+                if (r != AES67_SDP_OK){
+                    return r;
+                }
+
                 break;
 
             case 's': //
@@ -927,23 +1019,23 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 #endif // 0 < AES67_SDP_MAXSTREAMINFO
                 break;
 
-            case 'c':  // c=IN (IP4|IP6) <host>[/<ttl>][/<no-of-addresses>]
+            case 'c': { // c=IN (IP4|IP6) <host>[/<ttl>][/<no-of-addresses>]
                 seen |= SEEN_C;
 
-                if (llen < sizeof("c=IN IP4 a")-1 || line[2] != 'I' || line[3] != 'N' || line[4] != ' ' ||
+                if (llen < sizeof("c=IN IP4 a") - 1 || line[2] != 'I' || line[3] != 'N' || line[4] != ' ' ||
                     line[5] != 'I' || line[6] != 'P' || line[8] != ' ') {
                     //TODO report format error
                     return AES67_SDP_ERROR;
                 }
 
                 // enough poolspace for another connection?
-                if (sdp->connections.count >= AES67_SDP_MAXCONNECTIONS){
+                if (sdp->connections.count >= AES67_SDP_MAXCONNECTIONS) {
                     //TODO report insufficient memory
                     return AES67_SDP_NOMEMORY;
                 }
 
                 // get new connection pointer and increase connection counter
-                struct aes67_sdp_connection * con = &sdp->connections.data[sdp->connections.count++];
+                struct aes67_sdp_connection *con = &sdp->connections.data[sdp->connections.count++];
 
                 // set context flag accordingly
                 con->flags = AES67_SDP_FLAG_SET_YES | context;
@@ -963,12 +1055,12 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                 }
 
                 // locate optional delimiter '/'
-                u8_t * delim = aes67_memchr(&line[8], '/', llen - 9);
+                u8_t *delim = aes67_memchr(&line[8], '/', llen - 9);
 
-                size_t hostlen = llen-9;
+                size_t hostlen = llen - 9;
 
                 // if a delimiter found it is definitely a multicast address
-                if (delim != NULL){
+                if (delim != NULL) {
                     hostlen = delim - line - 9;
 
                     // move to beginning of first number
@@ -987,7 +1079,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                     if (&delim[readlen] == &line[llen]) {
 
                         // the ipv4 required ttl or ipv6 number of addresses
-                        if (con->ipver == aes67_net_ipver_4 ) {
+                        if (con->ipver == aes67_net_ipver_4) {
                             con->ttl = v;
                         }
 
@@ -1014,33 +1106,115 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 
                 aes67_memcpy(con->address.data, &line[8], hostlen);
                 con->address.length = hostlen;
-
+            }
                 break;
 
 
-            case 't': // t=<start-time> <end-time>
+            case 't': {// t=<start-time> <end-time>
                 seen |= SEEN_T;
 
                 u16_t readlen = 0;
-                s32_t start = aes67_atoi(&line[2], llen-2, 10, &readlen);
+                s32_t start = aes67_atoi(&line[2], llen - 2, 10, &readlen);
 
                 // check if there is the beginning of a second number
-                if (3+readlen >= llen){
+                if (3 + readlen >= llen) {
                     return AES67_SDP_ERROR;
                 }
 
-                s32_t end = aes67_atoi(&line[3+readlen], llen-3-readlen, 10, &readlen);
+                s32_t end = aes67_atoi(&line[3 + readlen], llen - 3 - readlen, 10, &readlen);
 
                 // TODO note: this is just a basic format check, at the moment this is not used
-                if (start != 0 || end != 0){
+                if (start != 0 || end != 0) {
                     return AES67_SDP_NOTSUPPORTED;
                 }
-
+            }
                 break;
 
 
-            case 'm':
+            case 'm': {
                 seen |= SEEN_M;
+
+                if (llen < sizeof("m=audio 0 RTP/AVP 96") - 1) {
+                    return AES67_SDP_ERROR;
+                }
+
+                // only audio formats are supported
+                // TODO in principle we could just skip this media/stream instead of aborting
+                if (line[2] != 'a' || line[3] != 'u' || line[4] != 'd' || line[5] != 'i' || line[6] != 'o' ||
+                    line[7] != ' ') {
+                    return AES67_SDP_NOTSUPPORTED;
+                }
+
+                u16_t readlen = 0;
+
+                u8_t * pos = &line[8];
+
+                // get port and validate
+                s32_t port = aes67_atoi(pos, llen - 8, 10, &readlen);
+
+                if (port == 0) {
+                    return AES67_SDP_ERROR;
+                }
+
+                pos += readlen;
+
+                //check for optional number of ports
+                s32_t nports = 2;
+                if (pos[0] == '/') {
+
+                    nports = aes67_atoi(&pos[1], llen - 9 - readlen, 10, &readlen);
+                    if (nports == 0) {
+                        return AES67_SDP_ERROR;
+                    }
+                    pos += 1 + readlen;
+                }
+
+                // check format and profile type
+                if (pos[0] != ' ' || pos[1] != 'R' || pos[2] != 'T' || pos[3] != 'P' || pos[4] != '/' || pos[5] != 'A' || pos[6] != 'V' || pos[7] != 'P' || pos[8] != ' '){
+                    return AES67_SDP_NOTSUPPORTED;
+                }
+
+                // move beyond profile type
+                pos += 9;
+
+                u8_t nenc = 0;
+                while (pos < &line[llen]){
+                    s32_t e = aes67_atoi(pos, &line[llen] - pos, 10, &readlen);
+                    if (readlen == 0){
+                        return AES67_SDP_ERROR;
+                    }
+                    pos += readlen;
+                    if (e < AES67_AVP_PAYLOADTYPE_DYNAMIC_START || AES67_AVP_PAYLOADTYPE_DYNAMIC_END < e){
+                        return AES67_SDP_NOTSUPPORTED;
+                    }
+                    //TODO remember encoding indices (?) possibly just for validation
+                    nenc++;
+                }
+
+                if (nenc == 0){
+                    return AES67_SDP_ERROR;
+                }
+
+                if (sdp->streams.count >= AES67_SDP_MAXSTREAMS) {
+                    return AES67_SDP_NOMEMORY;
+                }
+
+                stream_index = sdp->streams.count++;
+                context = AES67_SDP_FLAG_DEFLVL_STREAM | stream_index;
+
+                struct aes67_sdp_stream *stream = &sdp->streams.data[stream_index];
+
+                // init stream
+                stream->info.length = 0;
+                stream->port = port;
+                stream->nports = nports;
+                stream->nencodings = 0;
+                stream->nptp = 0;
+                stream->mode = aes67_sdp_attr_mode_undef;
+                stream->ptimes.count = 0;
+                stream->ptimes.cfg = 0;
+                stream->mediaclock_offset = 0;
+            }
                 break;
 
             case 'a':

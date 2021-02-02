@@ -397,7 +397,7 @@ TEST(SDP_TestGroup, sdp_origin_compare)
             .username = AES67_STRING_INIT_BYTES("joe"),
             .session_id = AES67_STRING_INIT_BYTES("1234567890"),
             .session_version = AES67_STRING_INIT_BYTES("9876543210"),
-            .address_type = aes67_net_ipver_4,
+            .ipver = aes67_net_ipver_4,
             .address = AES67_STRING_INIT_BYTES("random.host.name")
     };
 
@@ -408,7 +408,7 @@ TEST(SDP_TestGroup, sdp_origin_compare)
             .username = AES67_STRING_INIT_BYTES("joe"),
             .session_id = AES67_STRING_INIT_BYTES("1234567890"),
             .session_version = AES67_STRING_INIT_BYTES("9876543211"),
-            .address_type = aes67_net_ipver_4,
+            .ipver = aes67_net_ipver_4,
             .address = AES67_STRING_INIT_BYTES("random.host.name")
     };
 
@@ -421,7 +421,7 @@ TEST(SDP_TestGroup, sdp_origin_compare)
             .username = AES67_STRING_INIT_BYTES(""),
             .session_id = AES67_STRING_INIT_BYTES("1234567890"),
             .session_version = AES67_STRING_INIT_BYTES("9876543210"),
-            .address_type = aes67_net_ipver_4,
+            .ipver = aes67_net_ipver_4,
             .address = AES67_STRING_INIT_BYTES("random.host.name")
     };
 
@@ -431,7 +431,7 @@ TEST(SDP_TestGroup, sdp_origin_compare)
             .username = AES67_STRING_INIT_BYTES("joe"),
             .session_id = AES67_STRING_INIT_BYTES("1234567890as"),
             .session_version = AES67_STRING_INIT_BYTES("9876543210"),
-            .address_type = aes67_net_ipver_4,
+            .ipver = aes67_net_ipver_4,
             .address = AES67_STRING_INIT_BYTES("random.host.name")
     };
 
@@ -442,7 +442,7 @@ TEST(SDP_TestGroup, sdp_origin_compare)
             .username = AES67_STRING_INIT_BYTES(""),
             .session_id = AES67_STRING_INIT_BYTES("1234567890"),
             .session_version = AES67_STRING_INIT_BYTES("9876543210"),
-            .address_type = aes67_net_ipver_4,
+            .ipver = aes67_net_ipver_4,
             .address = AES67_STRING_INIT_BYTES("random.host.name2")
     };
 
@@ -459,7 +459,7 @@ TEST(SDP_TestGroup, sdp_origin_tostr)
             .username = AES67_STRING_INIT_BYTES(""),
             .session_id = AES67_STRING_INIT_BYTES(""),
             .session_version = AES67_STRING_INIT_BYTES(""),
-            .address_type = aes67_net_ipver_4,
+            .ipver = aes67_net_ipver_4,
             .address = AES67_STRING_INIT_BYTES("")
     };
 
@@ -474,7 +474,7 @@ TEST(SDP_TestGroup, sdp_origin_tostr)
             .username = AES67_STRING_INIT_BYTES("joe"),
             .session_id = AES67_STRING_INIT_BYTES("123456789012345678901234567890123456789"),
             .session_version = AES67_STRING_INIT_BYTES("098765432109876543210987654321098765432"),
-            .address_type = aes67_net_ipver_4,
+            .ipver = aes67_net_ipver_4,
             .address = AES67_STRING_INIT_BYTES("random.host.name")
     };
 
@@ -485,7 +485,7 @@ TEST(SDP_TestGroup, sdp_origin_tostr)
     STRCMP_EQUAL("o=joe 123456789012345678901234567890123456789 098765432109876543210987654321098765432 IN IP4 random.host.name\r\n", (const char *)str);
 
 
-    o2.address_type = aes67_net_ipver_6;
+    o2.ipver = aes67_net_ipver_6;
 
     len = aes67_sdp_origin_tostr(str, sizeof(str), &o2);
 
@@ -716,7 +716,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                 .username = AES67_STRING_INIT_BYTES("joe"),
                 .session_id = AES67_STRING_INIT_BYTES("1234567890"),
                 .session_version = AES67_STRING_INIT_BYTES("9876543210"),
-                .address_type = aes67_net_ipver_4,
+                .ipver = aes67_net_ipver_4,
                 .address = AES67_STRING_INIT_BYTES("random.host.name")
             },
             .name = AES67_STRING_INIT_BYTES("")
@@ -769,7 +769,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                     .username = AES67_STRING_INIT_BYTES("joe"),
                     .session_id = AES67_STRING_INIT_BYTES("1234567890"),
                     .session_version = AES67_STRING_INIT_BYTES("9876543210"),
-                    .address_type = aes67_net_ipver_4,
+                    .ipver = aes67_net_ipver_4,
                     .address = AES67_STRING_INIT_BYTES("random.host.name")
             },
             .name = AES67_STRING_INIT_BYTES("1337 $3$$10N"),
@@ -966,20 +966,23 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "s= \r\n"
                    "c=IN IP4 ipaddr2/44/36\r\n"
                    "t=0 0\r\n"
-                   "m=f";
+                   "m=audio 5000 RTP/AVP 96";
 
 
     std::memset(&sdp, 0, sizeof(struct aes67_sdp));
     CHECK_EQUAL(AES67_SDP_OK,aes67_sdp_fromstr(&sdp, s2, sizeof(s2)-1));
+
     // originator
-//    CHECK_EQUAL(0, sdp.originator.username.length);
-//    CHECK_EQUAL(sizeof("123")-1, sdp.originator.session_id.length);
-//    MEMCMP_EQUAL("123", sdp.originator.session_id.data, sizeof("123")-1);
-//    CHECK_EQUAL(sizeof("45678")-1, sdp.originator.session_version.length);
-//    MEMCMP_EQUAL("45678", sdp.originator.session_version.data, sizeof("123")-1);
-//    CHECK_EQUAL(aes67_net_ipver_4, sdp.originator.address_type);
-//    CHECK_EQUAL(sizeof("ipaddr1")-1, sdp.originator.address.length);
-//    MEMCMP_EQUAL("ipaddr1", sdp.originator.address.data, sizeof("ipaddr1")-1);
+    CHECK_EQUAL(0, sdp.originator.username.length);
+//    MEMCMP_EQUAL("", sdp.originator.username.data, 0);
+    CHECK_EQUAL(sizeof("123")-1, sdp.originator.session_id.length);
+    MEMCMP_EQUAL("123", sdp.originator.session_id.data, sizeof("123")-1);
+    CHECK_EQUAL(sizeof("45678")-1, sdp.originator.session_version.length);
+    MEMCMP_EQUAL("45678", sdp.originator.session_version.data, sizeof("123")-1);
+    CHECK_EQUAL(aes67_net_ipver_4, sdp.originator.ipver);
+    CHECK_EQUAL(sizeof("ipaddr1")-1, sdp.originator.address.length);
+    MEMCMP_EQUAL("ipaddr1", sdp.originator.address.data, sizeof("ipaddr1")-1);
+
     //session name
     CHECK_EQUAL(0, sdp.name.length);
 
@@ -989,6 +992,9 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(36, sdp.connections.data[0].naddr);
     CHECK_EQUAL(44, sdp.connections.data[0].ttl);
 
-
+    //media/stream
+    CHECK_EQUAL(1, sdp.streams.count);
+    CHECK_EQUAL(5000, sdp.streams.data[0].port);
+    CHECK_EQUAL(2, sdp.streams.data[0].nports);
 }
 

@@ -102,7 +102,7 @@ struct aes67_sdp_originator {
     AES67_STRING(AES67_SDP_MAXSESSIONID) session_id;
     AES67_STRING(AES67_SDP_MAXSESSIONVERSION) session_version;
 //    u8_t nettype; // only IN type used
-    enum aes67_net_ipver address_type;
+    enum aes67_net_ipver ipver;
     AES67_STRING(AES67_SDP_MAXADDRESS) address;
 };
 

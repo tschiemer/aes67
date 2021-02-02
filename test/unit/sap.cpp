@@ -832,7 +832,7 @@ TEST(SAP_TestGroup, sap_msg)
             .originator.username        = {0},
             .originator.session_id      = {1, "1"},
             .originator.session_version = {1, "2"},
-            .originator.address_type    = aes67_net_ipver_4,
+            .originator.ipver    = aes67_net_ipver_4,
             .originator.address         = {8,"10.0.0.1"},
     };
 
@@ -996,7 +996,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
             .originator.username        = {0},
             .originator.session_id      = {1, "1"},
             .originator.session_version = {1, "2"},
-            .originator.address_type    = aes67_net_ipver_4,
+            .originator.ipver    = aes67_net_ipver_4,
             .originator.address         = {8,"10.0.0.1"},
     };
 
