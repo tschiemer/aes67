@@ -1021,20 +1021,20 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
             case 't': // t=<start-time> <end-time>
                 seen |= SEEN_T;
 
-//                u16_t readlen = 0;
-//                s32_t start = aes67_atoi(&line[2], llen-2, 10, &readlen);
-//
-//                // check if there is the beginning of a second number
-//                if (4+readlen >= llen){
-//                    return AES67_SDP_ERROR;
-//                }
-//
-//                s32_t end = aes67_atoi(&line[3+readlen], llen-2, 10, &readlen);
-//
-//                // TODO note: this is just a basic format check, at the moment this is not used
-//                if (start != 0 || end != 0){
-//                    return AES67_SDP_NOTSUPPORTED;
-//                }
+                u16_t readlen = 0;
+                s32_t start = aes67_atoi(&line[2], llen-2, 10, &readlen);
+
+                // check if there is the beginning of a second number
+                if (3+readlen >= llen){
+                    return AES67_SDP_ERROR;
+                }
+
+                s32_t end = aes67_atoi(&line[3+readlen], llen-3-readlen, 10, &readlen);
+
+                // TODO note: this is just a basic format check, at the moment this is not used
+                if (start != 0 || end != 0){
+                    return AES67_SDP_NOTSUPPORTED;
+                }
 
                 break;
 
