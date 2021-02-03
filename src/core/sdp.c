@@ -1214,6 +1214,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                 stream->nencodings = 0;
                 stream->nptp = 0;
                 stream->mode = aes67_sdp_attr_mode_undefined;
+                stream->ptime.cap = 0;
                 stream->ptime_cap.count = 0;
                 stream->ptime_cap.cfg = 0;
                 stream->mediaclock_offset = 0;
@@ -1309,9 +1310,9 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 
                         stream->ptime.cap = AES67_SDP_CAP_SET;
 
-                        stream->ptime.msec = aes67_atoi(&line[8], llen - 9, 10, &readlen);
+                        stream->ptime.msec = aes67_atoi(&line[8], llen - 8, 10, &readlen);
 
-                        delim = line + readlen;
+                        delim = line + 8 + readlen;
 
                         // check if (optional) millisec fractional part is set
                         if (delim == &line[llen]){
@@ -1319,7 +1320,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                         } else if ( &delim[2] > &line[llen]  || delim[0] != '.'){
                             return AES67_SDP_ERROR;
                         } else {
-                            stream->ptime.msec_frac = aes67_atoi(delim, &line[llen] - &delim[2], 10, &readlen);
+                            stream->ptime.msec_frac = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
 
                             if (readlen == 0){
                                 return AES67_SDP_ERROR;

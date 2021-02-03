@@ -982,7 +982,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "m=audio 5000 RTP/AVP 96\r\n"
                    "a=recvonly\r\n"
 //                   "a=rtpmap:96 L16/48000/2\r\n"
-//                   "a=ptime:0.33\r\n"
+                   "a=ptime:1.33\r\n"
                    "a=ts-refclk:ptp=IEEE1588-2008:39-A7-94-FF-FE-07-CB-D0:2\r\n"
                    "a=mediaclk:direct=963214424\r\n"
                    ;
@@ -1017,9 +1017,14 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(&sdp.streams.data[0], stream);
     CHECK_EQUAL(5000, stream->port);
     CHECK_EQUAL(2, stream->nports);
+
     CHECK_EQUAL(aes67_sdp_attr_mode_recvonly, stream->mode);
+
     CHECK_EQUAL(963214424, stream->mediaclock_offset);
-//    CHECK_EQUAL(1, stream->ptime_cap.count);
+
+    CHECK_EQUAL(AES67_SDP_CAP_SET, stream->ptime.cap);
+    CHECK_EQUAL(1, stream->ptime.msec);
+    CHECK_EQUAL(33, stream->ptime.msec_frac);
 
 //    CHECK_EQUAL(1, aes67_sdp_get_stream_encoding_count(&sdp, 0));
 //    struct aes67_sdp_attr_encoding * enc = aes67_sdp_get_stream_encoding(&sdp, 0, 0);
