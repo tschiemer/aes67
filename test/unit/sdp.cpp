@@ -835,7 +835,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     .ptime_cap = {
                                             .count = 2,
                                             .cfg = AES67_SDP_CAP_PROPOSED | 1,
-                                            .cfg_a = 0,
+                                            .cfg_a = 1,
                                             .data = {
                                                     {
                                                             .cap = 1,
@@ -868,18 +868,8 @@ TEST(SDP_TestGroup, sdp_tostr)
                                             .msec_frac = 0
                                     },
                                     .ptime_cap = {
-                                            .count = 2,
                                             .cfg = AES67_SDP_CAP_ACTIVE | 3,
-                                            .cfg_a = 1,
-                                            .data = {
-                                                    {
-                                                        // this entry is ignored anyway
-                                                    },
-                                                    {
-                                                            .cap = 12,
-                                                            // values irrelevant
-                                                    }
-                                            }
+                                            .cfg_a = 12,
                                     },
                             },
                     }
@@ -983,6 +973,9 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "a=recvonly\r\n"
 //                   "a=rtpmap:96 L16/48000/2\r\n"
                    "a=ptime:1.33\r\n"
+                   "a=pcap:2 ptime:1.33\r\n"
+                   "a=pcap:3 ptime:4\r\n"
+                   "a=pcfg:5 a=2\r\n"
                    "a=ts-refclk:ptp=IEEE1588-2008:39-A7-94-FF-FE-07-CB-D0:2\r\n"
                    "a=mediaclk:direct=963214424\r\n"
                    ;
@@ -1026,6 +1019,18 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(1, stream->ptime.msec);
     CHECK_EQUAL(33, stream->ptime.msec_frac);
 
+#if 0 < AES67_SDP_MAXPTIMECAPS
+    CHECK_EQUAL(2, stream->ptime_cap.count);
+    CHECK_EQUAL(2, stream->ptime_cap.data[0].cap);
+    CHECK_EQUAL(1, stream->ptime_cap.data[0].msec);
+    CHECK_EQUAL(33, stream->ptime_cap.data[0].msec_frac);
+    CHECK_EQUAL(3, stream->ptime_cap.data[1].cap);
+    CHECK_EQUAL(4, stream->ptime_cap.data[1].msec);
+    CHECK_EQUAL(0, stream->ptime_cap.data[1].msec_frac);
+
+    CHECK_EQUAL(AES67_SDP_CAP_PROPOSED | 5,  stream->ptime_cap.cfg);
+    CHECK_EQUAL(2,  stream->ptime_cap.cfg_a);
+#endif //0 < AES67_SDP_MAXPTIMECAPS
 
 //    CHECK_EQUAL(1, aes67_sdp_get_stream_encoding_count(&sdp, 0));
 //    struct aes67_sdp_attr_encoding * enc = aes67_sdp_get_stream_encoding(&sdp, 0, 0);

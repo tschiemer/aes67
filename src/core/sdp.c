@@ -760,9 +760,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
             str[len++] = 'a';
             str[len++] = '=';
 
-            AES67_ASSERT("valid cfg_a index", sdp->streams.data[s].ptime_cap.cfg_a < sdp->streams.data[s].ptime_cap.count);
-
-            len += aes67_itoa(sdp->streams.data[s].ptime_cap.data[sdp->streams.data[s].ptime_cap.cfg_a].cap, &str[len], 10);
+            len += aes67_itoa(sdp->streams.data[s].ptime_cap.cfg_a, &str[len], 10);
 
             str[len++] = CR;
             str[len++] = NL;
@@ -944,6 +942,11 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
     u16_t seen = 0; // for basic (but incomplete) checking if required fields have been seen
     size_t llen = 0; // line length
 
+#if 0 < AES67_SDP_MAXPTIMECAPS
+    // remember if unsupported capabilities/configurations were detected
+    u8_t unsupported_caps = false;
+#endif
+
     // until end was reached
     while(pos < len){
         u8_t * line = &str[pos];
@@ -967,11 +970,6 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
         if (llen < 3 || line[1] != '='){
             return AES67_SDP_ERROR;
         }
-
-        // for comfort, let line start at actual data part
-//        u8_t f = line[0];
-//        line += 2;
-//        llen -= 2;
 
         // now parse given line
         switch(line[0]){
@@ -1363,6 +1361,114 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                             }
                         }
                     }
+#if 0 < AES67_SDP_MAXPTIMECAPS
+                    else if (delim - line == sizeof("a=pcap") - 1 &&
+                        line[2] == 'p' &&
+                        line[3] == 'c' &&
+                        line[4] == 'a' &&
+                        line[5] == 'p'){
+
+                        if (unsupported_caps == true){
+                            continue;
+                        }
+
+                        if (llen < sizeof("a=pcap:1 ptime:1")-1){
+                            unsupported_caps = true;
+                            continue;
+                        }
+
+                        u16_t readlen = 0;
+
+                        u8_t capi = aes67_atoi(&line[7], llen - 7, 10, &readlen);
+
+                        if (readlen == 0 || 9+readlen > llen || line[7+readlen] != ' '){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        u8_t * opt = &line[8+readlen];
+
+                        delim = aes67_memchr(opt, ':', &line[llen] - opt);
+
+                        if (delim - opt != sizeof("ptime")-1 ||
+                            opt[0] != 'p' ||
+                            opt[1] != 't' ||
+                            opt[2] != 'i' ||
+                            opt[3] != 'm' ||
+                            opt[4] != 'e'){
+
+                            unsupported_caps = true;
+                            continue;
+                        }
+
+                        if (&delim[1] > &line[llen]){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        if (stream->ptime_cap.count >= AES67_SDP_MAXPTIMECAPS){
+                            return AES67_SDP_NOMEMORY;
+                        }
+
+                        struct aes67_sdp_attr_ptime * ptime = &stream->ptime_cap.data[stream->ptime_cap.count++];
+
+                        ptime->cap = capi;
+                        ptime->msec = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+
+                        delim += 1+readlen;
+
+                        // check if (optional) millisec fractional part is set
+                        if (delim == &line[llen]){
+                            ptime->msec_frac = 0;
+                        } else if ( &delim[2] > &line[llen]  || delim[0] != '.'){
+                            return AES67_SDP_ERROR;
+                        } else {
+                            ptime->msec_frac = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+
+                            if (readlen == 0){
+                                return AES67_SDP_ERROR;
+                            }
+                        }
+                    }
+
+                    else if (delim - line == sizeof("a=pcfg") - 1 &&
+                        (line[2] == 'p' || line[2] == 'a') &&
+                         line[3] == 'c' &&
+                         line[4] == 'f' &&
+                         line[5] == 'g'){
+
+                        if (unsupported_caps == true){
+                            continue;
+                        }
+
+                        // sanity check
+                        if (llen < sizeof("a=pcfg:1 a=1")-1){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        // sanity check (can not handle multiple pcfg)
+                        if (stream->ptime_cap.cfg != 0){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        u16_t readlen = 0;
+                        stream->ptime_cap.cfg = aes67_atoi(&line[7], llen - 7, 10, &readlen);
+
+                        stream->ptime_cap.cfg |= line[2] == 'p' ? AES67_SDP_CAP_PROPOSED : AES67_SDP_CAP_ACTIVE;
+
+                        delim = &line[8+readlen];
+
+                        // sanity check (delim = "a=1...")
+                        if (delim + 3 > &line[llen] || delim[0] != 'a' || delim[1] != '='){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        stream->ptime_cap.cfg_a = aes67_atoi(&delim[2], &line[llen] - &delim[2], 10, &readlen);
+
+                        if (readlen == 0){
+                            return AES67_SDP_ERROR;
+                        }
+
+                    }
+#endif //0 < AES67_SDP_MAXPTIMECAPS
                     else if (delim - line == sizeof("a=mediaclk")-1 &&
                         line[2] == 'm' &&
                         line[3] == 'e' &&
@@ -1582,6 +1688,16 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
         }
     }
 
+#if 0 < AES67_SDP_MAXPTIMECAPS
+    // in case of unsupported capabilities, reset capability options
+    // because parsing will stop -> better no options than incomplete options
+    if (unsupported_caps == true){
+        for(u8_t i = 0; i < sdp->streams.count; i++){
+            sdp->streams.data[i].ptime_cap.cfg = 0;
+            sdp->streams.data[i].ptime_cap.count = 0;
+        }
+    }
+#endif
 
 
     return (seen & SEEN_ALL) == SEEN_ALL ? AES67_SDP_OK : AES67_SDP_INCOMPLETE;
