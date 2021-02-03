@@ -1026,6 +1026,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(1, stream->ptime.msec);
     CHECK_EQUAL(33, stream->ptime.msec_frac);
 
+
 //    CHECK_EQUAL(1, aes67_sdp_get_stream_encoding_count(&sdp, 0));
 //    struct aes67_sdp_attr_encoding * enc = aes67_sdp_get_stream_encoding(&sdp, 0, 0);
 //    CHECK_EQUAL(&sdp.encodings.data[0], enc);

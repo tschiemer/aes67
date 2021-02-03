@@ -1338,6 +1338,30 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                         line[8] == 'm' &&
                         line[9] == 'e'){
 
+                        if (llen < sizeof("a=maxptime:0")-1){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        u16_t readlen = 0;
+
+                        stream->maxptime.cap = AES67_SDP_CAP_SET;
+
+                        stream->maxptime.msec = aes67_atoi(&line[11], llen - 11, 10, &readlen);
+
+                        delim = line + 11 + readlen;
+
+                        // check if (optional) millisec fractional part is set
+                        if (delim == &line[llen]){
+                            stream->maxptime.msec_frac = 0;
+                        } else if ( &delim[2] > &line[llen]  || delim[0] != '.'){
+                            return AES67_SDP_ERROR;
+                        } else {
+                            stream->maxptime.msec_frac = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+
+                            if (readlen == 0){
+                                return AES67_SDP_ERROR;
+                            }
+                        }
                     }
                     else if (delim - line == sizeof("a=mediaclk")-1 &&
                         line[2] == 'm' &&
