@@ -122,13 +122,32 @@ void * aes67_memmove(void* dest, const void* src, size_t count);
 void * aes67_memchr( const void * ptr, int ch, size_t count );
 #endif
 
-#ifndef aes67_atohex
-void aes67_atohex(u8_t * bytes, u32_t len, u8_t * str);
+#ifndef aes67_bintohex
+void aes67_bintohex(u8_t * bytes, u32_t nbytes, u8_t * str);
+#endif
+
+inline u16_t aes67_hextonibble(u8_t hex)
+{
+    if ('0' <= hex && hex <= '9') return hex - '0';
+    if ('a' <= hex && hex <= 'f') return hex + (10 - 'a');
+    if ('A' <= hex && hex <= 'F') return hex + (10 - 'A');
+    return 0xffff;
+}
+
+inline u16_t aes67_hextobyte(u8_t hex[2])
+{
+    u8_t msn = aes67_hextonibble(hex[0]);
+    u8_t lsn = aes67_hextonibble(hex[1]);
+    if ((msn | lsn) == 0xffff) return 0xffff;
+    return (msn << 4) | lsn;
+}
+
+#ifndef aes67_hextobin
+u8_t aes67_hextobin(u8_t * str, u32_t nbytes, u8_t * bytes);
 #endif
 
 u16_t aes67_itoa(s32_t value, u8_t * str, s32_t base);
 s32_t aes67_atoi(u8_t * str, size_t len, s32_t base, u16_t * readlen);
-
 
 #ifdef __cplusplus
 }

@@ -81,7 +81,7 @@ enum {
 typedef u16_t aes67_sdp_flags;
 
 enum aes67_sdp_attr_mode {
-    aes67_sdp_attr_mode_undef    = 0,
+    aes67_sdp_attr_mode_undefined = 0,
     aes67_sdp_attr_mode_inactive = 1,
     aes67_sdp_attr_mode_recvonly = 2,
     aes67_sdp_attr_mode_sendonly = 3,

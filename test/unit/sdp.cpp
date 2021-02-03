@@ -966,9 +966,14 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "s= \r\n"
                    "c=IN IP4 ipaddr2/44/36\r\n"
                    "t=0 0\r\n"
+                   "a=ptp-domain:PTPv2 13\r\n"
                    "m=audio 5000 RTP/AVP 96\r\n"
                    "a=recvonly\r\n"
-                   "a=rtpmap:96 L16/48000";
+//                   "a=rtpmap:96 L16/48000/2\r\n"
+//                   "a=ptime:0.33\r\n"
+                   "a=ts-refclk:ptp=IEEE1588-2008:39-A7-94-FF-FE-07-CB-D0:2\r\n"
+                   "a=mediaclk:direct=963214424\r\n"
+                   ;
 
 
     std::memset(&sdp, 0, sizeof(struct aes67_sdp));
@@ -996,8 +1001,30 @@ TEST(SDP_TestGroup, sdp_fromstr)
 
     //media/stream
     CHECK_EQUAL(1, sdp.streams.count);
-    CHECK_EQUAL(5000, sdp.streams.data[0].port);
-    CHECK_EQUAL(2, sdp.streams.data[0].nports);
-    CHECK_EQUAL(aes67_sdp_attr_mode_recvonly, sdp.streams.data[0].mode);
+    struct aes67_sdp_stream * stream = aes67_sdp_get_stream(&sdp, 0);
+    CHECK_EQUAL(&sdp.streams.data[0], stream);
+    CHECK_EQUAL(5000, stream->port);
+    CHECK_EQUAL(2, stream->nports);
+    CHECK_EQUAL(aes67_sdp_attr_mode_recvonly, stream->mode);
+    CHECK_EQUAL(963214424, stream->mediaclock_offset);
+//    CHECK_EQUAL(1, stream->ptimes.count);
+
+//    CHECK_EQUAL(1, aes67_sdp_get_stream_encoding_count(&sdp, 0));
+//    struct aes67_sdp_attr_encoding * enc = aes67_sdp_get_stream_encoding(&sdp, 0, 0);
+//    CHECK_EQUAL(&sdp.encodings.data[0], enc);
+//    CHECK_EQUAL(AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0, enc->flags);
+//    CHECK_EQUAL(96, enc->payloadtype);
+//    CHECK_EQUAL(aes67_audio_encoding_L16, enc->encoding);
+//    CHECK_EQUAL(48000, enc->samplerate);
+//    CHECK_EQUAL(2, enc->nchannels);
+//
+    CHECK_EQUAL(AES67_SDP_PTP_DOMAIN_SET | 13, sdp.ptp_domain);
+    CHECK_EQUAL(0, sdp.nptp);
+    CHECK_EQUAL(1, aes67_sdp_get_ptp_count(&sdp, 0));
+    struct aes67_sdp_ptp * ptp = aes67_sdp_get_ptp(&sdp, 0, 0);
+    CHECK_EQUAL(&sdp.ptps.data[0], ptp);
+    CHECK_EQUAL(aes67_ptp_type_IEEE1588_2008, ptp->ptp.type);
+    MEMCMP_EQUAL("\x39\xA7\x94\xFF\xFE\x07\xCB\xD0", ptp->ptp.gmid.u8, 8);
+    CHECK_EQUAL(2, ptp->ptp.domain);
 }
 

@@ -39,10 +39,11 @@ extern "C" {
  * PTP clock type
  */
 enum aes67_ptp_type {
-    aes67_ptp_type_IEEE1588_2002 = 1,
-    aes67_ptp_type_IEEE1588_2008 = 2,
-    aes67_ptp_type_IEEE1588_2019 = 3,
-    aes67_ptp_type_IEEE802AS_2011 = 4,
+    aes67_ptp_type_undefined = 0,
+    aes67_ptp_type_IEEE1588_2002,
+    aes67_ptp_type_IEEE1588_2008,
+    aes67_ptp_type_IEEE1588_2019,
+    aes67_ptp_type_IEEE802AS_2011
 };
 
 #define AES67_PTP_TYPE_ISVALID(__type__) ( \

@@ -356,11 +356,11 @@ u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * 
         str[len++] = ':';
 
         //
-        aes67_atohex(&ptps->data[i].ptp.gmid.u8[0], 1, &str[len]);
+        aes67_bintohex(&ptps->data[i].ptp.gmid.u8[0], 1, &str[len]);
         len += 2;
         for(int j = 1; j < sizeof(union aes67_ptp_eui64); j++){
             str[len++] = '-';
-            aes67_atohex(&ptps->data[i].ptp.gmid.u8[j], 1, &str[len]);
+            aes67_bintohex(&ptps->data[i].ptp.gmid.u8[j], 1, &str[len]);
             len += 2;
         }
 
@@ -925,7 +925,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
     }
 
     aes67_sdp_flags context = AES67_SDP_FLAG_DEFLVL_SESSION;
-    u8_t stream_index = 0;
+    struct aes67_sdp_stream * stream = NULL;
 
 #define SEEN_O  1
 #define SEEN_S  2
@@ -1011,10 +1011,10 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 #endif
 #endif // 0 < AES67_SDP_MAXSESSIONNAME
 #if 0 < AES67_SDP_MAXSTREAMINFO
-                if (context == AES67_SDP_FLAG_DEFLVL_STREAM){
+                if ((context & AES67_SDP_FLAG_DEFLVL_STREAM) == AES67_SDP_FLAG_DEFLVL_STREAM){
                     u32_t min = AES67_SDP_MAXSTREAMINFO < llen - 2 ? AES67_SDP_MAXSTREAMINFO : llen - 2;
-                    aes67_memcpy(sdp->streams.data[stream_index].info.data, &line[2], min);
-                    sdp->streams.data[stream_index].info.length = min;
+                    aes67_memcpy(stream->info.data, &line[2], min);
+                    stream->info.length = min;
                 }
 #endif // 0 < AES67_SDP_MAXSTREAMINFO
                 break;
@@ -1199,10 +1199,11 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                     return AES67_SDP_NOMEMORY;
                 }
 
-                stream_index = sdp->streams.count++;
-                context = AES67_SDP_FLAG_DEFLVL_STREAM | stream_index;
 
-                struct aes67_sdp_stream *stream = &sdp->streams.data[stream_index];
+                context = AES67_SDP_FLAG_DEFLVL_STREAM | sdp->streams.count;
+                stream = &sdp->streams.data[sdp->streams.count];
+
+                sdp->streams.count++;
 
                 // init stream
                 stream->info.length = 0;
@@ -1210,7 +1211,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                 stream->nports = nports;
                 stream->nencodings = 0;
                 stream->nptp = 0;
-                stream->mode = aes67_sdp_attr_mode_undef;
+                stream->mode = aes67_sdp_attr_mode_undefined;
                 stream->ptimes.count = 0;
                 stream->ptimes.cfg = 0;
                 stream->mediaclock_offset = 0;
@@ -1218,47 +1219,300 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                 break;
 
             case 'a':{
+
                 u8_t * delim = aes67_memchr(line, ':', llen);
 
-                if (delim == NULL){
+                // just check that after the delimiter always is some data
+                // (checking here instead of in each case..)
+                // (will also be true if delim == NULL ;)
+                if (delim >= &line[llen]){
+                    return AES67_SDP_ERROR;
+                }
 
-                    if ((context & AES67_SDP_FLAG_DEFLVL_STREAM) == AES67_SDP_FLAG_DEFLVL_STREAM){
+                u8_t processed = true;
 
-                        if (llen == sizeof("a=recvonly") - 1 && line[2] == 'r' && line[3] == 'e' && line[4] == 'c' && line[5] == 'v' && line[6] == 'o' && line[7] == 'n' && line[8] == 'l' | line[9] == 'y'){
-                            sdp->streams.data[stream_index].mode = aes67_sdp_attr_mode_recvonly;
-                        }
-                        else if (llen == sizeof("a=sendrecv") - 1 && line[2] == 's' && line[3] == 'e' && line[4] == 'n' && line[5] == 'd' && line[6] == 'r' && line[7] == 'e' && line[8] == 'c' | line[9] == 'v'){
-                            sdp->streams.data[stream_index].mode = aes67_sdp_attr_mode_sendrecv;
-                        }
-                        else if (llen == sizeof("a=sendonly") - 1 && line[2] == 's' && line[3] == 'e' && line[4] == 'n' && line[5] == 'd' && line[6] == 'o' && line[7] == 'n' && line[8] == 'l' | line[9] == 'y'){
-                            sdp->streams.data[stream_index].mode = aes67_sdp_attr_mode_sendonly;
-                        }
-                        else if (llen == sizeof("a=inactive") - 1 && line[2] == 'i' && line[3] == 'n' && line[4] == 'a' && line[5] == 'c' && line[6] == 't' && line[7] == 'i' && line[8] == 'v' | line[9] == 'e'){
-                            sdp->streams.data[stream_index].mode = aes67_sdp_attr_mode_inactive;
-                        }
+                // if we're in stream level context, check stream/media level only attributes
+                // likewise, session level only attributes
+                // if not processed afterwards, check for flexible attributes
+                // if still not processed, do whatever
 
+                if ((context & AES67_SDP_FLAG_DEFLVL_STREAM) == AES67_SDP_FLAG_DEFLVL_STREAM){
+
+                    if (llen == sizeof("a=recvonly") - 1 &&
+                        line[2] == 'r' &&
+                        line[3] == 'e' &&
+                        line[4] == 'c' &&
+                        line[5] == 'v' &&
+                        line[6] == 'o' &&
+                        line[7] == 'n' &&
+                        line[8] == 'l' &&
+                        line[9] == 'y'){
+                        stream->mode = aes67_sdp_attr_mode_recvonly;
                     }
-                } else if ((context & AES67_SDP_FLAG_DEFLVL_STREAM) == AES67_SDP_FLAG_DEFLVL_STREAM){
-
-                    if (delim - line == sizeof("a=rtpmap")-1 && line[2] == 'r' && line[3] == 't' && line[4] == 'p' && line[5] == 'm' && line[6] == 'a' && line[7] == 'p'){
+                    else if (llen == sizeof("a=sendrecv") - 1 &&
+                        line[2] == 's' &&
+                        line[3] == 'e' &&
+                        line[4] == 'n' &&
+                        line[5] == 'd' &&
+                        line[6] == 'r' &&
+                        line[7] == 'e' &&
+                        line[8] == 'c' &&
+                        line[9] == 'v'){
+                        stream->mode = aes67_sdp_attr_mode_sendrecv;
+                    }
+                    else if (llen == sizeof("a=sendonly") - 1 &&
+                        line[2] == 's' &&
+                        line[3] == 'e' &&
+                        line[4] == 'n' &&
+                        line[5] == 'd' &&
+                        line[6] == 'o' &&
+                        line[7] == 'n' &&
+                        line[8] == 'l' &&
+                        line[9] == 'y'){
+                        stream->mode = aes67_sdp_attr_mode_sendonly;
+                    }
+                    else if (llen == sizeof("a=inactive") - 1 &&
+                        line[2] == 'i' &&
+                        line[3] == 'n' &&
+                        line[4] == 'a' &&
+                        line[5] == 'c' &&
+                        line[6] == 't' &&
+                        line[7] == 'i' &&
+                        line[8] == 'v' &&
+                        line[9] == 'e'){
+                        stream->mode = aes67_sdp_attr_mode_inactive;
+                    }
+                    else if (delim - line == sizeof("a=rtpmap")-1 &&
+                        line[2] == 'r' &&
+                        line[3] == 't' &&
+                        line[4] == 'p' &&
+                        line[5] == 'm' &&
+                        line[6] == 'a' &&
+                        line[7] == 'p'){
                         //encoding
                         printf("foobar\n");
                     }
-                    else if (delim - line == sizeof("a=ptime")-1 && line[2] == 'p' && line[3] == 't' && line[4] == 'i' && line[5] == 'm' && line[6] == 'e' ){
+                    else if (delim - line == sizeof("a=ptime")-1 &&
+                        line[2] == 'p' &&
+                        line[3] == 't' &&
+                        line[4] == 'i' &&
+                        line[5] == 'm' &&
+                        line[6] == 'e' ){
 
                     }
-                    else if (delim - line == sizeof("a=maxptime")-1 && line[2] == 'm' && line[3] == 'a' && line[4] == 'x' &&  line[5] == 'p' && line[6] == 't' && line[7] == 'i' && line[8] == 'm' && line[9] == 'e'){
+                    else if (delim - line == sizeof("a=maxptime")-1 &&
+                        line[2] == 'm' &&
+                        line[3] == 'a' &&
+                        line[4] == 'x' &&
+                        line[5] == 'p' &&
+                        line[6] == 't' &&
+                        line[7] == 'i' &&
+                        line[8] == 'm' &&
+                        line[9] == 'e'){
 
                     }
-                    else if (delim - line == sizeof("a=mediaclk")-1 && line[2] == 'm' && line[3] == 'e' && line[4] == 'd' &&  line[5] == 'i' && line[6] == 'a' && line[7] == 'c' && line[8] == 'l' && line[9] == 'k'){
+                    else if (delim - line == sizeof("a=mediaclk")-1 &&
+                        line[2] == 'm' &&
+                        line[3] == 'e' &&
+                        line[4] == 'd' &&
+                        line[5] == 'i' &&
+                        line[6] == 'a' &&
+                        line[7] == 'c' &&
+                        line[8] == 'l' &&
+                        line[9] == 'k'){
 
+                        // sanity check
+                        if (llen < sizeof("a=mediaclk:direct=0")-1 ||
+                            line[11] != 'd' ||
+                            line[12] != 'i' ||
+                            line[13] != 'r' ||
+                            line[14] != 'e' ||
+                            line[15] != 'c' ||
+                            line[16] != 't' ||
+                            line[17] != '='
+                        ){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        u16_t readlen = 0;
+                        stream->mediaclock_offset = aes67_atoi(&line[18], llen - 18, 10, &readlen);
+
+                        if (readlen == 0){
+                            return AES67_SDP_ERROR;
+                        }
+                    }
+                    // no matching attribute
+                    else {
+                        processed = false;
+                    }
+
+                } else {
+                    // session level only attributes
+
+                    if (delim - line == sizeof("a=ptp-domain")-1 &&
+                        line[2] == 'p' &&
+                        line[3] == 't' &&
+                        line[4] == 'p' &&
+                        line[5] == '-' &&
+                        line[6] == 'd' &&
+                        line[7] == 'o' &&
+                        line[8] == 'm' &&
+                        line[9] == 'a' &&
+                        line[10] == 'i' &&
+                        line[11] == 'n'){
+
+                        // sanity check
+                        if (llen < sizeof("a=ptp-domain:PTPv2 0")-1 ||
+                            line[13] != 'P' ||
+                            line[14] != 'T' ||
+                            line[15] != 'P' ||
+                            line[16] != 'v' ||
+                            line[17] != '2' ||
+                            line[18] != ' ') {
+                            return AES67_SDP_ERROR;
+                        }
+
+                        u16_t readlen = 0;
+                        s32_t t = aes67_atoi(&line[19], llen - 19, 10, &readlen);
+
+                        // sanity check
+                        if (readlen == 0 || t > 127){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        sdp->ptp_domain = AES67_SDP_PTP_DOMAIN_SET | (AES67_SDP_PTP_DOMAIN_VALUE & t);
+                    }
+                    // no matching attribute
+                    else {
+                        processed = false;
                     }
                 }
 
-                if (delim - line == sizeof("a=ts-refclk")-1 && line[2] == 't' && line[3] == 's' && line[4] == '-' &&  line[5] == 'r' && line[6] == 'e' && line[7] == 'f' && line[8] == 'c' && line[9] == 'l' && line[10] == 'k'){
+                // if not processed so far it can be a session OR media/stream level attribute
+                if (processed == false){
 
+                    if (delim - line == sizeof("a=ts-refclk")-1 && line[2] == 't' && line[3] == 's' && line[4] == '-' &&  line[5] == 'r' && line[6] == 'e' && line[7] == 'f' && line[8] == 'c' && line[9] == 'l' && line[10] == 'k'){
+
+                        // basic sanity check
+                        if (llen < sizeof("a=ts-refclk:ptp=IEEE1588-2002:01-02-03-04-05-06-07-08")-1 ||
+                                delim[1] != 'p' ||
+                                delim[2] != 't' ||
+                                delim[3] != 'p' ||
+                                delim[4] != '=' ||
+                                delim[5] != 'I' ||
+                                delim[6] != 'E' ||
+                                delim[7] != 'E' ||
+                                delim[8] != 'E'){
+
+                            // seemingly the refclk is not ptp=IEEE based, so it might be another, unknown type
+                            processed = false;
+                        } else {
+
+                            if (sdp->ptps.count >= AES67_SDP_MAXPTPS){
+                                return AES67_SDP_NOMEMORY;
+                            }
+
+                            struct aes67_sdp_ptp * clk = &sdp->ptps.data[sdp->ptps.count++];
+
+                            // init and don't forget to set flags
+                            clk->flags =AES67_SDP_FLAG_SET_YES | context;
+                            clk->ptp.type = aes67_ptp_type_undefined;
+                            clk->ptp.domain = 0;
+
+                            if ( context == AES67_SDP_FLAG_DEFLVL_SESSION ){
+                                sdp->nptp++;
+                            } else {
+                                sdp->streams.data[ context & AES67_SDP_FLAG_STREAM_INDEX_MASK ].nptp++;
+                            }
+
+                            delim += 9;
+
+                            // 1588-20XX:
+                            if (delim[0] == '1' &&
+                                delim[1] == '5' &&
+                                delim[2] == '8' &&
+                                delim[3] == '8' &&
+                                delim[4] == '-' &&
+                                delim[5] == '2' &&
+                                delim[6] == '0' &&
+
+                                delim[9] == ':'){
+
+                                if (delim[7] == '0' && delim[8] == '2'){
+                                    clk->ptp.type = aes67_ptp_type_IEEE1588_2002;
+                                } else if (delim[7] == '0' && delim[8] == '8'){
+                                    clk->ptp.type = aes67_ptp_type_IEEE1588_2008;
+                                } else if (delim[7] == '1' && delim[8] == '9'){
+                                    clk->ptp.type = aes67_ptp_type_IEEE1588_2019;
+                                }
+
+                            }
+                            // 802.1AS-2011
+                            else if (delim[0] == '8' &&
+                                     delim[1] == '0' &&
+                                     delim[2] == '2' &&
+                                     delim[3] == '.' &&
+                                     delim[4] == '1' &&
+                                     delim[5] == 'A' &&
+                                     delim[6] == 'S' &&
+                                     delim[7] == '-' &&
+                                     delim[8] == '2' &&
+                                     delim[9] == '0' &&
+                                     delim[10] == '1' &&
+                                     delim[11] == '1' &&
+                                     delim[12] == ':') {
+
+                                clk->ptp.type = aes67_ptp_type_IEEE802AS_2011;
+                            }
+
+                            // only process further if type properly detected
+                            if (clk->ptp.type != aes67_ptp_type_undefined){
+
+                                // set pointer to beginning of EUI64
+                                delim += (clk->ptp.type == aes67_ptp_type_IEEE802AS_2011) ? 13 : 10;
+
+                                for(u16_t i = 0, h; i < 8; i++, delim += 3){
+                                    h  = aes67_hextobyte(delim);
+
+                                    // if invalid hexdata -> abort
+                                    if (h == 0xffff){
+                                        return AES67_SDP_ERROR;
+                                    };
+
+                                    clk->ptp.gmid.u8[i] = h;
+                                }
+
+                                // only PTPv2 & PTPv2.1 have a domain
+                                switch(clk->ptp.type){
+                                    case aes67_ptp_type_IEEE1588_2008:
+                                    case aes67_ptp_type_IEEE1588_2019:
+                                        if (delim  >= &line[llen]){
+                                            return AES67_SDP_ERROR;
+                                        }
+                                        u16_t readlen = 0;
+                                        s32_t t = aes67_atoi(delim, &line[llen] - delim, 10, &readlen);
+                                        if (readlen == 0 || t > 127){
+                                            return AES67_SDP_ERROR;
+                                        }
+                                        clk->ptp.domain = t;
+                                        break;
+
+                                    default:
+                                        if (delim != &line[llen]){
+                                            return AES67_SDP_ERROR;
+                                        }
+                                        break;
+                                }
+                            }
+
+                        }
+                    } // a=ts-refclk
                 }
 
+                if (processed == false){
+                    //TODO what todo? generic callback?
+                    // ex aes67_sdp_fromstr_unknown(context, line, llen)
+                }
             }
                 break;
 

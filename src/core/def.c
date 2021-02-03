@@ -115,13 +115,28 @@ void * aes67_memchr( const void * ptr, int ch, size_t count )
 #endif //aes67_memchr
 
 #ifndef aes67_atohex
-void aes67_atohex(u8_t * bytes, u32_t len, u8_t * str)
+void aes67_bintohex(u8_t * bytes, u32_t nbytes, u8_t * str)
 {
     const u8_t hex[] = "0123456789ABCDEF";
-    for(u32_t i = 0; i < len; i++, str += 2, bytes++){
+    for(u32_t i = 0; i < nbytes; i++, str += 2, bytes++){
         str[0] = hex[(bytes[0] >> 4) & 0x0f];
         str[1] = hex[bytes[0] & 0x0f];
     }
+}
+#endif
+
+
+#ifndef aes67_hextobin
+u8_t aes67_hextobin(u8_t * str, u32_t nbytes, u8_t * bytes)
+{
+    for(u32_t i = 0; i < nbytes; i++, str += 2, bytes++){
+        u16_t b = aes67_hextobyte(str);
+        if (b == 0xffff){
+            return 1;
+        }
+        bytes[0] = b;
+    }
+    return 0;
 }
 #endif
 
