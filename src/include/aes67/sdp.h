@@ -159,12 +159,13 @@ struct aes67_sdp_stream {
     enum aes67_sdp_attr_mode mode;
     u8_t nptp;                      // count of stream level ptps (in separate list)
     u32_t mediaclock_offset;        //
+    struct aes67_sdp_attr_ptime ptime;
     struct {
         u8_t count;
         u8_t cfg;                   // (AES67_SDP_CAP_PROPOSED | AES67_SDP_CAP_ACTIVE) | AES67_SDP_CAP_VALUE
-        u8_t cfg_a;                 // propsed/active attribute index (internal index of stream ptimes)
-        struct aes67_sdp_attr_ptime data[AES67_SDP_MAXPTIME];
-    } ptimes;
+        u8_t cfg_a;                 // propsed/active attribute index (internal index of stream ptime_cap)
+        struct aes67_sdp_attr_ptime data[AES67_SDP_MAXPTIMECAPS];
+    } ptime_cap;
     struct aes67_sdp_attr_ptime maxptime;
 #if 0 < AES67_SDP_MAXSTREAMINFO
     AES67_STRING(AES67_SDP_MAXSTREAMINFO) info;

@@ -827,20 +827,25 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     .nptp = 1,
                                     .mediaclock_offset = 12345,
                                     .nencodings = 3,
-                                    .ptimes = {
+                                    .ptime = {
+                                            .cap = AES67_SDP_CAP_SET,
+                                            .msec = 1,
+                                            .msec_frac = 0
+                                    },
+                                    .ptime_cap = {
                                             .count = 2,
                                             .cfg = AES67_SDP_CAP_PROPOSED | 1,
                                             .cfg_a = 0,
                                             .data = {
                                                     {
                                                             .cap = 1,
-                                                            .msec = 1,
-                                                            .msec_frac = 0
+                                                            .msec = 0,
+                                                            .msec_frac = 33
                                                     },
                                                     {
                                                             .cap = 2,
-                                                            .msec = 0,
-                                                            .msec_frac = 33
+                                                            .msec = 1,
+                                                            .msec_frac = 0
                                                     }
                                             }
                                     },
@@ -857,15 +862,22 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     .nptp = 0,
                                     .mediaclock_offset = 98765,
                                     .nencodings = 1,
-                                    .ptimes = {
-                                            .count = 1,
+                                    .ptime = {
+                                            .cap = AES67_SDP_CAP_SET,
+                                            .msec = 4,
+                                            .msec_frac = 0
+                                    },
+                                    .ptime_cap = {
+                                            .count = 2,
                                             .cfg = AES67_SDP_CAP_ACTIVE | 3,
-                                            .cfg_a = 0,
+                                            .cfg_a = 1,
                                             .data = {
                                                     {
+                                                        // this entry is ignored anyway
+                                                    },
+                                                    {
                                                             .cap = 12,
-                                                            .msec = 4,
-                                                            .msec_frac = 0
+                                                            // values irrelevant
                                                     }
                                             }
                                     },
@@ -933,8 +945,8 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=rtpmap:97 L24/48000/2\r\n"
             "a=rtpmap:98 L24/96000/2\r\n"
             "a=ptime:1\r\n"
-            "a=pcap:1 ptime:1\r\n"
-            "a=pcap:2 ptime:0.33\r\n"
+            "a=pcap:1 ptime:0.33\r\n"
+            "a=pcap:2 ptime:1\r\n"
             "a=maxptime:1\r\n"
             "a=pcfg:1 a=1\r\n"
             "a=ts-refclk:ptp=IEEE1588-2008:01-02-03-04-05-06-07-08:1\r\n"
@@ -1007,7 +1019,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(2, stream->nports);
     CHECK_EQUAL(aes67_sdp_attr_mode_recvonly, stream->mode);
     CHECK_EQUAL(963214424, stream->mediaclock_offset);
-//    CHECK_EQUAL(1, stream->ptimes.count);
+//    CHECK_EQUAL(1, stream->ptime_cap.count);
 
 //    CHECK_EQUAL(1, aes67_sdp_get_stream_encoding_count(&sdp, 0));
 //    struct aes67_sdp_attr_encoding * enc = aes67_sdp_get_stream_encoding(&sdp, 0, 0);
