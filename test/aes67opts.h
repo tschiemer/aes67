@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AES67_AES67OPTS_H_H
-#define AES67_AES67OPTS_H_H
+#ifndef AES67_AES67OPTS_H
+#define AES67_AES67OPTS_H
 
 #define AES67_SAP_MEMORY AES67_MEMORY_POOL
 
