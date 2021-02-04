@@ -28,6 +28,9 @@ extern "C" {
 
 #define AES67_RAND() rand()
 
+#define AES67_SAP_MALLOC(size) malloc(size)
+#define AES67_SAP_FREE(ptr) free(ptr)
+
 #ifdef __cplusplus
 }
 #endif

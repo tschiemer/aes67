@@ -523,7 +523,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
 TEST(SAP_TestGroup, sap_handle_pooloverflow)
 {
 #if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
-    TEST_EXIT
+    TEST_EXIT;
 #else //AES67_SAP_MEMORY == AES67_MEMORY_POOL
 
     struct aes67_sap_service sap;

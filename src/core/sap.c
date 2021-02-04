@@ -111,6 +111,7 @@ struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap
         if (current->hash == hash && current->src.ipver == ipver && 0 == aes67_memcmp(current->src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16))){
             return current;
         }
+        current = current->next;
     }
 #endif
 
@@ -154,11 +155,12 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
         return NULL;
     }
 
-    struct aes67_sap_session * session = (struct aes67_sap_session *)AES67_SAP_CALLOC(sizeof(struct aes67_sap_session));
+    struct aes67_sap_session * session = (struct aes67_sap_session *)AES67_SAP_MALLOC(sizeof(struct aes67_sap_session));
 
     session->hash = hash;
     session->src.ipver = ipver;
     aes67_memcpy(session->src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16));
+    session->next = NULL;
 
     // never let overflow
     if (sap->no_of_ads < UINT16_MAX - 1){
@@ -174,13 +176,34 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
 #endif
 }
 
-
-inline static void session_unregister(struct aes67_sap_service * sap, struct aes67_sap_session * session){
+static void session_unregister(struct aes67_sap_service * sap, struct aes67_sap_session * session)
+{
+    AES67_ASSERT("session != NULL", session!=NULL);
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
+
+    // invalidate hash
     session->hash = 0;
-#else
+
+#else //AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+
+    if (sap->first_session == session) {
+        sap->first_session = session->next;
+    } else {
+        struct aes67_sap_session * before = sap->first_session;
+
+        while(before->next != session) {
+
+            AES67_ASSERT("next != NULL", before->next != NULL);
+
+            before = before->next;
+        }
+
+        before->next = session->next;
+    }
+
     AES67_SAP_FREE(session);
+
 #endif
 
     // never let underflow
@@ -189,18 +212,12 @@ inline static void session_unregister(struct aes67_sap_service * sap, struct aes
     }
 }
 
-
 void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip)
 {
     struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ipver, ip);
 
-    if (session == NULL){
+    if (session == NULL) {
         return;
-    }
-
-    // decrease active session count
-    if (sap->no_of_ads > 1){
-        sap->no_of_ads--;
     }
 
     session_unregister(sap, session);
@@ -359,7 +376,7 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
 
             aes67_sap_service_event(aes67_sap_event_timeout, current, NULL, 0, NULL, 0, sap->user_data);
 
-            session_unregister(current);
+            session_unregister(sap, current);
         }
     }
 
@@ -614,7 +631,7 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
     } else if ( (opt & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_DELETE  && session != NULL) {
 
         // if own session was registered prior, unregister now
-        aes67_sap_service_unregister(sap, hash, ipver, ip);
+        session_unregister(sap, session);
     }
 
 #if AES67_SAP_COMPRESS_ENABLED == 1
@@ -684,25 +701,25 @@ u16_t aes67_sap_service_msg_sdp(struct aes67_sap_service * sap, u8_t * msg, u16_
     }
 
     // always add payload type which MUST be supported by all SAPv2 capable recipients
-    offset -= sizeof(AES67_SDP_MIMETYPE);
-    msg[offset++] = 'a';
-    msg[offset++] = 'p';
-    msg[offset++] = 'p';
-    msg[offset++] = 'l';
-    msg[offset++] = 'i';
-    msg[offset++] = 'c';
-    msg[offset++] = 'a';
-    msg[offset++] = 't';
-    msg[offset++] = 'i';
-    msg[offset++] = 'o';
-    msg[offset++] = 'n';
-    msg[offset++] = '/';
-    msg[offset++] = 's';
-    msg[offset++] = 'd';
-    msg[offset++] = 'p';
-    msg[offset++] = '\0'; // null termination
+    // "application/sdp" (added in reverse)
 
-    offset -= sizeof(AES67_SDP_MIMETYPE);
+    msg[--offset] = '\0'; // null termination
+    msg[--offset] = 'p';
+    msg[--offset] = 'd';
+    msg[--offset] = 's';
+    msg[--offset] = '/';
+    msg[--offset] = 'n';
+    msg[--offset] = 'o';
+    msg[--offset] = 'i';
+    msg[--offset] = 't';
+    msg[--offset] = 'a';
+    msg[--offset] = 'c';
+    msg[--offset] = 'i';
+    msg[--offset] = 'l';
+    msg[--offset] = 'p';
+    msg[--offset] = 'p';
+    msg[--offset] = 'a';
+
     payloadlen += sizeof(AES67_SDP_MIMETYPE);
 
     return aes67_sap_service_msg(sap, msg, maxlen, opt, hash, ip->ipver, ip->addr, &msg[offset], payloadlen);
