@@ -1183,8 +1183,8 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                     if (readlen == 0){
                         return AES67_SDP_ERROR;
                     }
-                    pos += readlen;
-                    if (e < AES67_AVP_PAYLOADTYPE_DYNAMIC_START || AES67_AVP_PAYLOADTYPE_DYNAMIC_END < e){
+                    pos += 1 + readlen;
+                    if (e < AES67_RTP_AVP_PAYLOADTYPE_DYNAMIC_START || AES67_RTP_AVP_PAYLOADTYPE_DYNAMIC_END < e){
                         return AES67_SDP_NOTSUPPORTED;
                     }
                     //TODO remember encoding indices (?) possibly just for validation
@@ -1290,8 +1290,100 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                         line[5] == 'm' &&
                         line[6] == 'a' &&
                         line[7] == 'p'){
-                        //encoding
-                        printf("foobar\n");
+
+                        // sanity check
+                        if (llen < sizeof("a=rtpmap:9")-1){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        u16_t readlen = 0;
+
+                        // read encoding format index
+                        u8_t pt = aes67_atoi(&line[9], llen - 9, 10, &readlen);
+
+                        // AES67 is intended to use dynamic payloads (as defined in this currently parse line) only
+                        if (pt < AES67_RTP_AVP_PAYLOADTYPE_DYNAMIC_START || AES67_RTP_AVP_PAYLOADTYPE_DYNAMIC_END < pt){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        // move past index (to supposed space)
+                        delim += 1 + readlen;
+
+                        if (&delim[sizeof(" L16/1000")-1] >= &line[llen] || delim[0] != ' '){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        enum aes67_audio_encoding enc;
+
+                        if (delim[1] == 'L' &&
+                            delim[2] == '8'){
+
+                            enc = aes67_audio_encoding_L8;
+                        }
+                        else if (delim[1] == 'L' &&
+                                delim[2] == '1' &&
+                                delim[3] == '6'){
+
+                            enc = aes67_audio_encoding_L16;
+                        }
+                        else if (delim[1] == 'L' &&
+                                 delim[2] == '2' &&
+                                 delim[3] == '4'){
+
+                            enc = aes67_audio_encoding_L24;
+                        }
+                        else if (delim[1] == 'L' &&
+                                 delim[2] == '3' &&
+                                 delim[3] == '2'){
+
+                            enc = aes67_audio_encoding_L32;
+                        }
+                        else {
+                            // encoding is not supported, skip this one
+                            continue;
+                        }
+
+                        // move pointer past encoding type
+                        delim += enc == aes67_audio_encoding_L8 ? 3 : 4;
+
+                        if (&delim[sizeof("/1000")-1] > &line[llen] || delim[0] != '/'){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        // get clock frequency / sample rate
+                        s32_t sr = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+
+                        if (readlen == 0 || sr == 0){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        // optionally get channel count (default = 1)
+                        s32_t ch = 1;
+
+                        delim += 1+readlen;
+
+                        if (&delim[1] < &line[llen] && delim[0] == '/'){
+                            ch = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+
+                            // sanity check (support of upto a max of 256 channels (which should be fine.....)
+                            if (readlen == 0 || ch < 1 || ch > UINT8_MAX){
+                                return AES67_SDP_ERROR;
+                            }
+                        }
+
+                        if (sdp->encodings.count >= AES67_SDP_MAXENCODINGS){
+                            return AES67_SDP_NOMEMORY;
+                        }
+
+                        struct aes67_sdp_attr_encoding * encoding = &sdp->encodings.data[sdp->encodings.count++];
+
+                        stream->nencodings++;
+                        encoding->flags = AES67_SDP_FLAG_SET_YES | context;
+                        encoding->payloadtype = pt;
+                        encoding->encoding = enc;
+                        encoding->samplerate = sr;
+                        encoding->nchannels = ch;
+
                     }
                     else if (delim - line == sizeof("a=ptime")-1 &&
                         line[2] == 'p' &&

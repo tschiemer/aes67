@@ -30,11 +30,11 @@
 #define AES67_AUDIO_H
 
 enum aes67_audio_encoding {
-    aes67_audio_encoding_undef  = 0,
-    aes67_audio_encoding_L8     = 1,
-    aes67_audio_encoding_L16    = 2,
-    aes67_audio_encoding_L24    = 3,
-    aes67_audio_encoding_L32    = 4,
+    aes67_audio_encoding_undefined  = 0,
+    aes67_audio_encoding_L8         = 1,
+    aes67_audio_encoding_L16        = 2,
+    aes67_audio_encoding_L24        = 3,
+    aes67_audio_encoding_L32        = 4,
 } PACK_STRUCT;
 
 #define AES67_AUDIO_ENCODING_ISVALID(x) ( \

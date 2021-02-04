@@ -41,7 +41,7 @@
 #include "aes67/debug.h"
 #include "aes67/net.h"
 #include "aes67/ptp.h"
-#include "aes67/avp.h"
+#include "aes67/rtp-avp.h"
 #include "aes67/audio.h"
 
 

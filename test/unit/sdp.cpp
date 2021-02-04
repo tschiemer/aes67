@@ -879,28 +879,28 @@ TEST(SDP_TestGroup, sdp_tostr)
                     .data = {
                             {
                                     .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
-                                    .payloadtype = AES67_AVP_PAYLOADTYPE_DYNAMIC_START,
+                                    .payloadtype = AES67_RTP_AVP_PAYLOADTYPE_DYNAMIC_START,
                                     .encoding = aes67_audio_encoding_L16,
                                     .samplerate = 48000,
                                     .nchannels = 2
                             },
                             {
                                     .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
-                                    .payloadtype = AES67_AVP_PAYLOADTYPE_DYNAMIC_START + 1,
+                                    .payloadtype = AES67_RTP_AVP_PAYLOADTYPE_DYNAMIC_START + 1,
                                     .encoding = aes67_audio_encoding_L24,
                                     .samplerate = 48000,
                                     .nchannels = 2
                             },
                             {
                                     .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
-                                    .payloadtype = AES67_AVP_PAYLOADTYPE_DYNAMIC_START + 2,
+                                    .payloadtype = AES67_RTP_AVP_PAYLOADTYPE_DYNAMIC_START + 2,
                                     .encoding = aes67_audio_encoding_L24,
                                     .samplerate = 96000,
                                     .nchannels = 2
                             },
                             {
                                     .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 1,
-                                    .payloadtype = AES67_AVP_PAYLOADTYPE_DYNAMIC_START,
+                                    .payloadtype = AES67_RTP_AVP_PAYLOADTYPE_DYNAMIC_START,
                                     .encoding = aes67_audio_encoding_L24,
                                     .samplerate = 192000,
                                     .nchannels = 1
@@ -969,9 +969,10 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "c=IN IP4 ipaddr2/44/36\r\n"
                    "t=0 0\r\n"
                    "a=ptp-domain:PTPv2 13\r\n"
-                   "m=audio 5000 RTP/AVP 96\r\n"
+                   "m=audio 5000 RTP/AVP 96 97\r\n"
                    "a=recvonly\r\n"
-//                   "a=rtpmap:96 L16/48000/2\r\n"
+                   "a=rtpmap:96 L16/48000/2\r\n"
+                   "a=rtpmap:97 L32/96000\r\n"
                    "a=ptime:1.33\r\n"
                    "a=pcap:2 ptime:1.33\r\n"
                    "a=pcap:3 ptime:4\r\n"
@@ -1011,6 +1012,22 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(5000, stream->port);
     CHECK_EQUAL(2, stream->nports);
 
+    CHECK_EQUAL(2, aes67_sdp_get_stream_encoding_count(&sdp, 0));
+    struct aes67_sdp_attr_encoding * enc = aes67_sdp_get_stream_encoding(&sdp, 0, 0);
+    CHECK_EQUAL(&sdp.encodings.data[0], enc);
+    CHECK_EQUAL(AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0, enc->flags);
+    CHECK_EQUAL(96, enc->payloadtype);
+    CHECK_EQUAL(aes67_audio_encoding_L16, enc->encoding);
+    CHECK_EQUAL(48000, enc->samplerate);
+    CHECK_EQUAL(2, enc->nchannels);
+    enc = aes67_sdp_get_stream_encoding(&sdp, 0, 1);
+    CHECK_EQUAL(&sdp.encodings.data[1], enc);
+    CHECK_EQUAL(AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0, enc->flags);
+    CHECK_EQUAL(97, enc->payloadtype);
+    CHECK_EQUAL(aes67_audio_encoding_L32, enc->encoding);
+    CHECK_EQUAL(96000, enc->samplerate);
+    CHECK_EQUAL(1, enc->nchannels);
+
     CHECK_EQUAL(aes67_sdp_attr_mode_recvonly, stream->mode);
 
     CHECK_EQUAL(963214424, stream->mediaclock_offset);
@@ -1032,15 +1049,6 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(2,  stream->ptime_cap.cfg_a);
 #endif //0 < AES67_SDP_MAXPTIMECAPS
 
-//    CHECK_EQUAL(1, aes67_sdp_get_stream_encoding_count(&sdp, 0));
-//    struct aes67_sdp_attr_encoding * enc = aes67_sdp_get_stream_encoding(&sdp, 0, 0);
-//    CHECK_EQUAL(&sdp.encodings.data[0], enc);
-//    CHECK_EQUAL(AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0, enc->flags);
-//    CHECK_EQUAL(96, enc->payloadtype);
-//    CHECK_EQUAL(aes67_audio_encoding_L16, enc->encoding);
-//    CHECK_EQUAL(48000, enc->samplerate);
-//    CHECK_EQUAL(2, enc->nchannels);
-//
     CHECK_EQUAL(AES67_SDP_PTP_DOMAIN_SET | 13, sdp.ptp_domain);
     CHECK_EQUAL(0, sdp.nptp);
     CHECK_EQUAL(1, aes67_sdp_get_ptp_count(&sdp, 0));
