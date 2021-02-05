@@ -44,6 +44,7 @@ typedef struct {
 #define PACKET_DATA(str)    .data = str, .datalen = sizeof(str) - 1
 
 static uint8_t gl_user_data[] = "this is userdata";
+static void * expected_user_data = gl_user_data;
 
 static u16_t packet2mem(uint8_t data[], sap_packet_t & packet);
 
@@ -258,6 +259,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
     AUTH_OK();
 
     aes67_sap_service_init(&sap, gl_user_data);
+    expected_user_data = gl_user_data;
 
     // announce valid packet
 
@@ -275,7 +277,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
     len = packet2mem(data, p1);
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
 
@@ -301,7 +303,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
 
     // re-announce the same packet (ie same msg hash id + originating source)
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
 
@@ -336,7 +338,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
     len = packet2mem(data, p2);
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(0, sap.no_of_ads);
@@ -372,6 +374,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     AUTH_OK();
 
     aes67_sap_service_init(&sap, gl_user_data);
+    expected_user_data = gl_user_data;
 
     // announce valid packet
     sap_packet_t p1 = {
@@ -388,7 +391,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     len = packet2mem(data, p1);
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
@@ -414,7 +417,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
 
     // re-announce the same packet (ie same msg hash id + originating source)
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(0, sap_event.payloadtypelen);
@@ -447,7 +450,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     len = packet2mem(data, p2);
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(0, sap.no_of_ads);
@@ -485,7 +488,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     len = packet2mem(data, p3);
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(0, sap.no_of_ads);
@@ -513,7 +516,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     len = packet2mem(data, p4);
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_FALSE(sap_event.isset);
 
@@ -535,6 +538,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     AUTH_OK();
 
     aes67_sap_service_init(&sap, gl_user_data);
+    expected_user_data = gl_user_data;
 
     // announce valid packet
 
@@ -558,7 +562,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
         len = packet2mem(data, p1);
 
         sap_event_reset();
-        aes67_sap_service_handle(&sap, data, len);
+        aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
         CHECK_TRUE(sap_event.isset);
         CHECK_TRUE( sap_event.session_ptr != NULL );
@@ -572,7 +576,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     len = packet2mem(data, p1);
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads);
@@ -581,7 +585,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
 
     // resend previous announce message again
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads);
@@ -608,7 +612,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
         len = packet2mem(data, p2);
 
         sap_event_reset();
-        aes67_sap_service_handle(&sap, data, len);
+        aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
         CHECK_TRUE(sap_event.isset);
         CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS-i-1, sap.no_of_ads);
@@ -622,7 +626,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     len = packet2mem(data, p1);
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
@@ -642,7 +646,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
 
     // resubmit (-> refresh event)
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
 #if AES67_SAP_MEMORY_MAX_SESSIONS == 0
@@ -671,6 +675,7 @@ TEST(SAP_TestGroup, sap_handle_compressed)
     AUTH_OK();
 
     aes67_sap_service_init(&sap, gl_user_data);
+    expected_user_data = gl_user_data;
 
     sap_packet_t p1 = {
             .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_ZLIB,
@@ -686,7 +691,7 @@ TEST(SAP_TestGroup, sap_handle_compressed)
     len = packet2mem(data, p1);
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, NULL);
 
 #if AES67_SAP_DECOMPRESS_AVAILABLE == 0
     CHECK_FALSE(sap_event.isset);
@@ -708,7 +713,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
     struct aes67_sap_service sap;
 
     aes67_sap_service_init(&sap, gl_user_data);
-
+    expected_user_data = gl_user_data;
 
     uint8_t data[256];
     uint16_t len;
@@ -730,7 +735,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
     AUTH_OK();
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
@@ -759,7 +764,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
     AUTH_NOT_OK();
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_FALSE(sap_event.isset);
     CHECK_EQUAL(1, sap.no_of_ads);
@@ -782,7 +787,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
     AUTH_NOT_OK();
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_FALSE(sap_event.isset);
     CHECK_EQUAL(1, sap.no_of_ads);
@@ -805,7 +810,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
     AUTH_NOT_OK();
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_FALSE(sap_event.isset);
     CHECK_EQUAL(1, sap.no_of_ads);
@@ -815,7 +820,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
     AUTH_OK();
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(0, sap.no_of_ads);
@@ -831,6 +836,7 @@ TEST(SAP_TestGroup, sap_msg)
     struct aes67_sap_service sap;
 
     aes67_sap_service_init(&sap, gl_user_data);
+    expected_user_data = gl_user_data;
 
     struct aes67_sdp sdp = {
             .originator.username        = {0},
@@ -865,7 +871,7 @@ TEST(SAP_TestGroup, sap_msg)
     };
 
     std::memset(data, 0, sizeof(data));
-    len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p1.status, p1.msg_id_hash, &p1.ip,  &sdp);
+    len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p1.status, p1.msg_id_hash, &p1.ip, &sdp, NULL);
 
     assert(len > 0);
 
@@ -903,7 +909,7 @@ TEST(SAP_TestGroup, sap_msg)
 
 
     std::memset(data, 0, sizeof(data));
-    len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p2.status, p2.msg_id_hash, &p2.ip,  &sdp);
+    len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p2.status, p2.msg_id_hash, &p2.ip, &sdp, NULL);
 
     assert(len > 0);
 
@@ -939,7 +945,7 @@ TEST(SAP_TestGroup, sap_msg)
     };
 
     std::memset(data, 0, sizeof(data));
-    len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p3.status, p3.msg_id_hash, &p3.ip,  &sdp);
+    len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p3.status, p3.msg_id_hash, &p3.ip, &sdp, NULL);
 
     assert(len > 0);
 
@@ -974,6 +980,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     struct aes67_sap_service sap;
 
     aes67_sap_service_init(&sap, gl_user_data);
+    expected_user_data = gl_user_data;
 
     CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
     CHECK_EQUAL(0, sap.announcement_sec);
@@ -1017,7 +1024,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     };
 
     std::memset(data, 0, sizeof(data));
-    len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p1.status, p1.msg_id_hash, &p1.ip,  &sdp);
+    len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p1.status, p1.msg_id_hash, &p1.ip, &sdp, NULL);
 
     CHECK_EQUAL(len, sap.announcement_size);
 
@@ -1052,6 +1059,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     struct aes67_sap_service sap;
 
     aes67_sap_service_init(&sap, gl_user_data);
+    expected_user_data = gl_user_data;
 
     // make sure to authenticate all messages
     AUTH_OK();
@@ -1081,7 +1089,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     aes67_time_now(&t1b);
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     aes67_time_now(&t1a);
 
@@ -1108,7 +1116,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     aes67_time_now(&t2b);
 
     sap_event_reset();
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     aes67_time_now(&t2a);
 
@@ -1154,7 +1162,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     // now let's add two packets, and timeout only one thereof
 
     len = packet2mem(data, p1);
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     // step half a timeout into the future
     time_add_now_ms(500*sap.timeout_sec);
@@ -1162,7 +1170,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_EQUAL(1, sap.no_of_ads);
 
     len = packet2mem(data, p2);
-    aes67_sap_service_handle(&sap, data, len);
+    aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_EQUAL(2, sap.no_of_ads);
 

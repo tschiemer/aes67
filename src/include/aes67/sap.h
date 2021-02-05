@@ -303,7 +303,7 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap);
  * @param msg
  * @param msglen
  */
-void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t msglen);
+void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t msglen, void *user_data);
 
 /**
  * Generates an SAP packet according to arguments.
@@ -324,7 +324,8 @@ void aes67_sap_service_handle(struct aes67_sap_service * sap, u8_t * msg, u16_t 
  * @param payloadlen
  * @return
  */
-u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip, u8_t * payload, u16_t payloadlen);
+u16_t aes67_sap_service_msg(struct aes67_sap_service *sap, u8_t *msg, u16_t maxlen, u8_t opt, u16_t hash,
+                            enum aes67_net_ipver ipver, u8_t *ip, u8_t *payload, u16_t payloadlen, void *user_data);
 
 /**
  * Generates an SAP packet according to arguments.
@@ -343,7 +344,8 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service * sap, u8_t * msg, u16_t ma
  * @param ip        ipv4/ipv6 to use as originating source
  * @param sdp       SDP data to add to packet
  */
-u16_t aes67_sap_service_msg_sdp(struct aes67_sap_service * sap, u8_t * msg, u16_t maxlen, u8_t opt, u16_t hash, struct aes67_net_addr * ip, struct aes67_sdp * sdp);
+u16_t aes67_sap_service_msg_sdp(struct aes67_sap_service *sap, u8_t *msg, u16_t maxlen, u8_t opt, u16_t hash,
+                                struct aes67_net_addr *ip, struct aes67_sdp *sdp, void *user_data);
 
 
 /**
