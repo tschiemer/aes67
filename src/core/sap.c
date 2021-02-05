@@ -363,7 +363,7 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
 
             if (timeout_after < age){
 
-                aes67_sap_service_event(aes67_sap_event_timeout, &sap->sessions[i], NULL, 0, NULL, 0, sap->user_data);
+                aes67_sap_service_event(aes67_sap_event_timeout, sap->sessions[i].hash, sap->sessions[i].src.ipver, sap->sessions[i].src.addr, NULL, 0, NULL, 0, sap->user_data);
 
                 aes67_sap_service_unregister(sap, &sap->sessions[i]);
             }
@@ -444,7 +444,7 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
     }
 
 
-    struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ipver, &msg[4]);
+    struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ipver, &msg[AES67_SAP_ORIGIN_SRC]);
 
 
 #if AES67_SAP_AUTH_ENABLED == 1
@@ -487,12 +487,8 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
         }
     }
 
-
     u8_t * type = NULL;
     u16_t typelen = 0;
-
-
-
 
     if ((data[0] == 'v' && data[1] == '=' && data[2] == '0')){
         // SAPv1 announce packets have no payload type (transport SDP only), but start with "v=0"
@@ -564,11 +560,9 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
         event = aes67_sap_event_deleted;
     }
 
-    //TODO ? if pool memory and no size (ie, all sessions == NULL), populate local session struct to make sap headers available?
-
     // publish event
     // NOTE if we've run out of memory when adding new sessions, session will be NULL!
-    aes67_sap_service_event(event, session, type, typelen, payload, payloadlen, user_data);
+    aes67_sap_service_event(event, hash, ipver, &msg[AES67_SAP_ORIGIN_SRC], type, typelen, payload, payloadlen, user_data);
 
     // when deleting a session, do so after publishing the event to make the session data available for the callback
     if ( (msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_DELETE ){

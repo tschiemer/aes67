@@ -16,23 +16,11 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AES67_CC_H
-#define AES67_CC_H
+#ifndef AES67_AES67OPTS_H
+#define AES67_AES67OPTS_H
 
-#include <stdlib.h>
+// this implicitly disables timer functionality (ie no initialization needed)
+#define AES67_SAP_MEMORY AES67_MEMORY_POOL
+#define AES67_SAP_MEMORY_MAX_SESSIONS 0
 
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define AES67_RAND() rand()
-
-#define AES67_TIMER_DECLARATION_INC 1
-
-#ifdef __cplusplus
-}
-#endif
-
-
-#endif //AES67_CC_H
+#endif //AES67_AES67OPTS_H_H

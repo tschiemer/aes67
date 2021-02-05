@@ -56,7 +56,13 @@ struct aes67_net_addr {
 
 
 s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen);
-u16_t aes67_net_addr2str(u8_t * str, struct aes67_net_addr * addr);
+u16_t aes67_net_addr2a(u8_t * str, enum aes67_net_ipver ipver, u8_t * addr, u16_t port);
+
+inline u16_t aes67_net_addr2str(u8_t * str, struct aes67_net_addr * addr)
+{
+    return aes67_net_addr2a(str, addr->ipver, addr->addr, addr->port);
+
+}
 
 u8_t aes67_net_ipeq(const struct aes67_net_addr * lhs, const struct aes67_net_addr * rhs);
 

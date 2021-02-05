@@ -25,6 +25,7 @@ static struct {
     uint8_t status;
     uint16_t hash;
     struct aes67_net_addr origin;
+    uint8_t * payloadtype;
     uint8_t sdp[1024];
     uint32_t sdplen;
 } opts;
@@ -34,45 +35,59 @@ static char * argv0;
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s (announce|delete) <msg-hash> <origin-ip> <sdp-file>\n"
+             "Usage: %s (announce|delete) <msg-hash> <origin-ip> [<payloadtype>] <sdp-file>\n"
              "Writes SAPv2 packet to STDOUT.\n"
              , argv0);
 }
 
-static void load_from_args(char * argv[])
+static void load_from_args(int argc, char * argv[])
 {
     opts.status = 0;
 
-    if (strcmp(argv[1], "announce") == 0){
+    if (strcmp(argv[0], "announce") == 0){
         opts.status |= AES67_SAP_STATUS_MSGTYPE_ANNOUNCE;
-    } else if (strcmp(argv[1], "delete") == 0){
+    } else if (strcmp(argv[0], "delete") == 0){
         opts.status |= AES67_SAP_STATUS_MSGTYPE_DELETE;
     } else {
-        fprintf(stderr, "ERROR invalid option %s\n", argv[1]);
+        fprintf(stderr, "ERROR invalid option %s\n", argv[0]);
         exit(1);
     }
 
-    opts.hash = atoi(argv[2]);
+    opts.hash = atoi(argv[1]);
 
     if (opts.hash == 0){
-        fprintf(stderr, "ERROR invalid hash %s (must be uint16_t as decimal)\n", argv[2]);
+        fprintf(stderr, "ERROR invalid hash %s (must be uint16_t as decimal)\n", argv[1]);
         exit(1);
     }
 
-    if (0 == aes67_net_str2addr(&opts.origin, (uint8_t*)argv[3], strlen(argv[3]))){
-        fprintf(stderr, "ERROR invalid originating source %s (must be ipv4/6)\n", argv[3]);
+    if (0 == aes67_net_str2addr(&opts.origin, (uint8_t*)argv[2], strlen(argv[2]))){
+        fprintf(stderr, "ERROR invalid originating source %s (must be ipv4/6)\n", argv[2]);
         exit(1);
     }
 
-    FILE * fd = fopen(argv[4], "rb");
+    int fi = 3;
+
+    // if payload type is given
+    if (argc == 5) {
+        fi++;
+
+        int l = 1 + strlen(argv[3]);
+        memcpy(opts.sdp, argv[3], l);
+        opts.sdplen += l;
+
+    } else {
+        // if not given, use default application/sdp type
+        memcpy(opts.sdp, AES67_SDP_MIMETYPE, sizeof(AES67_SDP_MIMETYPE));
+        opts.sdplen += sizeof(AES67_SDP_MIMETYPE);
+    }
+
+    FILE * fd = fopen(argv[fi], "rb");
     if (fd == NULL){
-        fprintf(stderr, "ERROR failed to open file %s\n", argv[4]);
+        fprintf(stderr, "ERROR failed to open file %s\n", argv[fi]);
         exit(1);
     }
 
 
-    memcpy(opts.sdp, AES67_SDP_MIMETYPE, sizeof(AES67_SDP_MIMETYPE));
-    opts.sdplen += sizeof(AES67_SDP_MIMETYPE);
 
     int c;
     while( (c = fgetc(fd)) != EOF ){
@@ -91,7 +106,9 @@ static void load_from_fd(FILE * fd)
 
 }
 
-void aes67_sap_service_event(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen, void * user_data)
+void
+aes67_sap_service_event(enum aes67_sap_event event, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype,
+                        u16_t payloadtypelen, u8_t *payload, u16_t payloadlen, void *user_data)
 {
     // do nothing
 }
@@ -100,13 +117,13 @@ int main(int argc, char * argv[])
 {
     argv0 = argv[0];
 
-    if ( argc != 5){ // 1 < argc &&
+    if ( argc < 5 || 6 < argc ){
         help(stdout);
         return 0;
     }
 
-    if (argc == 5){
-        load_from_args(argv);
+    if (argc == 5 || argc == 6){
+        load_from_args(argc-1, &argv[1]);
     } else {
         load_from_fd(stdin);
     }

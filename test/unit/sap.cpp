@@ -83,8 +83,8 @@ u16_t packet2mem(uint8_t data[], sap_packet_t & packet)
 static struct {
     bool isset;
     enum aes67_sap_event event;
-    struct aes67_sap_session * session_ptr;
-    struct aes67_sap_session session_data;
+    u16_t hash;
+    aes67_net_addr src;
     u8_t * payloadtype;
     u16_t payloadtypelen;
     u8_t * payload;
@@ -97,7 +97,9 @@ inline void sap_event_reset()
     std::memset(&sap_event, 0, sizeof(sap_event));
 }
 
-void aes67_sap_service_event(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen, void * user_data)
+void
+aes67_sap_service_event(enum aes67_sap_event event, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype,
+                        u16_t payloadtypelen, u8_t *payload, u16_t payloadlen, void *user_data)
 {
     CHECK_TRUE(AES67_SAP_EVENT_IS_VALID(event));
 //    CHECK_TRUE(session_data != nullptr); // this is actually not always the case (if we've run out of memory)
@@ -107,14 +109,9 @@ void aes67_sap_service_event(enum aes67_sap_event event, struct aes67_sap_sessio
 
     sap_event.event = event;
 
-    sap_event.session_ptr = session;
-
-    // save a copy of session data at time of callback
-    if (session != NULL){
-        std::memcpy(&sap_event.session_data, session, sizeof(struct aes67_sap_session));
-    } else {
-        std::memset(&sap_event.session_data, 0, sizeof(struct aes67_sap_session));
-    }
+    sap_event.hash = hash;
+    sap_event.src.ipver = ipver;
+    std::memcpy(sap_event.src.addr, ip, ipver == aes67_net_ipver_4 ? 4 : 16);
 
     sap_event.payloadtype = payloadtype;
     sap_event.payloadtypelen = payloadtypelen;
@@ -289,16 +286,14 @@ TEST(SAP_TestGroup, sap_handle_v2)
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
-    CHECK_EQUAL( NULL,sap_event.session_ptr );
 #else
     CHECK_EQUAL(1, sap.no_of_ads);
-    CHECK_TRUE( sap_event.session_ptr != NULL );
 #if AES67_SAP_AUTH_ENABLED
     CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
 #endif
-    CHECK_EQUAL(p1.msg_id_hash, sap_event.session_data.hash);
-    CHECK_EQUAL(p1.ip.ipver, sap_event.session_data.src.ipver );
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.session_data.src.addr, (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
+    CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
+    CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver );
+    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
 #endif
 
     // re-announce the same packet (ie same msg hash id + originating source)
@@ -315,11 +310,9 @@ TEST(SAP_TestGroup, sap_handle_v2)
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL(0, sap.no_of_ads);
-    CHECK_EQUAL(NULL, sap_event.session_ptr);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
 #else
     CHECK_EQUAL(1, sap.no_of_ads);
-    CHECK_TRUE( sap_event.session_ptr != NULL );
     CHECK_EQUAL(aes67_sap_event_refreshed, sap_event.event); // different event
 #endif
 
@@ -349,15 +342,13 @@ TEST(SAP_TestGroup, sap_handle_v2)
     MEMCMP_EQUAL(p2.data, sap_event.payload, p2.datalen);
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
-    CHECK_EQUAL(NULL,sap_event.session_ptr );
 #else
-    CHECK_TRUE( sap_event.session_ptr != NULL );
 #if AES67_SAP_AUTH_ENABLED
     CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
 #endif
-    CHECK_EQUAL(p2.msg_id_hash, sap_event.session_data.hash);
-    CHECK_EQUAL(p2.ip.ipver, sap_event.session_data.src.ipver );
-    MEMCMP_EQUAL(p2.ip.addr, sap_event.session_data.src.addr, (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
+    CHECK_EQUAL(p2.msg_id_hash, sap_event.hash);
+    CHECK_EQUAL(p2.ip.ipver, sap_event.src.ipver );
+    MEMCMP_EQUAL(p2.ip.addr, sap_event.src.addr, (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
 #endif
 
     aes67_sap_service_deinit(&sap);
@@ -402,16 +393,14 @@ TEST(SAP_TestGroup, sap_handle_v1)
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL(0, sap.no_of_ads);
-    CHECK_EQUAL(NULL,sap_event.session_ptr );
 #else
     CHECK_EQUAL(1, sap.no_of_ads);
-    CHECK_TRUE( sap_event.session_ptr != NULL );
 #if AES67_SAP_AUTH_ENABLED
     CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
 #endif
-    CHECK_EQUAL(p1.msg_id_hash, sap_event.session_data.hash);
-    CHECK_EQUAL(p1.ip.ipver, sap_event.session_data.src.ipver );
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.session_data.src.addr, (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
+    CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
+    CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver );
+    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
 #endif
 
 
@@ -427,11 +416,9 @@ TEST(SAP_TestGroup, sap_handle_v1)
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL(0, sap.no_of_ads);
-    CHECK_EQUAL(NULL,sap_event.session_ptr );
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
 #else
     CHECK_EQUAL(1, sap.no_of_ads);
-    CHECK_TRUE( sap_event.session_ptr != NULL );
     CHECK_EQUAL(aes67_sap_event_refreshed, sap_event.event); // different event
 #endif
 
@@ -461,15 +448,14 @@ TEST(SAP_TestGroup, sap_handle_v1)
     MEMCMP_EQUAL(p2.data, sap_event.payload, p2.datalen);
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
-    CHECK_EQUAL(NULL, sap_event.session_ptr);
+    //
 #else
-    CHECK_TRUE( sap_event.session_ptr != NULL );
 #if AES67_SAP_AUTH_ENABLED
     CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
 #endif
-    CHECK_EQUAL(p2.msg_id_hash, sap_event.session_data.hash);
-    CHECK_EQUAL(p2.ip.ipver, sap_event.session_data.src.ipver );
-    MEMCMP_EQUAL(p2.ip.addr, sap_event.session_data.src.addr, (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
+    CHECK_EQUAL(p2.msg_id_hash, sap_event.hash);
+    CHECK_EQUAL(p2.ip.ipver, sap_event.src.ipver );
+    MEMCMP_EQUAL(p2.ip.addr, sap_event.src.addr, (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
 #endif
 
 
@@ -493,7 +479,6 @@ TEST(SAP_TestGroup, sap_handle_v1)
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(0, sap.no_of_ads);
     CHECK_EQUAL(aes67_sap_event_deleted, sap_event.event); // different event
-    CHECK_TRUE( sap_event.session_ptr == NULL ); // note, this session_data was not previously known
     CHECK_EQUAL(0, sap_event.payloadtypelen);
     CHECK_EQUAL(NULL, sap_event.payloadtype);
     CHECK_EQUAL(p3.datalen, sap_event.payloadlen);
@@ -565,7 +550,6 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
         aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
         CHECK_TRUE(sap_event.isset);
-        CHECK_TRUE( sap_event.session_ptr != NULL );
         CHECK_EQUAL(i+1, sap.no_of_ads);
     }
 
@@ -581,7 +565,6 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
-    CHECK_TRUE( sap_event.session_ptr == NULL);
 
     // resend previous announce message again
     sap_event_reset();
@@ -590,7 +573,6 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event); // note: event != refreshed
-    CHECK_TRUE( sap_event.session_ptr == NULL );
 
     // delete
     sap_packet_t p2 = {
@@ -616,7 +598,6 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
 
         CHECK_TRUE(sap_event.isset);
         CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS-i-1, sap.no_of_ads);
-        CHECK_TRUE( sap_event.session_ptr != NULL );
     }
 
     CHECK_EQUAL(0, sap.no_of_ads);
@@ -632,16 +613,14 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
 #if AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
-    CHECK_EQUAL(NULL, sap_event.session_ptr);
 #else
     CHECK_EQUAL( 1, sap.no_of_ads);
-    CHECK_TRUE( sap_event.session_ptr != NULL );
 #if AES67_SAP_AUTH_ENABLED
     CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
 #endif
-    CHECK_EQUAL(p1.msg_id_hash, sap_event.session_data.hash);
-    CHECK_EQUAL(p1.ip.ipver, sap_event.session_data.src.ipver );
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.session_data.src.addr, (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
+    CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
+    CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver );
+    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
 #endif
 
     // resubmit (-> refresh event)
@@ -651,11 +630,9 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     CHECK_TRUE(sap_event.isset);
 #if AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
-    CHECK_EQUAL(NULL, sap_event.session_ptr);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
 #else
     CHECK_EQUAL( 1, sap.no_of_ads);
-    CHECK_TRUE( sap_event.session_ptr != NULL );
     CHECK_EQUAL(aes67_sap_event_refreshed, sap_event.event);
 #endif
 
@@ -1096,8 +1073,8 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(1, sap.no_of_ads);
     // t1a < p1.last_announcement < t1b
-    CHECK_COMPARE(0, <, aes67_time_diffmsec(&t1b, &sap_event.session_data.last_announcement));
-    CHECK_COMPARE(0, <, aes67_time_diffmsec(&sap_event.session_data.last_announcement, &t1a));
+//    CHECK_COMPARE(0, <, aes67_time_diffmsec(&t1b, &sap_event.session_data.last_announcement));
+//    CHECK_COMPARE(0, <, aes67_time_diffmsec(&sap_event.session_data.last_announcement, &t1a));
 
     sap_packet_t p2 = {
             .status = AES67_SAP_STATUS_VERSION_2 | AES67_SAP_STATUS_MSGTYPE_ANNOUNCE | AES67_SAP_STATUS_ENCRYPTED_NO | AES67_SAP_STATUS_COMPRESSED_NONE,
@@ -1125,8 +1102,8 @@ TEST(SAP_TestGroup, sap_timeouts)
 
     // t1b < t2b < p2.last_announcement < t2a
     CHECK_COMPARE(0, <, aes67_time_diffmsec(&t1a, &t2b));
-    CHECK_COMPARE(0, <, aes67_time_diffmsec(&t2b, &sap_event.session_data.last_announcement));
-    CHECK_COMPARE(0, <, aes67_time_diffmsec(&sap_event.session_data.last_announcement, &t2a));
+//    CHECK_COMPARE(0, <, aes67_time_diffmsec(&t2b, &sap_event.session_data.last_announcement));
+//    CHECK_COMPARE(0, <, aes67_time_diffmsec(&sap_event.session_data.last_announcement, &t2a));
 
 
     CHECK_FALSE(aes67_sap_service_timeout_timer_expired(&sap));
@@ -1190,9 +1167,9 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(1, sap.no_of_ads);
     CHECK_EQUAL(aes67_sap_event_timeout, sap_event.event);
-    CHECK_EQUAL(p1.msg_id_hash, sap_event.session_data.hash);
-    CHECK_EQUAL(p1.ip.ipver, sap_event.session_data.src.ipver);
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.session_data.src.addr, p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
+    CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
+    CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver);
+    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
 
 
     // step another half a timeout into the future
@@ -1205,9 +1182,9 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(0, sap.no_of_ads);
     CHECK_EQUAL(aes67_sap_event_timeout, sap_event.event);
-    CHECK_EQUAL(p2.msg_id_hash, sap_event.session_data.hash);
-    CHECK_EQUAL(p2.ip.ipver, sap_event.session_data.src.ipver);
-    MEMCMP_EQUAL(p2.ip.addr, sap_event.session_data.src.addr, p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
+    CHECK_EQUAL(p2.msg_id_hash, sap_event.hash);
+    CHECK_EQUAL(p2.ip.ipver, sap_event.src.ipver);
+    MEMCMP_EQUAL(p2.ip.addr, sap_event.src.addr, p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
 
 
     aes67_sap_service_deinit(&sap);

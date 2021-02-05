@@ -352,14 +352,16 @@ u16_t aes67_sap_service_msg_sdp(struct aes67_sap_service *sap, u8_t *msg, u16_t 
 /**
  *
  * @param event
- * @param session
+ * @param hash
  * @param payloadtype       Payload type string if given. Will ALWAYS be NULL iff the payload type is "application/sdp"
  * @param payloadtypelen    Length of payload type string if given. Will ALWAYS be 0 iff the payload type is "application/sdp".
  * @param payload
  * @param payloadlen
  * @param user_data         As set in aes67_sap_service_init(..)
  */
-extern void aes67_sap_service_event(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen, void * user_data);
+extern void
+aes67_sap_service_event(enum aes67_sap_event event, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype,
+                        u16_t payloadtypelen, u8_t *payload, u16_t payloadlen, void *user_data);
 
 #if AES67_SAP_AUTH_ENABLED == 1
 

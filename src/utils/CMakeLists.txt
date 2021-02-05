@@ -5,5 +5,6 @@ set (CMAKE_CONFIGURATION_TYPES "Debug;Release")
 project(aes67-utils)
 
 add_subdirectory(sap-pack)
+add_subdirectory(sap-unpack)
 
 

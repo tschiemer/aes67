@@ -159,56 +159,57 @@ s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
     return true;
 }
 
-u16_t aes67_net_addr2str(u8_t * str, struct aes67_net_addr * addr)
+u16_t aes67_net_addr2a(u8_t * str, enum aes67_net_ipver ipver, u8_t * addr, u16_t port)
 {
     AES67_ASSERT("str != NULL", str != NULL);
+    AES67_ASSERT("AES67_NET_IPVER_ISVALID(ipver)", AES67_NET_IPVER_ISVALID(ipver));
     AES67_ASSERT("addr != NULL", addr != NULL);
 
 #if AES67_USE_IPv6 == 1
-    AES67_ASSERT("addr->ipver == aes67_net_ipver_4 || addr->ipver == aes67_net_ipver_6", addr->ipver == aes67_net_ipver_4 || addr->ipver == aes67_net_ipver_6);
+    AES67_ASSERT("ipver == aes67_net_ipver_4 || ipver == aes67_net_ipver_6", ipver == aes67_net_ipver_4 || ipver == aes67_net_ipver_6);
 #else
-    AES67_ASSERT("addr->ipver == aes67_net_ipver_4", addr->ipver == aes67_net_ipver_4);
+    AES67_ASSERT("ipver == aes67_net_ipver_4", ipver == aes67_net_ipver_4);
 #endif
 
     u16_t len = 0;
 
 
 #if AES67_USE_IPv6 == 1
-    if (addr->ipver == aes67_net_ipver_6){
+    if (ipver == aes67_net_ipver_6){
 
-        if (addr->port > 0){
+        if (port > 0){
             str[len++] = '[';
         }
 
-        u16_t val = (addr->addr[0] << 8) | (addr->addr[1]);
+        u16_t val = (addr[0] << 8) | (addr[1]);
         len += aes67_itoa(val, &str[len], 16);
 
         for(int i = 1; i < 8; i++){
             str[len++] = ':';
-            u16_t val = (addr->addr[2*i] << 8) | (addr->addr[2*i+1]);
+            u16_t val = (addr[2*i] << 8) | (addr[2*i+1]);
             len += aes67_itoa(val, &str[len], 16);
         }
 
-        if (addr->port > 0){
+        if (port > 0){
             str[len++] = ']';
             str[len++] = ':';
-            len += aes67_itoa(addr->port, &str[len], 10);
+            len += aes67_itoa(port, &str[len], 10);
         }
 
     } else {
 #endif
 
-    len += aes67_itoa(addr->addr[0], str, 10);
+    len += aes67_itoa(addr[0], str, 10);
     str[len++] = '.';
-    len += aes67_itoa(addr->addr[1], &str[len], 10);
+    len += aes67_itoa(addr[1], &str[len], 10);
     str[len++] = '.';
-    len += aes67_itoa(addr->addr[2], &str[len], 10);
+    len += aes67_itoa(addr[2], &str[len], 10);
     str[len++] = '.';
-    len += aes67_itoa(addr->addr[3], &str[len], 10);
+    len += aes67_itoa(addr[3], &str[len], 10);
 
-    if (addr->port > 0) {
+    if (port > 0) {
         str[len++] = ':';
-        len += aes67_itoa(addr->port, &str[len], 10);
+        len += aes67_itoa(port, &str[len], 10);
     }
 
 #if AES67_USE_IPv6 == 1
