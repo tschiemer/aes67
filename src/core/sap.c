@@ -42,7 +42,7 @@ static struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_s
 /**
  * To remove a specific session from the session table.
  */
-static void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
+//static void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
 
 
 
@@ -53,8 +53,9 @@ void aes67_sap_service_init(struct aes67_sap_service * sap, void * user_data)
 
     sap->user_data = user_data;
 
+    sap->announcement_sec = 0;
     sap->announcement_size = 0;
-    sap->timeout_interval = 0;
+    sap->timeout_sec = 3600;
 
     // init timers
     aes67_timer_init(&sap->announcement_timer);
@@ -142,7 +143,7 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
         }
     }
 
-    // TODO should only reach here if we've run out of memory (ie, table entries)
+    // should only reach here if we've run out of memory (ie, table entries)
 
     return NULL;
 
@@ -212,35 +213,36 @@ static void session_unregister(struct aes67_sap_service * sap, struct aes67_sap_
     }
 }
 
-void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip)
+//void aes67_sap_service_unregister(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip)
+//{
+//    struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ipver, ip);
+//
+//    if (session == NULL) {
+//        return;
+//    }
+//
+//    session_unregister(sap, session);
+//}
+
+u32_t aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_t *timeout_sec)
 {
-    struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ipver, ip);
+    // announcement size likely is 0 if no announcement has been sent yet.
+    if (announcement_size == 0) {
 
-    if (session == NULL) {
-        return;
+        if (timeout_sec != NULL) {
+            // max(3600, 10 * ad_interval)
+            *timeout_sec = (u32_t)3600;
+        }
+
+        return 0;
     }
-
-    session_unregister(sap, session);
-}
-
-u32_t aes67_sap_service_get_announcement_time_ms(struct aes67_sap_service * sap)
-{
-    AES67_ASSERT("sap != NULL", sap != NULL);
-
-    // if no message was generated, then no message has yet been sent
-    // set timer to trigger next possible time.
-    if (sap->announcement_size == 0){
-        return AES67_TIMER_NOW;
-    }
-
-    s32_t no_of_ads = sap->no_of_ads;
 
     // min 1
     if (no_of_ads == 0){
         no_of_ads = 1;
     }
 
-    s32_t i = (8 * sap->announcement_size * no_of_ads) / AES67_SAP_BANDWITH;
+    s32_t i = (8 * announcement_size * no_of_ads) / AES67_SAP_BANDWITH;
 
     s32_t interval_sec = i > 300 ? i : 300;
 
@@ -248,26 +250,25 @@ u32_t aes67_sap_service_get_announcement_time_ms(struct aes67_sap_service * sap)
 
     u32_t next_tx = interval_sec + offset_sec;
 
-    // remember the timeout interval (as used in time out computations)
-    sap->timeout_interval = interval_sec;
+    if (timeout_sec != NULL) {
+        // max(3600, 10 * ad_interval)
+        *timeout_sec = (u32_t)(10 * (interval_sec > 360 ? interval_sec : 360));
+    }
 
-    return next_tx * 1000;
+    return next_tx;
 }
 
 
 void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
 {
-    u32_t ms = aes67_sap_service_get_announcement_time_ms(sap);
+    AES67_ASSERT("sap != NULL", sap != NULL);
+
+    aes67_sap_service_update_times(sap);
 
     // actually set timer
-    aes67_timer_set(&sap->announcement_timer, ms);
+    aes67_timer_set(&sap->announcement_timer, 1000 * sap->announcement_sec);
 }
 
-u32_t aes67_sap_service_get_timeout_sec(struct aes67_sap_service * sap)
-{
-    // max(3600, 10 * ad_interval)
-    return 10 * (sap->timeout_interval > 360 ? sap->timeout_interval : 360);
-}
 
 void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 {
@@ -278,12 +279,14 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
         return;
     }
 
+    aes67_sap_service_update_times(sap);
+
     aes67_time_t now;
 
     aes67_time_now(&now);
 
     // max(3600, 10 * ad_interval)
-    u32_t timeout_after = 1000 * aes67_sap_service_get_timeout_sec(sap);
+    u32_t timeout_after = 1000 * sap->timeout_sec;
 
     // get age of oldest announcement
     u32_t oldest = 0;
@@ -345,7 +348,7 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
     aes67_time_now(&now);
 
     // max(3600, 10 * ad_interval)
-    u32_t timeout_after = 1000 * aes67_sap_service_get_timeout_sec(sap);
+    u32_t timeout_after = 1000 * sap->timeout_sec;
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
 

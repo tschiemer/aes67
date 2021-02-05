@@ -976,7 +976,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     aes67_sap_service_init(&sap, gl_user_data);
 
     CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
-    CHECK_EQUAL(0, aes67_sap_service_get_announcement_time_ms(&sap));
+    CHECK_EQUAL(0, sap.announcement_sec);
     CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
 
     // this should trigger the timer to be called as soon as possible.
@@ -1024,8 +1024,11 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
 
     // the module assumes a packet is sent after creating it
-    // thus the announcement time has changed.
-    CHECK_COMPARE(0, <, aes67_sap_service_get_announcement_time_ms(&sap));
+    // thus the announcement time has changed (when times have been updates)
+
+    aes67_sap_service_update_times(&sap);
+
+    CHECK_COMPARE(0, <, sap.announcement_sec);
 
     // this should trigger the timer to be called as soon as possible.
     aes67_sap_service_set_announcement_timer(&sap);
@@ -1054,7 +1057,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     AUTH_OK();
 
 
-    CHECK_COMPARE(0, <, aes67_sap_service_get_timeout_sec(&sap));
+    CHECK_COMPARE(0, <, sap.timeout_sec);
     CHECK_FALSE(aes67_sap_service_timeout_timer_expired(&sap));
 
 
@@ -1118,8 +1121,6 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_COMPARE(0, <, aes67_time_diffmsec(&sap_event.session_data.last_announcement, &t2a));
 
 
-    u32_t timeout_sec = aes67_sap_service_get_timeout_sec(&sap);
-
     CHECK_FALSE(aes67_sap_service_timeout_timer_expired(&sap));
 
     aes67_sap_service_set_timeout_timer(&sap);
@@ -1136,8 +1137,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_EQUAL(2, sap.no_of_ads);
 
     // let time go beyond timeout
-    timeout_sec = aes67_sap_service_get_timeout_sec(&sap);
-    time_add_now_ms(1000*timeout_sec);
+    time_add_now_ms(1000*sap.timeout_sec);
     timer_expire(&sap.timeout_timer);
 
     CHECK_TRUE(aes67_sap_service_timeout_timer_expired(&sap));
@@ -1157,8 +1157,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     aes67_sap_service_handle(&sap, data, len);
 
     // step half a timeout into the future
-    timeout_sec = aes67_sap_service_get_timeout_sec(&sap);
-    time_add_now_ms(500*timeout_sec);
+    time_add_now_ms(500*sap.timeout_sec);
 
     CHECK_EQUAL(1, sap.no_of_ads);
 
@@ -1174,8 +1173,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_EQUAL(2, sap.no_of_ads);
 
     // step another half a timeout into the future
-    timeout_sec = aes67_sap_service_get_timeout_sec(&sap);
-    time_add_now_ms(500*timeout_sec);
+    time_add_now_ms(500*sap.timeout_sec);
 
     // and
     sap_event_reset();
@@ -1190,8 +1188,7 @@ TEST(SAP_TestGroup, sap_timeouts)
 
 
     // step another half a timeout into the future
-    timeout_sec = aes67_sap_service_get_timeout_sec(&sap);
-    time_add_now_ms(500*timeout_sec);
+    time_add_now_ms(500*sap.timeout_sec);
 
     // and
     sap_event_reset();

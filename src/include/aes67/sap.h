@@ -170,6 +170,8 @@ struct aes67_sap_service {
      */
     u16_t announcement_size;
 
+    u32_t announcement_sec;
+
     /**
      * Timer functionality for approximating the next time to announce own packets
      * (optionally used)
@@ -178,9 +180,8 @@ struct aes67_sap_service {
 
     /**
      * Last computed timeout interval
-     * use aes67_sap_service_get_timeout_sec()
      */
-    u32_t timeout_interval;
+    u32_t timeout_sec;
 
     /**
      * Timer functionality for approximating the next time a session times out
@@ -202,7 +203,6 @@ struct aes67_sap_service {
 #endif
 };
 
-
 /**
  * Initializes service data
  *
@@ -219,15 +219,27 @@ void aes67_sap_service_deinit(struct aes67_sap_service * sap);
 
 
 /**
- * Computes the announcement time in millisec when the next announcement should occur, roughly respecting bandwidth
- * restrictions.
+ * Computes announcement and timeout time (in sec)
  *
- * NOTE: sets timeout_interval as used in aes67_sap_service_set_timeout_timer() et al
+ * @param no_of_ads
+ * @param announcement_size
+ * @param timeout_sec
+ * @return next_announcement_sec
+ */
+u32_t aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_t *timeout_sec);
+
+
+/**
+ * Updates times used for timers
+ *
+ * (is called by set_announcement/timeout_timer)
  *
  * @param sap
- * @return
  */
-u32_t aes67_sap_service_get_announcement_time_ms(struct aes67_sap_service * sap);
+inline void aes67_sap_service_update_times(struct aes67_sap_service * sap)
+{
+    sap->announcement_sec = aes67_sap_compute_times_sec(sap->no_of_ads, sap->announcement_size, &sap->timeout_sec);
+}
 
 /**
  * Sets and enables announcement timer to trigger when next announcement can/should be sent.
@@ -250,14 +262,6 @@ inline uint8_t aes67_sap_service_announcement_timer_expired(struct aes67_sap_ser
     return sap->announcement_timer.state == aes67_timer_state_expired;
 }
 
-
-/**
- * Returns timeout duration in sec.
- *
- * @param sap
- * @return
- */
-u32_t aes67_sap_service_get_timeout_sec(struct aes67_sap_service * sap);
 
 /**
  * Sets timeout timer to when first/next session will timeout.
