@@ -966,6 +966,11 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
             llen--;
         }
 
+        // skip empty lines
+        if (llen == 0){
+            continue;
+        }
+
         // if line length is too short/invalid, abort or when second char not =
         if (llen < 3 || line[1] != '='){
             return AES67_SDP_ERROR;
