@@ -63,7 +63,18 @@ SIP may be considered (in the future) for management of unicast streams but it i
 
 RTSP may be considered (in the future) for management of unicast streams aswell as service discovery of Ravenna streams.
 
+## Utilities
 
+- `sap-pack`
+  ```
+  Usage: ./sap-pack (announce|delete) <msg-hash> <origin-ip> [<payloadtype>] <sdp-file>
+  Writes SAPv2 packet to STDOUT.
+  ```
+- `sap-unpack`
+  ```
+  Usage: ./sap-unpack
+  Attempts to parse SAP packets incoming on STDIN
+  ```
 
 ## References
 
