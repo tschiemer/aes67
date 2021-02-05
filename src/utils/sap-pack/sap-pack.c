@@ -25,7 +25,8 @@ static struct {
     uint8_t status;
     uint16_t hash;
     struct aes67_net_addr origin;
-    struct aes67_sdp sdp;
+    uint8_t sdp[1024];
+    uint32_t sdplen;
 } opts;
 
 static char * argv0;
@@ -45,8 +46,8 @@ static void load_from_args(char * argv[])
 
     if (strcmp(argv[1], "announce") == 0){
         opts.status |= AES67_SAP_STATUS_MSGTYPE_ANNOUNCE;
-    } else if (strcmp(argv[1], "announce") == 0){
-        opts.status |= AES67_SAP_STATUS_MSGTYPE_ANNOUNCE;
+    } else if (strcmp(argv[1], "delete") == 0){
+        opts.status |= AES67_SAP_STATUS_MSGTYPE_DELETE;
     } else {
         fprintf(stderr, "ERROR invalid option %s\n", argv[1]);
         exit(1);
@@ -70,18 +71,20 @@ static void load_from_args(char * argv[])
         exit(1);
     }
 
-    uint16_t len = 0;
-    uint8_t sdp[1024];
+
+    memcpy(opts.sdp, AES67_SDP_MIMETYPE, sizeof(AES67_SDP_MIMETYPE));
+    opts.sdplen += sizeof(AES67_SDP_MIMETYPE);
 
     int c;
     while( (c = fgetc(fd)) != EOF ){
-        sdp[len++] = c;
+        if (opts.sdplen >= sizeof(opts.sdp)){
+            fprintf(stderr, "ERROR overflow\n");
+            exit(1);
+        }
+        opts.sdp[opts.sdplen++] = c;
     }
 
     fclose(fd);
-
-
-    aes67_sdp_fromstr(&opts.sdp, sdp, len);
 }
 
 static void load_from_fd(FILE * fd)
@@ -89,22 +92,6 @@ static void load_from_fd(FILE * fd)
 
 }
 
-static void aes67_deinit()
-{
-    aes67_sap_service_deinit(&sap);
-}
-
-static void aes67_init()
-{
-    aes67_time_init_system();
-    atexit(aes67_time_deinit_system);
-
-    aes67_timer_init_system();
-    atexit(aes67_timer_deinit_system);
-
-    aes67_sap_service_init(&sap, NULL);
-    atexit(aes67_deinit);
-}
 void aes67_sap_service_event(enum aes67_sap_event event, struct aes67_sap_session * session, u8_t * payloadtype, u16_t payloadtypelen, u8_t * payload, u16_t payloadlen, void * user_data)
 {
     // do nothing
@@ -127,16 +114,15 @@ int main(int argc, char * argv[])
 
     uint8_t packet[1024];
 
-    uint16_t len = aes67_sap_service_msg_sdp(&sap, packet, sizeof(packet), opts.status, opts.hash, &opts.origin, &opts.sdp);
+    uint16_t len = aes67_sap_service_msg(NULL, packet, sizeof(packet), opts.status, opts.hash, opts.origin.ipver, opts.origin.addr,
+                                             opts.sdp, opts.sdplen, NULL);
 
     if (len == 0){
         fprintf(stderr, "ERROR failed to generate packet\n");
         return 1;
     }
 
-    for(int i = 0; i < len; i++){
-        fwrite(packet, 1, len, stdout);
-    }
+    fwrite(packet, 1, len, stdout);
 
     fclose(stdout);
 

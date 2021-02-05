@@ -28,6 +28,7 @@
 #define AES67_SAP_H
 
 #include "aes67/arch.h"
+#include "aes67/opt.h"
 #include "aes67/net.h"
 #include "aes67/sdp.h"
 #include "aes67/host/timer.h"
@@ -38,8 +39,8 @@
 #if AES67_SAP_MEMORY != AES67_MEMORY_POOL && AES67_SAP_MEMORY != AES67_MEMORY_DYNAMIC
 #error Please specify valid memory strategy for SAP (AES67_SAP_MEMORY)
 #endif
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_POOL_SIZE > UINT16_MAX
-#error AES67_SAP_MEMORY_POOL_SIZE too big!
+#if AES67_SAP_MEMORY_MAX_SESSIONS > UINT16_MAX
+#error AES67_SAP_MEMORY_MAX_SESSIONS too big!
 #endif
 
 
@@ -196,9 +197,9 @@ struct aes67_sap_service {
      */
     u16_t no_of_ads; //
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && 0 < AES67_SAP_MEMORY_MAX_SESSIONS
     struct aes67_sap_session sessions[AES67_SAP_MEMORY_MAX_SESSIONS];
-#else
+#elif AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
     struct aes67_sap_session * first_session; // first session of linked list
 #endif
 };

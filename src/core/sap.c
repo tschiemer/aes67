@@ -22,17 +22,13 @@
 #include "aes67/debug.h"
 
 
-#define EMPTY_HASH 0
-
-
-
 /**
  * See wether given session has ben registered prior and return related pointer.
  */
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
-#define aes67_sap_service_find(sap, hash, ipver, ip) NULL
-#else
+#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
 static struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
+#else
+#define aes67_sap_service_find(sap, hash, ipver, ip) NULL
 #endif
 
 /**
@@ -41,19 +37,19 @@ static struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_servic
  * To be used directly (most likely) only when registering sessions sent from this device (to let them count towards
  * the total announcement count).
  */
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
-#define aes67_sap_service_register(sap, hash, ipver, ip) NULL
-#else
+#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
 static struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
+#else
+#define aes67_sap_service_register(sap, hash, ipver, ip) NULL
 #endif
 
 /**
  * To remove a specific session from the session table.
  */
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
-#define aes67_sap_service_unregister(session, sap)
-#else
+#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
 static void aes67_sap_service_unregister(struct aes67_sap_service * sap, struct aes67_sap_session * session);
+#else
+#define aes67_sap_service_unregister(session, sap)
 #endif
 
 
@@ -75,9 +71,9 @@ void aes67_sap_service_init(struct aes67_sap_service * sap, void * user_data)
 
     sap->no_of_ads = 0;
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL && 0 < AES67_SAP_MEMORY_MAX_SESSIONS
     aes67_memset(sap->sessions, 0, sizeof(sap->sessions));
-#else
+#elif AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
     sap->first_session = NULL;
 #endif
 }
@@ -276,7 +272,7 @@ void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
     aes67_timer_set(&sap->announcement_timer, 1000 * sap->announcement_sec);
 }
 
-
+#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
 void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
@@ -393,6 +389,7 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
 #endif
 
 }
+#endif //#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
 
 
 void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t msglen, void *user_data)
