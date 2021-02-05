@@ -106,13 +106,6 @@ static void load_from_fd(FILE * fd)
 
 }
 
-void
-aes67_sap_service_event(enum aes67_sap_event event, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype,
-                        u16_t payloadtypelen, u8_t *payload, u16_t payloadlen, void *user_data)
-{
-    // do nothing
-}
-
 int main(int argc, char * argv[])
 {
     argv0 = argv[0];
