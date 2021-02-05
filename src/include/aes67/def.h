@@ -1,4 +1,9 @@
 /**
+ * @file def.h
+ * Generic utility functions
+ */
+
+/**
  * AES67 Framework
  * Copyright (C) 2021  Philip Tschiemer, https://github.com/tschiemer/aes67
  *
