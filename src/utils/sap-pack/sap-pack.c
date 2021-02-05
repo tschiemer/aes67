@@ -30,7 +30,6 @@ static struct {
 } opts;
 
 static char * argv0;
-static struct aes67_sap_service sap;
 
 static void help(FILE * fd)
 {
