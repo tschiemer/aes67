@@ -80,6 +80,11 @@ RTSP may be considered (in the future) for management of unicast streams aswell 
     -a	 Print SAP headers
     -h,-?	 Prints this help.
   ```
+- `sdp-parse`
+  ```
+  Usage: ../sdp-parse/sdp-parse
+  Attempts to parse SDP incoming on STDIN
+  ```
 
 ## References
 
