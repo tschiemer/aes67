@@ -72,8 +72,13 @@ RTSP may be considered (in the future) for management of unicast streams aswell 
   ```
 - `sap-unpack`
   ```
-  Usage: ./sap-unpack
-  Attempts to parse SAP packets incoming on STDIN
+  Attempts to parse SAP packets incoming on STDIN and prints to STDOUT in the following format:
+    [(announce|delete) <hash> <ip> <payload-type>]
+    <payload-data>
+    <newline>
+  Options:
+    -a	 Print SAP headers
+    -h,-?	 Prints this help.
   ```
 
 ## References

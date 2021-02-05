@@ -18,7 +18,7 @@
 
 #include "aes67/sap.h"
 
-//#include <getopt.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
@@ -27,11 +27,21 @@
 
 static char * argv0;
 
+struct {
+  bool print_headers;
+} opts;
+
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s\n"
-             "Attempts to parse SAP packets incoming on STDIN\n"
+             "Usage: %s [-h?a]\n"
+             "Attempts to parse SAP packets incoming on STDIN and prints to STDOUT in the following format:\n"
+             "\t (announce|delete) <hash> <ip> <payload-type>\n"
+             "\t <payload-data>\n"
+             "\t <newline>\n"
+             "Options:\n"
+             "\t -a\t Print SAP headers\n"
+             "\t -h,-?\t Prints this help.\n"
              , argv0);
 }
 
@@ -40,18 +50,20 @@ void
 aes67_sap_service_event(enum aes67_sap_event event, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype,
                         u16_t payloadtypelen, u8_t *payload, u16_t payloadlen, void *user_data)
 {
-    printf("%s ", event == aes67_sap_event_new ? "announce" : "delete");
-    printf("%d ", hash);
+    if (opts.print_headers){
+        printf("%s ", event == aes67_sap_event_new ? "announce" : "delete");
+        printf("%d ", hash);
 
-    u8_t ipstr[64];
-    uint16_t l = aes67_net_addr2a(ipstr, ipver, ip, 0);
-    ipstr[l] = '\0';
+        u8_t ipstr[64];
+        uint16_t l = aes67_net_addr2a(ipstr, ipver, ip, 0);
+        ipstr[l] = '\0';
 
-    printf("%s", ipstr);
+        printf("%s", ipstr);
 
-    printf(" %s", (payloadtype == NULL ? AES67_SDP_MIMETYPE : (char*)payloadtype) );
+        printf(" %s", (payloadtype == NULL ? AES67_SDP_MIMETYPE : (char*)payloadtype) );
 
-    printf("\n");
+        printf("\n");
+    }
 
     printf("%s\n", payload);
 
@@ -62,9 +74,27 @@ int main(int argc, char * argv[])
 {
     argv0 = argv[0];
 
-    if ( argc != 1 ){ // 1 < argc &&
-        help(stdout);
-        return 0;
+    opts.print_headers = false;
+
+    int opt;
+
+    while ((opt = getopt(argc, argv, "h?a")) != -1) {
+        switch (opt) {
+            case 'a':
+                opts.print_headers = true;
+                break;
+
+            case 'h':
+            case '?':
+            default: /* '?' */
+                help(stdout);
+                exit(EXIT_FAILURE);
+        }
+    }
+
+    if ( optind < argc ){ // 1 < argc &&
+        fprintf(stderr, "ERROR too many arguments\n");
+        return EXIT_FAILURE;
     }
 
     // set non-blocking stdin
