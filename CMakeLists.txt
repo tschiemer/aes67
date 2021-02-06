@@ -27,6 +27,7 @@ set(AES67_INCLUDES
         ${AES67_DIR}/src/include/aes67/ptp.h
         ${AES67_DIR}/src/include/aes67/sdp.h
         ${AES67_DIR}/src/include/aes67/rtp-avp.h
+        ${AES67_DIR}/src/include/aes67/rtp.h
         ${AES67_DIR}/src/include/aes67/audio.h
 
         ${AES67_DIR}/src/include/aes67/host/time.h
@@ -38,9 +39,10 @@ set(AES67_INCLUDES
 set(AES67_SOURCE_FILES
 
         ${AES67_DIR}/src/core/def.c
-
         ${AES67_DIR}/src/core/net.c
+
         ${AES67_DIR}/src/core/sdp.c
+        ${AES67_DIR}/src/core/rtp.c
 
         )
 
