@@ -95,26 +95,29 @@ RTSP may be considered (in the future) for management of unicast streams aswell 
 
 Primarily test/developer utilities that allow for convenient testing (or simple interactions) - socat is your friend. 
 
-- `sap-pack`
-  ```
-  Usage: ./sap-pack (announce|delete) <msg-hash> <origin-ip> [<payloadtype>] <sdp-file>
-  Writes SAPv2 packet to STDOUT.
-  ```
-- `sap-unpack`
-  ```
-  Attempts to parse SAP packets incoming on STDIN and prints to STDOUT in the following format:
-    [(announce|delete) <hash> <ip> <payload-type>]
-    <payload-data>
-    <newline>
-  Options:
-    -a	 Print SAP headers
-    -h,-?	 Prints this help.
-  ```
-- `sdp-parse`
-  ```
-  Usage: ../sdp-parse/sdp-parse
-  Attempts to parse SDP incoming on STDIN
-  ```
+### `sap-pack`
+```
+Usage: ./sap-pack (announce|delete) <msg-hash> <origin-ip> [<payloadtype>] <sdp-file>
+Writes SAPv2 packet to STDOUT.
+```
+### `sap-unpack`
+```
+Usage: ./sap-unpack [-h?a]
+Attempts to parse SAP packets incoming on STDIN and prints to STDOUT in the following format:
+(announce|delete) <hash> <ip> <payload-type>
+<payload-data>
+<newline>
+Options:
+-a	 Print SAP headers
+-h,-?	 Prints this help.
+```
+
+### `sdp-parse`
+
+```
+Usage: ./sdp-parse
+Attempts to parse SDP incoming on STDIN
+```
 
 ## References
 
