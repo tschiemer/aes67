@@ -7,24 +7,34 @@ Designed in particular to be employed on embedded devices and thus not relying o
 
 Components are intended to be as minimal as possible to allow for essential AES67 operations and be as interoperable as possible - in detail this is not yet clear and requires further investigation into different manufacturer-dependent implementations.
 
+
+
 https://github.com/tschiemer/aes67
 
 ## Rough feature/support roadmap
 
 - Clock
-  - [ ] PTPv2 / IEEE1558-2008 ? (as per AES67-2018)
-  - [ ] PTPv2.1 / IEEE1558-2019 ??
+  - [ ] PTPv2 / IEEE1588-2008 (as per AES67-2018)
+  - [ ] PTPv1 / IEEE1588-2002 ?
+  - [ ] PTPv2.1 / IEEE1588-2019 ?
+  - [ ] IEEE802.1AS-2011 ?
 - Discovery & | Management
-  - [ ] SAP (required for broader interoperability)
-    - [ ] Support compression (of incoming packets)?
+  - [x] SAP (required for broader interoperability)
+    - [ ] ~~zlib (de-)compression support?~~ -> interface for external implementation
+    - [ ] ~~authentication support?~~ -> interface for external implementation
+  - [ ] SDP
   - [ ] SIP ? (for unicast management according to standard, but most systems use multicast only..)
-    - [x] [mDNS / DNS-SD](https://github.com/tschiemer/minimr)
   - [ ] RSTP ? (meaningful for system with Ravenna-based components if no RAV2SAP)
   - [ ] [AES70/OCA](https://github.com/tschiemer/ocac) *work in progress*
+    - [x] [mDNS / DNS-SD](https://github.com/tschiemer/minimr)
 - Stream
   - [ ] RTP/RTCP
-
-- command line / developer utilities
+- Command line / developer utilities
+  - [ ] SAP
+    - [x] sap-pack, sap-unpack
+    - [ ] sap-server
+  - [ ] SDP
+    - [ ] sdp-parse 
 
 
 
@@ -63,7 +73,27 @@ SIP may be considered (in the future) for management of unicast streams but it i
 
 RTSP may be considered (in the future) for management of unicast streams aswell as service discovery of Ravenna streams.
 
+## Corny details
+
+### SAP
+
+- Does not support encryption.
+- Provides interfaces for zlib de-/compression. For the moment being it is assumed that compression is not used by implementations.
+- Provides interfaces for authentication.
+- Can be used as an abstract service with basic session memory (only identifiers, ie no payloads, saved) and timeout detection but can also used to parse or generate SAP messages in a standalone fashion.
+
+### SDP
+
+- Narrowed down to options and attributes as required for AES67 streams.-
+- Supports relevant session- and media-level options (connection, ref-clock).
+- Supports multiple ptp reference clocks on both session-/media level (1588-2002/08/19, 802.1AS-2011)
+- Support for audio media with dynamic payload types *only* and L8/L16/L24/L32 encoding media encoding.
+- Intended to support encoding and ptime negotiation - capabilities are discarded (fallback to non-negotiated configuration) if capabilities other than ptime related are offered.
+- Parser to/generator from internal struct.
+
 ## Utilities
+
+Primarily test/developer utilities that allow for convenient testing (or simple interactions) - socat is your friend. 
 
 - `sap-pack`
   ```
