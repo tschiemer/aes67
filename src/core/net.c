@@ -21,9 +21,11 @@
 #include "aes67/debug.h"
 
 
-s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
+s32_t aes67_net_str2ip(enum aes67_net_ipver * ipver, u8_t * ip, u16_t * port, u8_t * str, u16_t slen)
 {
-    AES67_ASSERT("addr != NULL", addr != NULL);
+    AES67_ASSERT("ipver != NULL", ipver != NULL);
+    AES67_ASSERT("ip != NULL", ip != NULL);
+    AES67_ASSERT("port != NULL", port != NULL);
     AES67_ASSERT("str != NULL", str != NULL);
 
     u16_t ncolons = 0;
@@ -62,13 +64,13 @@ s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
         if (slen < len + 1) return false;
         a = aes67_atoi(&str[len], slen - len, 16, &l);
         if (l == 0 && str[len] == ':' && doublecolon == 1){
-            addr->addr[0] = 0;
-            addr->addr[1] = 0;
+            ip[0] = 0;
+            ip[1] = 0;
         }
         else if (l == 0 || l > 4 || (a & 0xffff0000)) return false;
         else {
-            addr->addr[0] = a >> 8;
-            addr->addr[1] = a & 0xff;
+            ip[0] = a >> 8;
+            ip[1] = a & 0xff;
             len += l;
         }
 
@@ -78,12 +80,12 @@ s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
 
             if (i == doublecolon) {
                 for (int j = 0; j < 8 - ncolons && i < 8; j++, i++){
-                    addr->addr[2*i] = 0;
-                    addr->addr[2*i+1] = 0;
+                    ip[2*i] = 0;
+                    ip[2*i+1] = 0;
                 }
                 if (slen <= len + 1 || str[len+1] == ']') {
-                    addr->addr[14] = 0;
-                    addr->addr[15] = 0;
+                    ip[14] = 0;
+                    ip[15] = 0;
 //                    if (slen >= len + 2){
 
                         len++;
@@ -96,13 +98,13 @@ s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
 
             a = aes67_atoi(&str[len], slen - len, 16, &l);
             if (l == 0 || l > 4 || (a & 0xffff0000)) return false;
-            addr->addr[2*i] = a >> 8;
-            addr->addr[2*i+1] = a & 0xff;
+            ip[2*i] = a >> 8;
+            ip[2*i+1] = a & 0xff;
             len += l;
         }
 
         if (len == slen || (slen == len + 1 && str[0] == '[' && str[len] == ']')) {
-            addr->port = 0;
+            *port = 0;
         } else {
             if (slen < len + 3 || str[len] != ']' || str[len+1] != ':'){
                 return false;
@@ -111,13 +113,13 @@ s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
             if (l == 0 || slen != len + 2 + l || (a & 0xffff0000)){
                 return false;
             }
-            addr->port = a;
+            *port = a;
             if (slen != len + 2 + l){
                 return false;
             }
         }
 
-        addr->ipver = aes67_net_ipver_6;
+        *ipver = aes67_net_ipver_6;
 
 #else // AES67_USE_IPv6 != 1
 
@@ -130,19 +132,19 @@ s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
 
         a = aes67_atoi(&str[0], slen, 10, &l);
         if (l == 0 || l > 3 || (a & 0xffffff00)) return false;
-        addr->addr[0] = a;
+        ip[0] = a;
         len = l;
 
         for (int i = 1; i < 4; i++) {
             if (slen < len + 1 || str[len++] != '.') return false;
             a = aes67_atoi(&str[len], slen - len, 10, &l);
             if (l == 0 || l > 3 || (a & 0xffffff00)) return false;
-            addr->addr[i] = a;
+            ip[i] = a;
             len += l;
         }
 
         if (len == slen){
-            addr->port = 0;
+            *port = 0;
         } else if (slen < len + 2 || str[len] != ':') {
             return false;
         } else {
@@ -150,16 +152,16 @@ s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
             if (l == 0 || slen != len + 1 + l || (a & 0xffff0000)){
                 return false;
             }
-            addr->port = a;
+            *port = a;
         }
 
-        addr->ipver = aes67_net_ipver_4;
+        *ipver = aes67_net_ipver_4;
     }
 
     return true;
 }
 
-u16_t aes67_net_addr2a(u8_t * str, enum aes67_net_ipver ipver, u8_t * addr, u16_t port)
+u16_t aes67_net_ip2str(u8_t * str, enum aes67_net_ipver ipver, u8_t * addr, u16_t port)
 {
     AES67_ASSERT("str != NULL", str != NULL);
     AES67_ASSERT("AES67_NET_IPVER_ISVALID(ipver)", AES67_NET_IPVER_ISVALID(ipver));
@@ -234,15 +236,3 @@ u8_t aes67_net_ipeq(const struct aes67_net_addr * lhs, const struct aes67_net_ad
     return aes67_memcmp(lhs->addr, rhs->addr, l) == 0;
 }
 
-u8_t aes67_net_ismcastip(const struct aes67_net_addr * addr)
-{
-    AES67_ASSERT("addr != NULL", addr != NULL);
-
-    if (addr->ipver == aes67_net_ipver_4){
-        // 224.0.0.0 - 239.255.255.255
-        return (224 <= addr->addr[0]) && (addr->addr[0] < 240);
-    } else {
-        // ff00::/8 prefix
-        return (0xff == addr->addr[0]);
-    }
-}
