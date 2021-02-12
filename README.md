@@ -13,22 +13,28 @@ https://github.com/tschiemer/aes67
 
 ## Rough feature/support roadmap
 
-- Clock
+- Clock / Synchronisation
   - [ ] PTPv2 / IEEE1588-2008 (as per AES67-2018)
   - [ ] PTPv1 / IEEE1588-2002 ?
   - [ ] PTPv2.1 / IEEE1588-2019 ?
   - [ ] IEEE802.1AS-2011 ?
+  
+
 - Discovery & | Management
   - [x] SAP (required for broader interoperability)
-    - [ ] ~~zlib (de-)compression support?~~ -> interface for external implementation
-    - [ ] ~~authentication support?~~ -> interface for external implementation
+    - [x] ~~zlib (de-)compression support?~~ -> interface for external implementation
+    - [x] ~~authentication support?~~ -> interface for external implementation
   - [ ] SDP
   - [ ] SIP ? (for unicast management according to standard, but most systems use multicast only..)
   - [ ] RSTP ? (meaningful for system with Ravenna-based components if no RAV2SAP)
   - [ ] [AES70/OCA](https://github.com/tschiemer/ocac) *work in progress*
     - [x] [mDNS / DNS-SD](https://github.com/tschiemer/minimr)
+
+
 - Stream
   - [ ] RTP/RTCP
+
+  
 - Command line / developer utilities
   - [ ] SAP
     - [x] sap-pack, sap-unpack
@@ -39,6 +45,45 @@ https://github.com/tschiemer/aes67
 
 
 ## In a Nutshell
+
+Aspects of AES67 and the implementation considerations within this framework.
+
+*Disclaimer: my understanding as someone learning about AES67 still might not be error free, please drop me a line if you see something wrong.*
+
+### Clock / Synchronisation
+
+AES67 devices are ment to synchronize their local clocks through PTPv2 (IEEE 1588-2008) which foresees
+a *best* (grand-)master clock telling all slaved devices the current time.  
+This local clock will slightly drift with respect to the grandmaster clock and thus the local clock
+is to adapt its effective (network) clock rate to match the grandmaster clock as good as possible.
+
+This local (network) clock then is ment to drive the stream's media clock and implicitly any
+other audo processing components, in particular also ADCs and DACs thus achieving a tight synchronisation
+very much like a classical wordclock (WC).
+
+If multiple clock synchronization sources are given, say a network clock and a wordclock, the wordclock will
+likely be more precise as there should not be any variability due to network conditions - the device would be
+a rather good candidate to act as grandmaster clock and generally the WC should be preferred if the clock source
+is identical (the principle of a strictly hierarchical clock distribution with but one overall clock master
+and transitive master-slave relationships only should be respected, obviously).
+
+Is a clock or synchronization required for any type of device? Pragmatically speaking, no.
+A passive device - such as a recorder-only device - doesn't necessarily have to be synchronised
+to a clock. Assuming all senders are properly synchronised then a recorder may just
+listen to all stream packets and store them after (optimally) aligning them in time.
+
+Optimally (realtime) playout should occur after time alignment (if multiple sources are given).
+Pragmatically speaking, time alignment isn't necessary and would allow for simpler implementations,
+but in this case audio sent at the same time would be played back at (slightly) different times
+which might be unwanted behaviour and - strictly speaking - somewhat beats the purpose of tight
+synchronisation.
+
+What's this with *time alignment*? Well, streams can be configured with different packet
+`ptime`s (realtime duration of stream data in a packet) which implies different sizes of receive
+buffers which implies different playout times. So, allowing different combinations of incoming 
+stream configurations (w.r.t. ptime) makes implementations more complicated, because the lower
+latency streams (smaller `ptime`) will have to adapt to the highest latency stream (`maxptime`,
+so to speak).
 
 ### Discovery & Management
 
