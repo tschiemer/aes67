@@ -83,7 +83,12 @@ What's this with *time alignment*? Well, streams can be configured with differen
 buffers which implies different playout times. So, allowing different combinations of incoming 
 stream configurations (w.r.t. ptime) makes implementations more complicated, because the lower
 latency streams (smaller `ptime`) will have to adapt to the highest latency stream (`maxptime`,
-so to speak).
+so to speak). And technically speaking, receive buffer changes (due to combining of different
+ptimes) can't happen without dropping or inserting samples - which leads to the decision of
+either not aligning received streams w.r.t. time or a priori fixing a common max delay setting.
+
+Non-dedicated devices - such as computers with virtual sound cards - would seem to be an
+interesting case to be considered w.r.t. the clock/synchronisation.
 
 ### Discovery & Management
 
