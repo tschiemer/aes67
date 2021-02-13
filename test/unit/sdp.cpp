@@ -827,11 +827,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     .nptp = 1,
                                     .mediaclock_offset = 12345,
                                     .nencodings = 3,
-                                    .ptime = {
-                                            .cap = AES67_SDP_CAP_SET,
-                                            .msec = 1,
-                                            .msec_frac = 0
-                                    },
+                                    .ptime = AES67_SDP_PTIME_SET | 1000,
                                     .ptime_cap = {
                                             .count = 2,
                                             .cfg = AES67_SDP_CAP_PROPOSED | 1,
@@ -839,20 +835,15 @@ TEST(SDP_TestGroup, sdp_tostr)
                                             .data = {
                                                     {
                                                             .cap = 1,
-                                                            .msec = 0,
-                                                            .msec_frac = 33
+                                                            .ptime = 330
                                                     },
                                                     {
                                                             .cap = 2,
-                                                            .msec = 1,
-                                                            .msec_frac = 0
+                                                            .ptime = 1000
                                                     }
                                             }
                                     },
-                                    .maxptime = {
-                                            .msec = 1,
-                                            .msec_frac = 0
-                                    }
+                                    .maxptime = AES67_SDP_PTIME_SET | 1000
                             },
                             {
                                     .info = AES67_STRING_INIT_BYTES(""),
@@ -862,11 +853,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     .nptp = 0,
                                     .mediaclock_offset = 98765,
                                     .nencodings = 1,
-                                    .ptime = {
-                                            .cap = AES67_SDP_CAP_SET,
-                                            .msec = 4,
-                                            .msec_frac = 0
-                                    },
+                                    .ptime = AES67_SDP_PTIME_SET | 4000,
                                     .ptime_cap = {
                                             .cfg = AES67_SDP_CAP_ACTIVE | 3,
                                             .cfg_a = 12,
@@ -1032,18 +1019,15 @@ TEST(SDP_TestGroup, sdp_fromstr)
 
     CHECK_EQUAL(963214424, stream->mediaclock_offset);
 
-    CHECK_EQUAL(AES67_SDP_CAP_SET, stream->ptime.cap);
-    CHECK_EQUAL(1, stream->ptime.msec);
-    CHECK_EQUAL(33, stream->ptime.msec_frac);
+    CHECK_EQUAL(AES67_SDP_PTIME_SET, (stream->ptime & AES67_SDP_PTIME_SET));
+    CHECK_EQUAL(1330, stream->ptime & AES67_SDP_PTIME_VALUE);
 
 #if 0 < AES67_SDP_MAXPTIMECAPS
     CHECK_EQUAL(2, stream->ptime_cap.count);
     CHECK_EQUAL(2, stream->ptime_cap.data[0].cap);
-    CHECK_EQUAL(1, stream->ptime_cap.data[0].msec);
-    CHECK_EQUAL(33, stream->ptime_cap.data[0].msec_frac);
+    CHECK_EQUAL(1330, stream->ptime_cap.data[0].ptime);
     CHECK_EQUAL(3, stream->ptime_cap.data[1].cap);
-    CHECK_EQUAL(4, stream->ptime_cap.data[1].msec);
-    CHECK_EQUAL(0, stream->ptime_cap.data[1].msec_frac);
+    CHECK_EQUAL(4000, stream->ptime_cap.data[1].ptime);
 
     CHECK_EQUAL(AES67_SDP_CAP_PROPOSED | 5,  stream->ptime_cap.cfg);
     CHECK_EQUAL(2,  stream->ptime_cap.cfg_a);

@@ -43,44 +43,96 @@ extern "C" {
 #define AES67_RTP_SSRC          8
 #define AES67_RTP_CSRC          12
 
-#define AES67_RTP_HEADER1_VERSION       0b11000000
-#define AES67_RTP_HEADER1_PADDING       0b00100000
-#define AES67_RTP_HEADER1_EXTENSION     0b00010000
-#define AES67_RTP_HEADER1_CSRC_COUNT    0b00001111
-#define AES67_RTP_HEADER2_MARKER        0b10000000
-#define AES67_RTP_HEADER2_PAYLOADTYPE   0b01111111
+#define AES67_RTP_STATUS1_VERSION       0b11000000
+#define AES67_RTP_STATUS1_PADDING       0b00100000
+#define AES67_RTP_STATUS1_EXTENSION     0b00010000
+#define AES67_RTP_STATUS1_CSRC_COUNT    0b00001111
+#define AES67_RTP_STATUS2_MARKER        0b10000000
+#define AES67_RTP_STATUS2_PAYLOADTYPE   0b01111111
+
+#define AES67_RTP_STATUS1_VERSION_2     0b10000000
 
 #define AES67_RTP_PAYLOAD(csrc_count) (AES67_RTP_CSRC + 4*((u16_t)(csrc_count)))
 
+/** p(acket)time (realtime duration of packet samples when played back) in usec
+ * u16_t should be fine, quite unlikely to have a ptime of more than 65ms ..
+ */
 typedef u16_t ptime_t;
 
-struct aes67_rtp_packet {
-    u8_t header1;
-    u8_t header2;
+struct aes67_rtp_header {
+    u8_t status1;
+    u8_t status2;
     u16_t seqno;
     u32_t timestamp;
     u32_t ssrc;
+} PACK_STRUCT;
+
+struct aes67_rtp_packet {
+    struct aes67_rtp_header header;
     u8_t data[];
 } PACK_STRUCT;
 
+#define AES67_RTP_TXFIFO(NCHANNELS, SAMPLESIZE, NSAMPLES) \
+struct aes67_rtp_txfifo_ ## NCHANNELS ## _ ## SAMPLESIZE ## _ ## NSAMPLES { \
+    u8_t nchannels; \
+    u8_t samplesize; \
+    u16_t nsamples;  \
+    u8_t * start; \
+    u8_t * end; \
+    u8_t data[NCHANNELS * SAMPLESIZE * NSAMPLES]; \
+}
+
+struct aes67_rtp_txfifo {
+    u8_t nchannels;
+    u8_t samplesize;
+    u16_t nsamples;
+    u8_t * start;
+    u8_t * end;
+    u8_t data[];
+};
+
+struct aes67_rtp_tx {
+    u8_t payloadtype;
+    u16_t seqno;
+    u32_t timestamp;
+    u32_t ssrc;
+    struct aes67_rtp_txfifo fifo;
+};
+
 //inline u32_t aes67_rtp_computer_nsamples(u8_t * packet, u16_t len, )
 //{
-//    u16_t dlen = len - AES67_RTP_PAYLOAD(packet[AES67_RTP_HEADER1] & AES67_RTP_HEADER1_CSRC_COUNT);
+//    u16_t dlen = len - AES67_RTP_PAYLOAD(packet[AES67_RTP_HEADER1] & AES67_RTP_STATUS1_CSRC_COUNT);
 //}
 
 inline void aes67_rtp_header_ntoh(struct aes67_rtp_packet *packet)
 {
-    packet->seqno = aes67_ntohs(packet->seqno);
-    packet->timestamp = aes67_ntohl(packet->timestamp);
-    packet->ssrc = aes67_ntohl(packet->ssrc);
+    packet->header.seqno = aes67_ntohs(packet->header.seqno);
+    packet->header.timestamp = aes67_ntohl(packet->header.timestamp);
+    packet->header.ssrc = aes67_ntohl(packet->header.ssrc);
     // ignore csrc
 }
-inline void aes67_rtp_header_hton(struct aes67_rtp_packet *packet)
+
+inline void aes67_rtp_header_hton(struct aes67_rtp_packet * packet)
 {
     aes67_rtp_header_ntoh(packet);
 }
 
-ptime_t aes67_rtp_compute_ptime(struct aes67_rtp_packet *before, struct aes67_rtp_packet * after, u32_t samplerate);
+ptime_t aes67_rtp_ptime_from_packdiff(struct aes67_rtp_packet *before, struct aes67_rtp_packet * after, u32_t samplerate);
+
+inline ptime_t aes67_rtp_ptime_from_packet(struct aes67_rtp_packet * packet, u16_t len, u32_t samplerate, u8_t samplesize)
+{
+//    len - AES67_RTP_PAYLOAD()
+    return 0;
+}
+
+u16_t aes67_rtp_pack(u8_t * packet, u8_t payloadtype, u16_t seqno, u32_t timestamp, u32_t ssrc, void * samples, u16_t ssize);
+
+//void aes67_rtp_tx()
+
+//inline u16_t aes67_rtp_pack_rtp(struct aes67_rtp_packet * packet, struct aes67_rtp_out * rtp, void * samples, u16_t ssize)
+//{
+//    return aes67_rtp_pack(packet, rtp->payloadtype, rtp->seqno, rtp->timestamp, rtp->timestamp, rtp->ssrc, samples, ssize);
+//}
 
 #ifdef __cplusplus
 }

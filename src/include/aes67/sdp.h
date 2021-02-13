@@ -41,6 +41,7 @@
 #include "aes67/debug.h"
 #include "aes67/net.h"
 #include "aes67/ptp.h"
+#include "aes67/rtp.h"
 #include "aes67/rtp-avp.h"
 #include "aes67/audio.h"
 
@@ -64,6 +65,9 @@ extern "C" {
 
 #define AES67_SDP_PTP_DOMAIN_SET        0b10000000
 #define AES67_SDP_PTP_DOMAIN_VALUE      0b01111111
+
+#define AES67_SDP_PTIME_SET             0b1000000000000000
+#define AES67_SDP_PTIME_VALUE           0b0111111111111111
 
 #define AES67_SDP_CAP_SET               0b11000000
 #define AES67_SDP_CAP_PROPOSED          0b10000000
@@ -133,10 +137,9 @@ struct aes67_sdp_ptp_list {
 };
 
 
-struct aes67_sdp_attr_ptime {
+struct aes67_sdp_attr_ptimecap {
     u32_t cap;
-    u16_t msec;
-    u16_t msec_frac;
+    ptime_t ptime;
 } PACK_STRUCT;
 
 struct aes67_sdp_attr_encoding {
@@ -159,14 +162,16 @@ struct aes67_sdp_stream {
     enum aes67_sdp_attr_mode mode;
     u8_t nptp;                      // count of stream level ptps (in separate list)
     u32_t mediaclock_offset;        //
-    struct aes67_sdp_attr_ptime ptime;
+    ptime_t ptime;
+#if 0 < AES67_SDP_MAXPTIMECAPS
     struct {
         u8_t count;
         u8_t cfg;                   // (AES67_SDP_CAP_PROPOSED | AES67_SDP_CAP_ACTIVE) | AES67_SDP_CAP_VALUE
         u8_t cfg_a;                 // propsed/active attribute index (internal index of stream ptime_cap)
-        struct aes67_sdp_attr_ptime data[AES67_SDP_MAXPTIMECAPS];
+        struct aes67_sdp_attr_ptimecap data[AES67_SDP_MAXPTIMECAPS];
     } ptime_cap;
-    struct aes67_sdp_attr_ptime maxptime;
+    ptime_t maxptime;
+#endif // 0 < AES67_SDP_MAXPTIMECAPS
 #if 0 < AES67_SDP_MAXSTREAMINFO
     AES67_STRING(AES67_SDP_MAXSTREAMINFO) info;
 #endif

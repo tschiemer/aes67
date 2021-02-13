@@ -30,12 +30,27 @@
 #define IS_CRNL(x) ((x) == CR || (x) == NL)
 
 
-#define U8TOSTR(u8, str, len) \
-    if (u8 >= 100){ str[len++] = '0' + (u8 / 100); } \
-    if (u8 >= 10){ str[len++] = '0' + ((u8 % 100) / 10); } \
-    str[len++] = '0' + (u8 % 10);
+#define SUB1kTOSTR(sub1000, str, len) \
+    if (sub1000 >= 100){ str[len++] = '0' + (sub1000 / 100); } \
+    if (sub1000 >= 10){ str[len++] = '0' + ((sub1000 % 100) / 10); } \
+    str[len++] = '0' + (sub1000 % 10);
 
-// ptp domain 0 - 127
+#define DEC1kTOSTR(dec1000, str, len) \
+    if (dec1000 < 100) { str[len++] = '0'; } \
+    else { str[len++] = '0' + (dec1000 / 100); } \
+    if (dec1000 < 10) {str[len++] = '0'; }  \
+    else str[len++] = '0' + ((dec1000 % 100) / 10); \
+    str[len++] = '0' + (dec1000 % 10);\
+    if (str[len-1] == '0') { len--; }; \
+    if (str[len-1] == '0') { len--; }; \
+
+#define PTIMETOSTR(ptime, str, len) \
+    u16_t ptime_tmp = (ptime) / 1000; \
+    SUB1kTOSTR(ptime_tmp, str, len); \
+    if ( (ptime_tmp = (ptime) % 1000) > 0) { \
+        str[len++] = '.';          \
+        DEC1kTOSTR(ptime_tmp, str, len);   \
+    }
 
 
 void aes67_sdp_origin_init(struct aes67_sdp_originator * origin)
@@ -368,7 +383,7 @@ u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * 
         if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2008 || ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2019){
             // domain values 0 - 127
             str[len++] = ':';
-            U8TOSTR(ptps->data[i].ptp.domain, str, len);
+            SUB1kTOSTR(ptps->data[i].ptp.domain, str, len);
         }
 
         str[len++] = CR;
@@ -483,7 +498,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         str[len++] = '2';
         str[len++] = ' ';
         u8_t d = (AES67_SDP_PTP_DOMAIN_VALUE & sdp->ptp_domain);
-        U8TOSTR(d, str, len);
+        SUB1kTOSTR(d, str, len);
         str[len++] = CR;
         str[len++] = NL;
     }
@@ -523,12 +538,12 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
         AES67_ASSERT("attrenc != NULL", attrenc != NULL);
 
-        U8TOSTR(attrenc->payloadtype, str, len);
+        SUB1kTOSTR(attrenc->payloadtype, str, len);
 
         for(u8_t e = 1; e < sdp->streams.data[s].nencodings; e++){
             str[len++] = ' ';
             attrenc = aes67_sdp_get_stream_encoding(sdp, s, e);
-            U8TOSTR(attrenc->payloadtype, str, len);
+            SUB1kTOSTR(attrenc->payloadtype, str, len);
         }
 
         str[len++] = CR;
@@ -620,7 +635,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
             str[len++] = 'p';
             str[len++] = ':';
 
-            U8TOSTR(attrenc->payloadtype, str, len);
+            SUB1kTOSTR(attrenc->payloadtype, str, len);
 
             str[len++] = ' ';
 
@@ -652,7 +667,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         }
 
         // if ptime is set, write it out
-        if (sdp->streams.data[s].ptime.cap == AES67_SDP_CAP_SET){
+        if ((sdp->streams.data[s].ptime & AES67_SDP_PTIME_SET) == AES67_SDP_PTIME_SET){
 
             str[len++] = 'a';
             str[len++] = '=';
@@ -663,12 +678,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
             str[len++] = 'e';
             str[len++] = ':';
 
-            len += aes67_itoa(sdp->streams.data[s].ptime.msec, &str[len], 10);
-
-            if (sdp->streams.data[s].ptime.msec_frac > 0){
-                str[len++] = '.';
-                len += aes67_itoa(sdp->streams.data[s].ptime.msec_frac, &str[len], 10);
-            }
+            PTIMETOSTR((sdp->streams.data[s].ptime & AES67_SDP_PTIME_VALUE), str, len);
 
             str[len++] = CR;
             str[len++] = NL;
@@ -689,7 +699,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
                 str[len++] = 'p';
                 str[len++] = ':';
 
-                U8TOSTR(sdp->streams.data[s].ptime_cap.data[p].cap, str, len);
+                SUB1kTOSTR(sdp->streams.data[s].ptime_cap.data[p].cap, str, len);
 
                 str[len++] = ' ';
                 str[len++] = 'p';
@@ -699,12 +709,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
                 str[len++] = 'e';
                 str[len++] = ':';
 
-                len += aes67_itoa(sdp->streams.data[s].ptime_cap.data[p].msec, &str[len], 10);
-
-                if (sdp->streams.data[s].ptime_cap.data[p].msec_frac > 0){
-                    str[len++] = '.';
-                    len += aes67_itoa(sdp->streams.data[s].ptime_cap.data[p].msec_frac, &str[len], 10);
-                }
+                PTIMETOSTR(sdp->streams.data[s].ptime_cap.data[p].ptime & AES67_SDP_PTIME_VALUE, str, len);
 
                 str[len++] = CR;
                 str[len++] = NL;
@@ -724,12 +729,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
             str[len++] = 'e';
             str[len++] = ':';
 
-            len += aes67_itoa(sdp->streams.data[s].maxptime.msec, &str[len], 10);
-
-            if (sdp->streams.data[s].maxptime.msec_frac > 0){
-                str[len++] = '.';
-                len += aes67_itoa(sdp->streams.data[s].maxptime.msec_frac, &str[len], 10);
-            }
+            PTIMETOSTR(sdp->streams.data[s].maxptime & AES67_SDP_PTIME_VALUE, str, len);
 
             str[len++] = CR;
             str[len++] = NL;
@@ -1217,7 +1217,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                 stream->nencodings = 0;
                 stream->nptp = 0;
                 stream->mode = aes67_sdp_attr_mode_undefined;
-                stream->ptime.cap = 0;
+                stream->ptime = 0;
                 stream->ptime_cap.count = 0;
                 stream->ptime_cap.cfg = 0;
                 stream->mediaclock_offset = 0;
@@ -1403,24 +1403,28 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 
                         u16_t readlen = 0;
 
-                        stream->ptime.cap = AES67_SDP_CAP_SET;
-
-                        stream->ptime.msec = aes67_atoi(&line[8], llen - 8, 10, &readlen);
+                        stream->ptime = 1000 * aes67_atoi(&line[8], llen - 8, 10, &readlen);
 
                         delim = line + 8 + readlen;
 
                         // check if (optional) millisec fractional part is set
                         if (delim == &line[llen]){
-                            stream->ptime.msec_frac = 0;
+                            // ok
                         } else if ( &delim[2] > &line[llen]  || delim[0] != '.'){
                             return AES67_SDP_ERROR;
                         } else {
-                            stream->ptime.msec_frac = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+                            u16_t pt = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+                            if (pt < 10) { pt *= 100; }
+                            else if (pt < 100) { pt *= 10;}
+
+                            stream->ptime += pt;
 
                             if (readlen == 0){
                                 return AES67_SDP_ERROR;
                             }
                         }
+
+                        stream->ptime |= AES67_SDP_PTIME_SET;
 
                     }
                     else if (delim - line == sizeof("a=maxptime")-1 &&
@@ -1439,24 +1443,28 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 
                         u16_t readlen = 0;
 
-                        stream->maxptime.cap = AES67_SDP_CAP_SET;
-
-                        stream->maxptime.msec = aes67_atoi(&line[11], llen - 11, 10, &readlen);
+                        stream->maxptime = 1000*aes67_atoi(&line[11], llen - 11, 10, &readlen);
 
                         delim = line + 11 + readlen;
 
                         // check if (optional) millisec fractional part is set
                         if (delim == &line[llen]){
-                            stream->maxptime.msec_frac = 0;
+                            // ok
                         } else if ( &delim[2] > &line[llen]  || delim[0] != '.'){
                             return AES67_SDP_ERROR;
                         } else {
-                            stream->maxptime.msec_frac = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+                            u16_t pt = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+                            if (pt < 10) { pt *= 100; }
+                            else if (pt < 100) { pt *= 10;}
+
+                            stream->maxptime += pt;
 
                             if (readlen == 0){
                                 return AES67_SDP_ERROR;
                             }
                         }
+
+                        stream->maxptime |= AES67_SDP_PTIME_SET;
                     }
 #if 0 < AES67_SDP_MAXPTIMECAPS
                     else if (delim - line == sizeof("a=pcap") - 1 &&
@@ -1505,20 +1513,24 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                             return AES67_SDP_NOMEMORY;
                         }
 
-                        struct aes67_sdp_attr_ptime * ptime = &stream->ptime_cap.data[stream->ptime_cap.count++];
+                        struct aes67_sdp_attr_ptimecap * ptimecap = &stream->ptime_cap.data[stream->ptime_cap.count++];
 
-                        ptime->cap = capi;
-                        ptime->msec = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+                        ptimecap->cap = capi;
+                        ptimecap->ptime = 1000 * aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
 
                         delim += 1+readlen;
 
                         // check if (optional) millisec fractional part is set
                         if (delim == &line[llen]){
-                            ptime->msec_frac = 0;
+                            // ok
                         } else if ( &delim[2] > &line[llen]  || delim[0] != '.'){
                             return AES67_SDP_ERROR;
                         } else {
-                            ptime->msec_frac = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+                            u16_t pt = aes67_atoi(&delim[1], &line[llen] - &delim[1], 10, &readlen);
+                            if (pt < 10) { pt *= 100; }
+                            else if (pt < 100) { pt *= 10;}
+
+                            ptimecap->ptime += pt;
 
                             if (readlen == 0){
                                 return AES67_SDP_ERROR;
