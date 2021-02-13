@@ -53,8 +53,8 @@ u32_t aes67_htonl(u32_t n)
 #ifndef aes67_memcpy
 void aes67_memcpy( void * dst, const void * src, size_t count )
 {
-    for(size_t i = 0; i < count; i++){
-        ((u8_t*)dst)[i] = ((u8_t*)src)[i];
+    while(count--){
+        *((u8_t*)dst++) = *((u8_t*)src++);
     }
 }
 #endif //aes67_memcpy
@@ -62,43 +62,46 @@ void aes67_memcpy( void * dst, const void * src, size_t count )
 #ifndef aes67_memset
 void* aes67_memset( void * dst, int ch, size_t count )
 {
-    for(size_t i = 0; i < count; i++){
-        *(u8_t*)&dst[i] = (u8_t)ch;
+    void * DST = dst;
+    while(count--){
+        *((u8_t*)dst++) = (u8_t)ch;
     }
-    return dst;
+    return DST;
 }
 #endif //aes67_memset
 
 #ifndef aes67_memcmp
 int aes67_memcmp( const void * lhs, const void * rhs, size_t count )
 {
-    for(size_t i = 0; i < count; i++){
-        if (((u8_t*)lhs)[i] < ((u8_t*)rhs)[i]) return -1;
-        if (((u8_t*)lhs)[i] > ((u8_t*)rhs)[i]) return 1;
+    while(count--){
+        if (*((u8_t*)lhs) < *((u8_t*)rhs)) return -1;
+        if (*((u8_t*)lhs++) > *((u8_t*)rhs++)) return 1;
     }
     return 0;
 }
 #endif //aes67_memcmp
 
 #ifndef aes67_memmove
-void * aes67_memmove(void* dest, const void* src, size_t count)
+void * aes67_memmove(void* dst, const void* src, size_t count)
 {
-    if (dest == src){
-        return dest;
+    if (dst == src){
+        return dst;
     }
+    void * DST = dst;
     // either start copying from start or from end depending on relative position in memory
     // (to allow for safe overlapping of memory regions)
-    if (dest < src) {
-        for (size_t i = 0; i < count; i++) {
-            ((u8_t *) dest)[i] = ((u8_t *) src)[i];
+    if (dst < src) {
+        while(count--) {
+            *((u8_t *) dst++) = *((u8_t *) src++);
         }
     } else {
-        for (size_t i = count; 0 < i;) {
-            i--;
-            ((u8_t *) dest)[i] = ((u8_t *) src)[i];
+        dst += count - 1;
+        src += count - 1;
+        while(count--) {
+            *((u8_t *) dst--) = *((u8_t *) src--);
         }
     }
-    return dest;
+    return DST;
 }
 #endif
 
