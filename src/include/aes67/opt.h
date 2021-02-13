@@ -129,5 +129,10 @@
 #define AES67_SDP_TOOL "caes67"
 #endif
 
+/****** Session Announcement Protocol (SAP) *******/
+
+#ifndef AES67_RTP_MAXCHANNELS
+#define AES67_RTP_MAXCHANNELS 8
+#endif
 
 #endif //AES67_OPT_H

@@ -55,7 +55,7 @@ aes67_sap_service_event(enum aes67_sap_event event, u16_t hash, enum aes67_net_i
         printf("%d ", hash);
 
         u8_t ipstr[64];
-        uint16_t l = aes67_net_addr2a(ipstr, ipver, ip, 0);
+        uint16_t l = aes67_net_ip2str(ipstr, ipver, ip, 0);
         ipstr[l] = '\0';
 
         printf("%s", ipstr);

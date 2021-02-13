@@ -29,12 +29,19 @@
 #ifndef AES67_AUDIO_H
 #define AES67_AUDIO_H
 
+#define AES67_AUDIO_ENC_INDEX       0b11110000
+#define AES67_AUDIO_ENC_INTERLEAVED 0b00001000
+#define AES67_AUDIO_ENC_SAMPLESIZE  0b00000111
+
+/** audio encodings
+ * Interleaved/samplesize of encoding is explicitly given in the encoding type
+ */
 enum aes67_audio_encoding {
     aes67_audio_encoding_undefined  = 0,
-    aes67_audio_encoding_L8         = 1,
-    aes67_audio_encoding_L16        = 2,
-    aes67_audio_encoding_L24        = 3,
-    aes67_audio_encoding_L32        = 4,
+    aes67_audio_encoding_L8         = 0x11 | AES67_AUDIO_ENC_INTERLEAVED,
+    aes67_audio_encoding_L16        = 0x22 | AES67_AUDIO_ENC_INTERLEAVED,
+    aes67_audio_encoding_L24        = 0x33 | AES67_AUDIO_ENC_INTERLEAVED,
+    aes67_audio_encoding_L32        = 0x44 | AES67_AUDIO_ENC_INTERLEAVED,
 } PACK_STRUCT;
 
 #define AES67_AUDIO_ENCODING_ISVALID(x) ( \
@@ -50,5 +57,46 @@ enum aes67_audio_encoding {
 #define AES67_AUDIO_L16_SAMPLE(data, nchannels, channel, sample)                ((s16_t*)AES67_AUDIO_LX_SAMPLE(data, nchannels, 2, channel, sample))
 #define AES67_AUDIO_L24_SAMPLE(data, nchannels, channel, sample)                AES67_AUDIO_LX_SAMPLE(data, nchannels, 3, channel, sample)
 #define AES67_AUDIO_L32_SAMPLE(data, nchannels, channel, sample)                (s32_t*)AES67_AUDIO_LX_SAMPLE(data, nchannels, 3, channel, sample)
+
+//void aes67_audio_cpy(void * src, void * dst, size_t nsamples, size_t nchannels, size_t samplesize)
+//{
+//    aes67_memcpy(dst, src, nsamples * nchannels * samplesize);
+//}
+//
+//
+//inline void aes67_audio_cpy_l8_l8(void * src, void * dst, size_t ns_x_nch)
+//{
+//    while(ns_x_nch--){
+//        *(s8_t*)dst = *(s8_t)src++;
+//    }
+//}
+//
+//inline void aes67_audio_cpy_l16_l16(void * src, void * dst, size_t ns_x_nch)
+//{
+//    while(ns_x_nch--){
+//        *(s16_t*)dst = *(s16_t)src;
+//        dst += 2;
+//        src += 2;
+//    }
+//}
+//
+//inline void aes67_audio_cpy_l24_l24(void * src, void * dst, size_t ns_x_nch)
+//{
+//    while(ns_x_nch--){
+//        *(s8_t*)dst++ = *(s8_t)src++;
+//        *(s16_t*)dst = *(s16_t)src;
+//        dst += 2;
+//        src += 2;
+//    }
+//}
+//
+//inline void aes67_audio_cpy_l32(void * src, void * dst, size_t ns_x_nch)
+//{
+//    while(ns_x_nch--){
+//        *(s32_t*)dst = *(s32_t)src;
+//        dst += 4;
+//        src += 4;
+//    }
+//}
 
 #endif //AES67_AUDIO_H

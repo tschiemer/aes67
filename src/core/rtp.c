@@ -18,27 +18,106 @@
 
 #include "aes67/rtp.h"
 
-ptime_t aes67_rtp_compute_ptime(struct aes67_rtp_packet *before, struct aes67_rtp_packet * after, u32_t samplerate)
+#include "aes67/debug.h"
+
+static inline void rtp_memcpy(u8_t * dst, u8_t * src, size_t size){
+    while(size--){
+        *dst++ = *src++;
+    }
+}
+
+//inline void rtp_txfifo_update(struct aes67_rtp_txfifo * fifo)
+//{
+//    size_t min = fifo->in.min;
+//    size_t max = fifo->in.max;
+//
+//
+//}
+
+void aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer * buf, void * data, size_t channel, size_t samples)
+{
+    AES67_ASSERT("buf != NULL", buf != NULL);
+    AES67_ASSERT("data != NULL", data != NULL);
+
+    size_t nch = buf->nchannels;
+    size_t ss = buf->samplesize;
+    size_t inc = ss * nch;
+
+    // compute offset of where to insert first sample
+    u8_t * dst = &buf->data[ss*(nch * buf->in.ch[channel] + channel)];
+
+    // remember how many samples could be inserted until end of (circular) buffer
+    size_t last = (buf->in.ch[channel] + samples);
+    size_t c;
+
+    if (last >= buf->nsamples){
+
+        last -= buf->nsamples;
+
+        c = samples - last;
+
+        while(c--){
+            rtp_memcpy(dst, data, ss);
+            dst += inc;
+            data += ss;
+        }
+
+        c = last;
+        dst = &buf->data[ss*channel];
+
+    } else {
+        c = samples;
+    }
+
+    // if was necessary to wrap around circular buffer copy remaining data
+
+    while(c--){
+        rtp_memcpy(dst, data, ss);
+        dst += inc;
+        data += ss;
+    }
+
+    buf->in.ch[channel] = last;
+}
+
+ptime_t aes67_rtp_ptime_from_packdiff(struct aes67_rtp_packet *before, struct aes67_rtp_packet * after, u32_t samplerate)
 {
     // require strictly increasing sequence number to safely establish a packet was really before
     // will wrap around every ~60 sec with a ptime of 250ms
     // note: computing this makes only sense, when the ptime is not yet known
-    if (before->seqno >= after->seqno){
+    if (before->header.seqno >= after->header.seqno){
         return 0;
     }
 
-    u32_t seqdiff = after->seqno - before->seqno;
+    u32_t seqdiff = after->header.seqno - before->header.seqno;
 
     u32_t tdiff;
 
     // get timestamp/clock difference
-    if (before->timestamp < after->timestamp){
-        tdiff = after->timestamp - before->timestamp;
+    if (before->header.timestamp < after->header.timestamp){
+        tdiff = after->header.timestamp - before->header.timestamp;
     } else {
-        tdiff = (UINT32_MAX - before->timestamp) + after->timestamp + 1;
+        tdiff = (UINT32_MAX - before->header.timestamp) + after->header.timestamp + 1;
     }
 
     // the number of samples per packet is fixed and has a fixed relationship to the media clock
     // ie each sample is exactly one clock increment
     return (1000000*tdiff) / seqdiff / samplerate;
+}
+
+u16_t aes67_rtp_pack(u8_t * packet, u8_t payloadtype, u16_t seqno, u32_t timestamp, u32_t ssrc, void * samples, u16_t ssize)
+{
+    AES67_ASSERT("packet != NULL", packet != NULL);
+    AES67_ASSERT("samples != NULL", samples != NULL);
+    AES67_ASSERT("ssize > 0" , ssize > 0);
+
+    ((struct aes67_rtp_packet *)packet)->header.status1 = AES67_RTP_STATUS1_VERSION_2;
+    ((struct aes67_rtp_packet *)packet)->header.status2 = AES67_RTP_STATUS2_PAYLOADTYPE & payloadtype;
+    ((struct aes67_rtp_packet *)packet)->header.seqno = aes67_htons(seqno);
+    ((struct aes67_rtp_packet *)packet)->header.timestamp = aes67_htonl(timestamp);
+    ((struct aes67_rtp_packet *)packet)->header.ssrc = aes67_htonl(ssrc);
+
+    aes67_memcpy(((struct aes67_rtp_packet *)packet)->data, samples, ssize);
+
+    return AES67_RTP_CSRC + ssize;
 }

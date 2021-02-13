@@ -123,6 +123,16 @@ SIP may be considered (in the future) for management of unicast streams but it i
 
 RTSP may be considered (in the future) for management of unicast streams aswell as service discovery of Ravenna streams.
 
+### Audio
+
+AES67 Audio is to be streamed in L16 or L24 encoding; that is, each sample is a two-, three-byte respectively signed integer
+in two's complement representation in network byte order (bigendian),
+ samples are interleaved.
+The common I2S & TDM inter-chip audio protocols, AES3, AES10 (MADI), AES50  use identical formats (roughly speaking).
+Thus, other formats are generally not considered herein.
+
+
+
 ## Corny details
 
 ### SAP

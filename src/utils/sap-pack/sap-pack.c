@@ -103,7 +103,7 @@ static void load_from_args(int argc, char * argv[])
 
 static void load_from_fd(FILE * fd)
 {
-
+    u8_t method[64]
 }
 
 int main(int argc, char * argv[])

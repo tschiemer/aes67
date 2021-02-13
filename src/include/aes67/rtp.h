@@ -72,32 +72,48 @@ struct aes67_rtp_packet {
     u8_t data[];
 } PACK_STRUCT;
 
-#define AES67_RTP_TXFIFO(NCHANNELS, SAMPLESIZE, NSAMPLES) \
-struct aes67_rtp_txfifo_ ## NCHANNELS ## _ ## SAMPLESIZE ## _ ## NSAMPLES { \
-    u8_t nchannels; \
-    u8_t samplesize; \
-    u16_t nsamples;  \
-    u8_t * start; \
-    u8_t * end; \
-    u8_t data[NCHANNELS * SAMPLESIZE * NSAMPLES]; \
-}
+//#define AES67_RTP_TXFIFO(NCHANNELS, SAMPLESIZE, NSAMPLES) \
+//struct aes67_rtp_txfifo_ ## NCHANNELS ## _ ## SAMPLESIZE ## _ ## NSAMPLES { \
+//    u8_t nchannels; \
+//    u8_t samplesize; \
+//    u16_t nsamples;  \
+//    u8_t * start; \
+//    u8_t * end; \
+//    u8_t data[NCHANNELS * SAMPLESIZE * NSAMPLES]; \
+//}
 
-struct aes67_rtp_txfifo {
-    u8_t nchannels;
-    u8_t samplesize;
-    u16_t nsamples;
-    u8_t * start;
-    u8_t * end;
+struct aes67_rtp_buffer {
+    size_t nchannels;
+    size_t samplesize;
+    size_t nsamples;
+    struct {
+        u32_t min;
+        u32_t max;
+        u32_t ch[AES67_RTP_MAXCHANNELS];
+    } in;
+    struct {
+        u32_t min;
+        u32_t max;
+        u32_t ch[AES67_RTP_MAXCHANNELS];
+    } out;
     u8_t data[];
 };
+
+#define AES67_RTP_BUFFER_SIZE(nchannels, samplesize, nsamples) (sizeof(struct aes67_rtp_buffer) + nchannels*samplesize*nsamples)
 
 struct aes67_rtp_tx {
     u8_t payloadtype;
     u16_t seqno;
     u32_t timestamp;
     u32_t ssrc;
-    struct aes67_rtp_txfifo fifo;
+    struct aes67_rtp_buffer buf;
 };
+
+
+
+
+void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer * buf, void * data, size_t channel, size_t samples);
+void aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer * buf, void * data, size_t channel, size_t samples);
 
 //inline u32_t aes67_rtp_computer_nsamples(u8_t * packet, u16_t len, )
 //{
