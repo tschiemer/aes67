@@ -69,7 +69,26 @@ void aes67_sdp_init(struct aes67_sdp * sdp)
 
     aes67_sdp_origin_init(&sdp->originator);
 
-//    aes67_memset()
+#if 0 < AES67_SDP_MAXSESSIONNAME
+    sdp->name.length = 0;
+#endif
+
+#if 0 < AES67_SDP_MAXSESSIONINFO
+    sdp->info.length = 0;
+#endif
+    sdp->mode = aes67_sdp_attr_mode_undefined;
+
+    sdp->connections.count = 0;
+
+    sdp->streams.count = 0;
+
+    sdp->encodings.count = 0;
+
+    sdp->ptp_domain = 0;
+    sdp->nptp = 0;
+    sdp->ptps.count = 0;
+
+
 }
 
 struct aes67_sdp_connection * aes67_sdp_get_connection(struct aes67_sdp * sdp, aes67_sdp_flags flags)
@@ -393,6 +412,73 @@ u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * 
     return len;
 }
 
+u32_t aes67_sdp_attrmode_tostr( u8_t * str, u32_t maxlen, enum aes67_sdp_attr_mode mode)
+{
+    if (mode == aes67_sdp_attr_mode_undefined){
+        return 0;
+    }
+
+    u32_t len = 0;
+
+    //a=(inactive|recvonly|sendonly|sendrecv)
+
+    AES67_ASSERT("AES67_SDP_ATTR_MODE_ISVALID(sdp->streams.data[s].mode)", AES67_SDP_ATTR_MODE_ISVALID(mode));
+
+    str[len++] = 'a';
+    str[len++] = '=';
+
+    switch(mode){
+        case aes67_sdp_attr_mode_inactive:
+            str[len++] = 'i';
+            str[len++] = 'n';
+            str[len++] = 'a';
+            str[len++] = 'c';
+            str[len++] = 't';
+            str[len++] = 'i';
+            str[len++] = 'v';
+            str[len++] = 'e';
+            break;
+        case aes67_sdp_attr_mode_recvonly:
+            str[len++] = 'r';
+            str[len++] = 'e';
+            str[len++] = 'c';
+            str[len++] = 'v';
+            str[len++] = 'o';
+            str[len++] = 'n';
+            str[len++] = 'l';
+            str[len++] = 'y';
+            break;
+        case aes67_sdp_attr_mode_sendonly:
+            str[len++] = 's';
+            str[len++] = 'e';
+            str[len++] = 'n';
+            str[len++] = 'd';
+            str[len++] = 'o';
+            str[len++] = 'n';
+            str[len++] = 'l';
+            str[len++] = 'y';
+            break;
+        case aes67_sdp_attr_mode_sendrecv:
+            str[len++] = 's';
+            str[len++] = 'e';
+            str[len++] = 'n';
+            str[len++] = 'd';
+            str[len++] = 'r';
+            str[len++] = 'e';
+            str[len++] = 'c';
+            str[len++] = 'v';
+            break;
+        default:
+            AES67_ASSERT("invalid mode", false);
+            break;
+    }
+
+    str[len++] = CR;
+    str[len++] = NL;
+
+    return len;
+}
+
 u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 {
     AES67_ASSERT("str != NULL", str != NULL);
@@ -503,7 +589,11 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         str[len++] = NL;
     }
 
+    // add session level reference clocks ts-refclk
     len += aes67_sdp_ptp_tostr(&str[len], maxlen - len, &sdp->ptps, AES67_SDP_FLAG_DEFLVL_SESSION);
+
+    // add session level mode
+    len += aes67_sdp_attrmode_tostr(&str[len], maxlen - len, sdp->mode);
 
     for(u8_t s = 0; s < sdp->streams.count; s++){
 
@@ -572,54 +662,11 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
 #endif //0 < AES67_SDP_MAXSTREAMINFO
 
-
         //// Media/stream attributes
 
-        //a=(inactive|recvonly|sendonly)
+        // add media level mode
+        len += aes67_sdp_attrmode_tostr(&str[len], maxlen - len, stream->mode);
 
-        AES67_ASSERT("AES67_SDP_ATTR_MODE_ISVALID(sdp->streams.data[s].mode)", AES67_SDP_ATTR_MODE_ISVALID(stream->mode));
-
-        str[len++] = 'a';
-        str[len++] = '=';
-
-        switch(stream->mode){
-            case aes67_sdp_attr_mode_inactive:
-                str[len++] = 'i';
-                str[len++] = 'n';
-                str[len++] = 'a';
-                str[len++] = 'c';
-                str[len++] = 't';
-                str[len++] = 'i';
-                str[len++] = 'v';
-                str[len++] = 'e';
-                break;
-            case aes67_sdp_attr_mode_recvonly:
-                str[len++] = 'r';
-                str[len++] = 'e';
-                str[len++] = 'c';
-                str[len++] = 'v';
-                str[len++] = 'o';
-                str[len++] = 'n';
-                str[len++] = 'l';
-                str[len++] = 'y';
-                break;
-            case aes67_sdp_attr_mode_sendonly:
-                str[len++] = 's';
-                str[len++] = 'e';
-                str[len++] = 'n';
-                str[len++] = 'd';
-                str[len++] = 'o';
-                str[len++] = 'n';
-                str[len++] = 'l';
-                str[len++] = 'y';
-                break;
-            default:
-                AES67_ASSERT("invalid mode", false);
-                break;
-        }
-
-        str[len++] = CR;
-        str[len++] = NL;
 
         // each possible encoding for a stream
         // a=rtpmap:<fmtX> (L16|L24)/<sample-rate>[/<nchannels>]
@@ -925,6 +972,9 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
     if (IS_NL(str[pos])) {
         pos++;
     }
+
+    // reset
+    aes67_sdp_init(sdp);
 
     aes67_sdp_flags context = AES67_SDP_FLAG_DEFLVL_SESSION;
     struct aes67_sdp_stream * stream = NULL;
@@ -1246,51 +1296,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 
                 if ((context & AES67_SDP_FLAG_DEFLVL_STREAM) == AES67_SDP_FLAG_DEFLVL_STREAM){
 
-                    if (llen == sizeof("a=recvonly") - 1 &&
-                        line[2] == 'r' &&
-                        line[3] == 'e' &&
-                        line[4] == 'c' &&
-                        line[5] == 'v' &&
-                        line[6] == 'o' &&
-                        line[7] == 'n' &&
-                        line[8] == 'l' &&
-                        line[9] == 'y'){
-                        stream->mode = aes67_sdp_attr_mode_recvonly;
-                    }
-                    else if (llen == sizeof("a=sendrecv") - 1 &&
-                        line[2] == 's' &&
-                        line[3] == 'e' &&
-                        line[4] == 'n' &&
-                        line[5] == 'd' &&
-                        line[6] == 'r' &&
-                        line[7] == 'e' &&
-                        line[8] == 'c' &&
-                        line[9] == 'v'){
-                        stream->mode = aes67_sdp_attr_mode_sendrecv;
-                    }
-                    else if (llen == sizeof("a=sendonly") - 1 &&
-                        line[2] == 's' &&
-                        line[3] == 'e' &&
-                        line[4] == 'n' &&
-                        line[5] == 'd' &&
-                        line[6] == 'o' &&
-                        line[7] == 'n' &&
-                        line[8] == 'l' &&
-                        line[9] == 'y'){
-                        stream->mode = aes67_sdp_attr_mode_sendonly;
-                    }
-                    else if (llen == sizeof("a=inactive") - 1 &&
-                        line[2] == 'i' &&
-                        line[3] == 'n' &&
-                        line[4] == 'a' &&
-                        line[5] == 'c' &&
-                        line[6] == 't' &&
-                        line[7] == 'i' &&
-                        line[8] == 'v' &&
-                        line[9] == 'e'){
-                        stream->mode = aes67_sdp_attr_mode_inactive;
-                    }
-                    else if (delim - line == sizeof("a=rtpmap")-1 &&
+                    if (delim - line == sizeof("a=rtpmap")-1 &&
                         line[2] == 'r' &&
                         line[3] == 't' &&
                         line[4] == 'p' &&
@@ -1660,7 +1666,68 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                 // if not processed so far it can be a session OR media/stream level attribute
                 if (processed == false){
 
-                    if (delim - line == sizeof("a=ts-refclk")-1 && line[2] == 't' && line[3] == 's' && line[4] == '-' &&  line[5] == 'r' && line[6] == 'e' && line[7] == 'f' && line[8] == 'c' && line[9] == 'l' && line[10] == 'k'){
+
+                    if (llen == sizeof("a=recvonly") - 1 &&
+                        line[2] == 'r' &&
+                        line[3] == 'e' &&
+                        line[4] == 'c' &&
+                        line[5] == 'v' &&
+                        line[6] == 'o' &&
+                        line[7] == 'n' &&
+                        line[8] == 'l' &&
+                        line[9] == 'y'){
+                        if (context == AES67_SDP_FLAG_DEFLVL_SESSION){
+                            sdp->mode = aes67_sdp_attr_mode_recvonly;
+                        } else {
+                            stream->mode = aes67_sdp_attr_mode_recvonly;
+                        }
+                    }
+                    else if (llen == sizeof("a=sendrecv") - 1 &&
+                             line[2] == 's' &&
+                             line[3] == 'e' &&
+                             line[4] == 'n' &&
+                             line[5] == 'd' &&
+                             line[6] == 'r' &&
+                             line[7] == 'e' &&
+                             line[8] == 'c' &&
+                             line[9] == 'v'){
+                        if (context == AES67_SDP_FLAG_DEFLVL_SESSION){
+                            sdp->mode = aes67_sdp_attr_mode_sendrecv;
+                        } else {
+                            stream->mode = aes67_sdp_attr_mode_sendrecv;
+                        }
+                    }
+                    else if (llen == sizeof("a=sendonly") - 1 &&
+                             line[2] == 's' &&
+                             line[3] == 'e' &&
+                             line[4] == 'n' &&
+                             line[5] == 'd' &&
+                             line[6] == 'o' &&
+                             line[7] == 'n' &&
+                             line[8] == 'l' &&
+                             line[9] == 'y'){
+                        if (context == AES67_SDP_FLAG_DEFLVL_SESSION){
+                            sdp->mode = aes67_sdp_attr_mode_sendonly;
+                        } else {
+                            stream->mode = aes67_sdp_attr_mode_sendonly;
+                        }
+                    }
+                    else if (llen == sizeof("a=inactive") - 1 &&
+                             line[2] == 'i' &&
+                             line[3] == 'n' &&
+                             line[4] == 'a' &&
+                             line[5] == 'c' &&
+                             line[6] == 't' &&
+                             line[7] == 'i' &&
+                             line[8] == 'v' &&
+                             line[9] == 'e'){
+                        if (context == AES67_SDP_FLAG_DEFLVL_SESSION){
+                            sdp->mode = aes67_sdp_attr_mode_inactive;
+                        } else {
+                            stream->mode = aes67_sdp_attr_mode_inactive;
+                        }
+                    }
+                    else if (delim - line == sizeof("a=ts-refclk")-1 && line[2] == 't' && line[3] == 's' && line[4] == '-' &&  line[5] == 'r' && line[6] == 'e' && line[7] == 'f' && line[8] == 'c' && line[9] == 'l' && line[10] == 'k'){
 
                         // basic sanity check
                         if (llen < sizeof("a=ts-refclk:ptp=IEEE1588-2002:01-02-03-04-05-06-07-08")-1 ||

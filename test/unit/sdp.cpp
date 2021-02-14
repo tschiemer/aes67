@@ -956,6 +956,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "c=IN IP4 ipaddr2/44/36\r\n"
                    "t=0 0\r\n"
                    "a=ptp-domain:PTPv2 13\r\n"
+                   "a=inactive\r\n"
                    "m=audio 5000 RTP/AVP 96 97\r\n"
                    "a=recvonly\r\n"
                    "a=rtpmap:96 L16/48000/2\r\n"
@@ -991,6 +992,9 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(aes67_net_ipver_4, sdp.connections.data[0].ipver);
     CHECK_EQUAL(36, sdp.connections.data[0].naddr);
     CHECK_EQUAL(44, sdp.connections.data[0].ttl);
+
+    CHECK_EQUAL(aes67_sdp_attr_mode_inactive, aes67_sdp_get_mode(&sdp, AES67_SDP_FLAG_DEFLVL_SESSION));
+    CHECK_EQUAL(aes67_sdp_attr_mode_recvonly, aes67_sdp_get_mode(&sdp, AES67_SDP_FLAG_DEFLVL_STREAM | 0));
 
     //media/stream
     CHECK_EQUAL(1, sdp.streams.count);

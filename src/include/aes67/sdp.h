@@ -333,6 +333,21 @@ inline u8_t aes67_sdp_get_ptp_count(struct aes67_sdp * sdp, aes67_sdp_flags flag
  */
 struct aes67_sdp_ptp * aes67_sdp_get_ptp(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t pi);
 
+
+inline enum aes67_sdp_attr_mode aes67_sdp_get_mode(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+{
+    // if specifically requested session level mode return it
+    if ((flags & AES67_SDP_FLAG_DEFLVL_SESSION) == AES67_SDP_FLAG_DEFLVL_SESSION){
+        return sdp->mode;
+    }
+    // otherwise check if stream/media level mode is set
+    if (sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].mode == aes67_sdp_attr_mode_undefined){
+        return sdp->mode;
+    }
+    // if not fallback to session level mode
+    return sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].mode;
+}
+
 /**
  * Compares two SDP structs w.r.t. originator (not considering the (ever increasing) session version)
  *
