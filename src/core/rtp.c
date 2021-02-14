@@ -34,6 +34,42 @@ static inline void rtp_memcpy(u8_t * dst, u8_t * src, size_t size){
 //
 //}
 
+void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer * buf, void * data, size_t samples)
+{
+    AES67_ASSERT("buf != NULL", buf != NULL);
+    AES67_ASSERT("data != NULL", data != NULL);
+
+    size_t nch = buf->nchannels;
+    size_t ss = buf->samplesize;
+
+    // compute offset of where to insert first sample
+    u8_t * dst = &buf->data[ss*(nch * buf->in.ch[0])];
+
+    // remember how many samples could be inserted until end of (circular) buffer
+    size_t last = (buf->in.ch[0] + samples);
+    size_t c;
+
+    if (last >= buf->nsamples){
+
+        last -= buf->nsamples;
+
+        c = samples - last;
+
+        rtp_memcpy(dst, data, nch*ss*c);
+        data += nch*ss*c;
+
+        c = last;
+        dst = &buf->data[0];
+
+    } else {
+        c = samples;
+    }
+
+    rtp_memcpy(dst, data, nch*ss*c);
+
+    buf->in.ch[0] = last;
+}
+
 void aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer * buf, void * data, size_t channel, size_t samples)
 {
     AES67_ASSERT("buf != NULL", buf != NULL);

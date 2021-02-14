@@ -106,13 +106,14 @@ struct aes67_rtp_tx {
     u16_t seqno;
     u32_t timestamp;
     u32_t ssrc;
-    struct aes67_rtp_buffer buf;
+    struct aes67_rtp_buffer * buf;
 };
 
 
 
 
-void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer * buf, void * data, size_t channel, size_t samples);
+void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer * buf, void * data, size_t samples);
+//void aes67_rtp_buffer_insert_nch(struct aes67_rtp_buffer * buf, void * data, size_t channel, size_t nch, size_t samples);
 void aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer * buf, void * data, size_t channel, size_t samples);
 
 //inline u32_t aes67_rtp_computer_nsamples(u8_t * packet, u16_t len, )
