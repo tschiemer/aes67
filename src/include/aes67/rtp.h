@@ -152,7 +152,7 @@ inline u32_t aes67_rtp_ptime2nsamples(ptime_t ptime, u32_t samplerate)
  * Computes a *rough* ptime value from the number of samples and samplerate given as can be used in SDP
  *
  * NOTE does not give the "shortest number" (in terms of number of digits) still valid.
- * 
+ *
  * Please rely on a comparison of nsamples (and samplerate) for actual matching.
  *
  * @param nsamples

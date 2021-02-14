@@ -159,17 +159,21 @@ Primarily test/developer utilities that allow for convenient testing (or simple 
 ```
 Usage: ./sap-pack (announce|delete) <msg-hash> <origin-ip> [<payloadtype>] <sdp-file>
 Writes SAPv2 packet to STDOUT.
+Examples:
+./sap-pack announce 123 10.0.0.2 test.sdp | socat -u - UDP4-DATAGRAM:224.2.127.254:9875
 ```
 ### `sap-unpack`
 ```
 Usage: ./sap-unpack [-h?a]
 Attempts to parse SAP packets incoming on STDIN and prints to STDOUT in the following format:
-(announce|delete) <hash> <ip> <payload-type>
-<payload-data>
-<newline>
+	 (announce|delete) <hash> <ip> <payload-type>
+	 <payload-data>
+	 <newline>
 Options:
--a	 Print SAP headers
--h,-?	 Prints this help.
+	 -a	 Print SAP headers
+	 -h,-?	 Prints this help.
+Examples:
+socat -u UDP4-RECVFROM:9875,ip-add-membership=224.2.127.254:192.168.1.122,fork - | ./sap-unpack -a
 ```
 
 ### `sdp-parse`

@@ -42,6 +42,8 @@ static void help(FILE * fd)
              "Options:\n"
              "\t -a\t Print SAP headers\n"
              "\t -h,-?\t Prints this help.\n"
+             "Examples:\n"
+             "socat -u UDP4-RECVFROM:9875,ip-add-membership=224.2.127.254:192.168.1.122,fork - | ./sap-unpack -a\n"
              , argv0);
 }
 

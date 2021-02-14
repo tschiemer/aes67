@@ -37,6 +37,8 @@ static void help(FILE * fd)
     fprintf( fd,
              "Usage: %s (announce|delete) <msg-hash> <origin-ip> [<payloadtype>] <sdp-file>\n"
              "Writes SAPv2 packet to STDOUT.\n"
+             "Examples:\n"
+             "./sap-pack announce 123 10.0.0.2 test.sdp | socat -u - UDP4-DATAGRAM:224.2.127.254:9875\n"
              , argv0);
 }
 
@@ -103,7 +105,7 @@ static void load_from_args(int argc, char * argv[])
 
 static void load_from_fd(FILE * fd)
 {
-    u8_t method[64]
+//    u8_t method[64]
 }
 
 int main(int argc, char * argv[])
