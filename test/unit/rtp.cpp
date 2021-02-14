@@ -192,19 +192,19 @@ TEST(RTP_TestGroup, rtp_buffer_insert_1ch)
 
     CHECK_EQUAL(0, b1->in.ch[1]);
 
-    aes67_rtp_buffer_insert_1ch(b1, d1, 1, 3);
+    aes67_rtp_buffer_insert_1ch(b1, d1, 3, 1, 3);
     CHECK_EQUAL(3, b1->in.ch[1]);
 
-    aes67_rtp_buffer_insert_1ch(b1, d2, 1, 3);
+    aes67_rtp_buffer_insert_1ch(b1, d2, 3, 1, 3);
     CHECK_EQUAL(6, b1->in.ch[1]);
 
-    aes67_rtp_buffer_insert_1ch(b1, d3, 1, 4);
+    aes67_rtp_buffer_insert_1ch(b1, d3, 3, 1, 4);
     CHECK_EQUAL(0, b1->in.ch[1]);
 
     MEMCMP_EQUAL(c1, b1->data, sizeof(c1));
 
 
-    aes67_rtp_buffer_insert_1ch(b1, d3, 1, 4);
+    aes67_rtp_buffer_insert_1ch(b1, d3, 3, 1, 4);
     CHECK_EQUAL(4, b1->in.ch[1]);
 
 
@@ -227,13 +227,13 @@ TEST(RTP_TestGroup, rtp_buffer_insert_1ch)
     CHECK_EQUAL(0, b1->in.ch[2]);
     CHECK_EQUAL(0, b1->in.ch[3]);
 
-    aes67_rtp_buffer_insert_1ch(b1, d1, 0, 3);
+    aes67_rtp_buffer_insert_1ch(b1, d1, 3, 0, 3);
     CHECK_EQUAL(3, b1->in.ch[0]);
 
-    aes67_rtp_buffer_insert_1ch(b1, d2, 2, 3);
+    aes67_rtp_buffer_insert_1ch(b1, d2, 3, 2, 3);
     CHECK_EQUAL(3, b1->in.ch[2]);
 
-    aes67_rtp_buffer_insert_1ch(b1, d3, 3, 4);
+    aes67_rtp_buffer_insert_1ch(b1, d3, 3, 3, 4);
     CHECK_EQUAL(4, b1->in.ch[3]);
 
     uint8_t c3[] = {

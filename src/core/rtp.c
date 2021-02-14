@@ -34,10 +34,10 @@ static inline void rtp_memcpy(u8_t * dst, u8_t * src, size_t size){
 //
 //}
 
-void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer * buf, void * data, size_t samples)
+void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer *buf, void *src, size_t samples)
 {
     AES67_ASSERT("buf != NULL", buf != NULL);
-    AES67_ASSERT("data != NULL", data != NULL);
+    AES67_ASSERT("data != NULL", src != NULL);
 
     size_t nch = buf->nchannels;
     size_t ss = buf->samplesize;
@@ -55,8 +55,8 @@ void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer * buf, void * data, siz
 
         c = samples - last;
 
-        rtp_memcpy(dst, data, nch*ss*c);
-        data += nch*ss*c;
+        rtp_memcpy(dst, src, nch * ss * c);
+        src += nch * ss * c;
 
         c = last;
         dst = &buf->data[0];
@@ -65,15 +65,15 @@ void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer * buf, void * data, siz
         c = samples;
     }
 
-    rtp_memcpy(dst, data, nch*ss*c);
+    rtp_memcpy(dst, src, nch * ss * c);
 
     buf->in.ch[0] = last;
 }
 
-void aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer * buf, void * data, size_t channel, size_t samples)
+void aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer *buf, void *src, size_t srcinc, size_t channel, size_t samples)
 {
     AES67_ASSERT("buf != NULL", buf != NULL);
-    AES67_ASSERT("data != NULL", data != NULL);
+    AES67_ASSERT("data != NULL", src != NULL);
 
     size_t nch = buf->nchannels;
     size_t ss = buf->samplesize;
@@ -93,9 +93,9 @@ void aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer * buf, void * data, siz
         c = samples - last;
 
         while(c--){
-            rtp_memcpy(dst, data, ss);
+            rtp_memcpy(dst, src, ss);
             dst += inc;
-            data += ss;
+            src += srcinc;
         }
 
         c = last;
@@ -108,9 +108,9 @@ void aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer * buf, void * data, siz
     // if was necessary to wrap around circular buffer copy remaining data
 
     while(c--){
-        rtp_memcpy(dst, data, ss);
+        rtp_memcpy(dst, src, ss);
         dst += inc;
-        data += ss;
+        src += srcinc;
     }
 
     buf->in.ch[channel] = last;
