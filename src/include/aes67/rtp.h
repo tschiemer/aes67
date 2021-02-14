@@ -134,6 +134,13 @@ struct aes67_rtp_tx {
     struct aes67_rtp_buffer * buf;
 };
 
+/**
+ * Computes number of samples that should be present in a packet given ptime and samplerate.
+ *
+ * @param ptime
+ * @param samplerate
+ * @return
+ */
 inline u32_t aes67_rtp_ptime2nsamples(ptime_t ptime, u32_t samplerate)
 {
     u32_t t = (u32_t)ptime * samplerate;
@@ -141,11 +148,33 @@ inline u32_t aes67_rtp_ptime2nsamples(ptime_t ptime, u32_t samplerate)
     return (t / 1000000) + round;
 }
 
-inline u32_t aes67_rtp_nsamples2ptime(u32_t nsamples, u32_t samplerate)
+/**
+ * Computes a *rough* ptime value from the number of samples and samplerate given as can be used in SDP
+ *
+ * NOTE does not give the "shortest number" (in terms of number of digits) still valid.
+ * 
+ * Please rely on a comparison of nsamples (and samplerate) for actual matching.
+ *
+ * @param nsamples
+ * @param samplerate
+ * @return
+ */
+inline ptime_t aes67_rtp_nsamples2ptime(u32_t nsamples, u32_t samplerate)
 {
-    return (1000000*nsamples) / samplerate;
+    return (1000000 * nsamples) / samplerate;
 }
 
+/**
+ * Coputer number of samples found in a packet given channel count and samplesize.
+ *
+ * Also see aes67_rtp_ptim2nsamples()
+ *
+ * @param packet
+ * @param len
+ * @param nchannels
+ * @param samplesize
+ * @return
+ */
 inline ptime_t aes67_rtp_packet2nsamples(void * packet, u16_t len, u32_t nchannels, u32_t samplesize)
 {
     u32_t payloadlen = len - AES67_RTP_PAYLOAD(((u8_t*)packet)[AES67_RTP_STATUS1] & AES67_RTP_STATUS1_CSRC_COUNT );
@@ -153,10 +182,32 @@ inline ptime_t aes67_rtp_packet2nsamples(void * packet, u16_t len, u32_t nchanne
 }
 
 
-void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer *buf, void *src, size_t samples);
-//void aes67_rtp_buffer_insert_nch(struct aes67_rtp_buffer * buf, void * data, size_t channel, size_t nch, size_t samples);
+/**
+ * Inserts a continuous block of audio samples into buffer.
+ *
+ * NOTE number of channels and samplesize MUST match those of the buffer itself.
+ *
+ * @param buf
+ * @param src       source buffer (pointing at first sample to insert)
+ * @param nsamples  number of samples to insert
+ */
+void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer *buf, void *src, size_t nsamples);
+
+/**
+ * Inserts a single channel's audio into the buffer.
+ * Allows copying from interleaved sources
+ *
+ * NOTE the samplesize MUST match those of the buffer itself
+ *
+ * @param buf
+ * @param src       source buffer (pointing at first sample to insert)
+ * @param srcinc    offset of samples; equal to samplesize if from a non-interleaved source or samplesize*nchannels when from
+ *                  a source of nchannels interleaved channels
+ * @param channel   which channel of the buffer to insert into
+ * @param nsamples  number of samples to insert
+ */
 void
-aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer *buf, void *src, size_t srcinc, size_t channel, size_t samples);
+aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer *buf, void *src, size_t srcinc, size_t channel, size_t nsamples);
 
 inline void aes67_rtp_header_ntoh(struct aes67_rtp_packet *packet)
 {

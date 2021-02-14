@@ -49,6 +49,31 @@ TEST(RTP_TestGroup, rtp_ptime2nsamples)
     CHECK_EQUAL(AES67_RTP_NSAMPLES_4ms_44_1k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_4ms_44_1k, 44100));
 }
 
+TEST(RTP_TestGroup, rtp_nsamples2ptime)
+{
+
+
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_125ms_96k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_0_125ms_96k, 96000), 96000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_125ms_48k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_0_125ms_48k, 48000), 48000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_125ms_44_1k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_0_125ms_44_1k, 44100), 44100));
+
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_25ms_96k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_0_25ms_96k, 96000), 96000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_25ms_48k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_0_25ms_48k, 48000), 48000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_25ms_44_1k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_0_25ms_44_1k, 44100), 44100));
+
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_33ms_96k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_0_33ms_96k, 96000), 96000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_33ms_48k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_0_33ms_48k, 48000), 48000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_33ms_44_1k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_0_33ms_44_1k, 44100), 44100));
+
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_1ms_96k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_1ms_96k, 96000), 96000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_1ms_48k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_1ms_48k, 48000), 48000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_1ms_44_1k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_1ms_44_1k, 44100), 44100));
+
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_4ms_96k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_4ms_96k, 96000), 96000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_4ms_48k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_4ms_48k, 48000), 48000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_4ms_44_1k, aes67_rtp_ptime2nsamples(aes67_rtp_nsamples2ptime(AES67_RTP_NSAMPLES_4ms_44_1k, 44100), 44100));
+}
+
 TEST(RTP_TestGroup, rtp_packet2nsamples)
 {
     struct aes67_rtp_header h1;
