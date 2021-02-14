@@ -26,10 +26,64 @@ TEST_GROUP(RTP_TestGroup)
         {
         };
 
-//TEST(RTP_TestGroup, rtp_macros)
-//{
-//
-//}
+TEST(RTP_TestGroup, rtp_ptime2nsamples)
+{
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_125ms_96k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_0_125ms_96k, 96000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_125ms_48k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_0_125ms_48k, 48000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_125ms_44_1k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_0_125ms_44_1k, 44100));
+
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_25ms_96k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_0_25ms_96k, 96000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_25ms_48k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_0_25ms_48k, 48000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_25ms_44_1k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_0_25ms_44_1k, 44100));
+
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_33ms_96k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_0_33ms_96k, 96000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_33ms_48k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_0_33ms_48k, 48000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_0_33ms_44_1k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_0_33ms_44_1k, 44100));
+
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_1ms_96k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_1ms_96k, 96000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_1ms_48k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_1ms_48k, 48000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_1ms_44_1k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_1ms_44_1k, 44100));
+
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_4ms_96k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_4ms_96k, 96000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_4ms_48k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_4ms_48k, 48000));
+    CHECK_EQUAL(AES67_RTP_NSAMPLES_4ms_44_1k, aes67_rtp_ptime2nsamples(AES67_RTP_PTIME_4ms_44_1k, 44100));
+}
+
+TEST(RTP_TestGroup, rtp_packet2nsamples)
+{
+    struct aes67_rtp_header h1;
+    u32_t l;
+
+    h1.status1 = 0;
+    l = AES67_RTP_PAYLOAD(0) + AES67_RTP_RAWBUFFER_SIZE(2, 3, 48);
+    CHECK_EQUAL(48, aes67_rtp_packet2nsamples(&h1, l, 2, 3));
+
+    h1.status1 = 0;
+    l = AES67_RTP_PAYLOAD(0) + AES67_RTP_RAWBUFFER_SIZE(2, 3, 48);
+    CHECK_EQUAL(48, aes67_rtp_packet2nsamples(&h1, l, 2, 3));
+
+    h1.status1 = 0;
+    l = AES67_RTP_PAYLOAD(0) + AES67_RTP_RAWBUFFER_SIZE(2, 3, 96);
+    CHECK_EQUAL(96, aes67_rtp_packet2nsamples(&h1, l, 2, 3));
+
+
+    h1.status1 = 0;
+    l = AES67_RTP_PAYLOAD(0) + AES67_RTP_RAWBUFFER_SIZE(1, 3, 48);
+    CHECK_EQUAL(48, aes67_rtp_packet2nsamples(&h1, l, 1, 3));
+
+    h1.status1 = 0;
+    l = AES67_RTP_PAYLOAD(0) + AES67_RTP_RAWBUFFER_SIZE(8, 3, 48);
+    CHECK_EQUAL(48, aes67_rtp_packet2nsamples(&h1, l, 8, 3));
+
+
+    h1.status1 = 1;
+    l = AES67_RTP_PAYLOAD(1) + AES67_RTP_RAWBUFFER_SIZE(8, 3, 48);
+    CHECK_EQUAL(48, aes67_rtp_packet2nsamples(&h1, l, 8, 3));
+
+    h1.status1 = 5;
+    l = AES67_RTP_PAYLOAD(5) + AES67_RTP_RAWBUFFER_SIZE(8, 3, 48);
+    CHECK_EQUAL(48, aes67_rtp_packet2nsamples(&h1, l, 8, 3));
+}
 
 TEST(RTP_TestGroup, rtp_buffer_insert_all)
 {struct aes67_rtp_buffer * b1 = (struct aes67_rtp_buffer *)std::calloc(1, AES67_RTP_BUFFER_SIZE(4, 3, 10));
@@ -199,44 +253,44 @@ TEST(RTP_TestGroup, rtp_buffer_insert_1ch)
     std::free(b1);
 }
 
-TEST(RTP_TestGroup, rtp_compute_ptime)
-{
-    struct aes67_rtp_packet before = {
-            .header.seqno = 0,
-            .header.timestamp = 0
-    };
-    struct aes67_rtp_packet after = {
-            .header.seqno = 1,
-            .header.timestamp = 48 //
-    };
-
-    // requires increasing seqno
-    CHECK_EQUAL(0, aes67_rtp_ptime_from_packdiff(&after, &before, 48000));
-    CHECK_EQUAL(0, aes67_rtp_ptime_from_packdiff(&after, &before, 96000));
-    CHECK_EQUAL(0, aes67_rtp_ptime_from_packdiff(&after, &before, 192000));
-
-
-    CHECK_EQUAL(1000, aes67_rtp_ptime_from_packdiff(&before, &after, 48000));
-    CHECK_EQUAL(500, aes67_rtp_ptime_from_packdiff(&before, &after, 96000));
-    CHECK_EQUAL(250, aes67_rtp_ptime_from_packdiff(&before, &after, 192000));
-
-    after.header.seqno *= 2;
-    after.header.timestamp *= 2;
-
-    CHECK_EQUAL(1000, aes67_rtp_ptime_from_packdiff(&before, &after, 48000));
-    CHECK_EQUAL(500, aes67_rtp_ptime_from_packdiff(&before, &after, 96000));
-    CHECK_EQUAL(250, aes67_rtp_ptime_from_packdiff(&before, &after, 192000));
-
-    // timestamp overflow
-
-    before.header.timestamp += (UINT32_MAX - 4);
-    after.header.timestamp += (UINT32_MAX - 4); // will overflow
-
-    CHECK_EQUAL(1000, aes67_rtp_ptime_from_packdiff(&before, &after, 48000));
-    CHECK_EQUAL(500, aes67_rtp_ptime_from_packdiff(&before, &after, 96000));
-    CHECK_EQUAL(250, aes67_rtp_ptime_from_packdiff(&before, &after, 192000));
-
-    // TODO 441000 Hz (44.1khz is somewhat a special case as in it should also be packed in 48 sample packets)
-    // this messes up the otherwise straightforward computation
-
-}
+//TEST(RTP_TestGroup, rtp_compute_ptime)
+//{
+//    struct aes67_rtp_packet before = {
+//            .header.seqno = 0,
+//            .header.timestamp = 0
+//    };
+//    struct aes67_rtp_packet after = {
+//            .header.seqno = 1,
+//            .header.timestamp = 48 //
+//    };
+//
+//    // requires increasing seqno
+//    CHECK_EQUAL(0, aes67_rtp_ptime_from_packdiff(&after, &before, 48000));
+//    CHECK_EQUAL(0, aes67_rtp_ptime_from_packdiff(&after, &before, 96000));
+//    CHECK_EQUAL(0, aes67_rtp_ptime_from_packdiff(&after, &before, 192000));
+//
+//
+//    CHECK_EQUAL(1000, aes67_rtp_ptime_from_packdiff(&before, &after, 48000));
+//    CHECK_EQUAL(500, aes67_rtp_ptime_from_packdiff(&before, &after, 96000));
+//    CHECK_EQUAL(250, aes67_rtp_ptime_from_packdiff(&before, &after, 192000));
+//
+//    after.header.seqno *= 2;
+//    after.header.timestamp *= 2;
+//
+//    CHECK_EQUAL(1000, aes67_rtp_ptime_from_packdiff(&before, &after, 48000));
+//    CHECK_EQUAL(500, aes67_rtp_ptime_from_packdiff(&before, &after, 96000));
+//    CHECK_EQUAL(250, aes67_rtp_ptime_from_packdiff(&before, &after, 192000));
+//
+//    // timestamp overflow
+//
+//    before.header.timestamp += (UINT32_MAX - 4);
+//    after.header.timestamp += (UINT32_MAX - 4); // will overflow
+//
+//    CHECK_EQUAL(1000, aes67_rtp_ptime_from_packdiff(&before, &after, 48000));
+//    CHECK_EQUAL(500, aes67_rtp_ptime_from_packdiff(&before, &after, 96000));
+//    CHECK_EQUAL(250, aes67_rtp_ptime_from_packdiff(&before, &after, 192000));
+//
+//    // TODO 441000 Hz (44.1khz is somewhat a special case as in it should also be packed in 48 sample packets)
+//    // this messes up the otherwise straightforward computation
+//
+//}

@@ -116,30 +116,30 @@ void aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer * buf, void * data, siz
     buf->in.ch[channel] = last;
 }
 
-ptime_t aes67_rtp_ptime_from_packdiff(struct aes67_rtp_packet *before, struct aes67_rtp_packet * after, u32_t samplerate)
-{
-    // require strictly increasing sequence number to safely establish a packet was really before
-    // will wrap around every ~60 sec with a ptime of 250ms
-    // note: computing this makes only sense, when the ptime is not yet known
-    if (before->header.seqno >= after->header.seqno){
-        return 0;
-    }
-
-    u32_t seqdiff = after->header.seqno - before->header.seqno;
-
-    u32_t tdiff;
-
-    // get timestamp/clock difference
-    if (before->header.timestamp < after->header.timestamp){
-        tdiff = after->header.timestamp - before->header.timestamp;
-    } else {
-        tdiff = (UINT32_MAX - before->header.timestamp) + after->header.timestamp + 1;
-    }
-
-    // the number of samples per packet is fixed and has a fixed relationship to the media clock
-    // ie each sample is exactly one clock increment
-    return (1000000*tdiff) / seqdiff / samplerate;
-}
+//ptime_t aes67_rtp_ptime_from_packdiff(struct aes67_rtp_packet *before, struct aes67_rtp_packet * after, u32_t samplerate)
+//{
+//    // require strictly increasing sequence number to safely establish a packet was really before
+//    // will wrap around every ~60 sec with a ptime of 250ms
+//    // note: computing this makes only sense, when the ptime is not yet known
+//    if (before->header.seqno >= after->header.seqno){
+//        return 0;
+//    }
+//
+//    u32_t seqdiff = after->header.seqno - before->header.seqno;
+//
+//    u32_t tdiff;
+//
+//    // get timestamp/clock difference
+//    if (before->header.timestamp < after->header.timestamp){
+//        tdiff = after->header.timestamp - before->header.timestamp;
+//    } else {
+//        tdiff = (UINT32_MAX - before->header.timestamp) + after->header.timestamp + 1;
+//    }
+//
+//    // the number of samples per packet is fixed and has a fixed relationship to the media clock
+//    // ie each sample is exactly one clock increment
+//    return (1000000*tdiff) / seqdiff / samplerate;
+//}
 
 u16_t aes67_rtp_pack(u8_t * packet, u8_t payloadtype, u16_t seqno, u32_t timestamp, u32_t ssrc, void * samples, u16_t ssize)
 {
