@@ -1205,7 +1205,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                 }
 
                 // locate optional delimiter '/'
-                u8_t *delim = aes67_memchr(&line[8], '/', llen - 9);
+                u8_t *delim = aes67_memchr(&line[9], '/', llen - 9);
 
                 size_t hostlen = llen - 9;
 
@@ -1254,7 +1254,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                     con->naddr = v;
                 }
 
-                aes67_memcpy(con->address.data, &line[8], hostlen);
+                aes67_memcpy(con->address.data, &line[9], hostlen);
                 con->address.length = hostlen;
             }
                 break;

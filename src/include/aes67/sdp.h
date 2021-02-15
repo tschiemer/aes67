@@ -196,7 +196,7 @@ struct aes67_sdp_stream {
     struct {
         u8_t count;
         u8_t cfg;                   // (AES67_SDP_CAP_PROPOSED | AES67_SDP_CAP_ACTIVE) | AES67_SDP_CAP_VALUE
-        u8_t cfg_a;                 // propsed/active attribute index (internal index of stream ptime_cap)
+        u8_t cfg_a;                 // propsed/active attribute index
         struct aes67_sdp_attr_ptimecap data[AES67_SDP_MAXPTIMECAPS];
     } ptime_cap;
     ptime_t maxptime;

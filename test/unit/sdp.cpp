@@ -1316,6 +1316,8 @@ TEST(SDP_TestGroup, sdp_fromstr)
     //connection
     CHECK_EQUAL(1, sdp.connections.count);
     CHECK_EQUAL(aes67_net_ipver_4, sdp.connections.data[0].ipver);
+    CHECK_EQUAL(sizeof("ipaddr2")-1, sdp.connections.data[0].address.length);
+    MEMCMP_EQUAL("ipaddr2", sdp.connections.data[0].address.data, sizeof("ipaddr2")-1);
     CHECK_EQUAL(36, sdp.connections.data[0].naddr);
     CHECK_EQUAL(44, sdp.connections.data[0].ttl);
 
@@ -1371,5 +1373,24 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(aes67_ptp_type_IEEE1588_2008, ptp->ptp.type);
     MEMCMP_EQUAL("\x39\xA7\x94\xFF\xFE\x07\xCB\xD0", ptp->ptp.gmid.u8, 8);
     CHECK_EQUAL(2, ptp->ptp.domain);
+
+    uint8_t s3[] = "v=0\n"
+                   "o=audio 1311738121 1311738121 IN IP4 192.168.1.1\n"
+                   "s=Stage left I/O\n"
+                   "c=IN IP4 192.168.1.1\n"
+                   "t=0 0\n"
+                   "m=audio 5004 RTP/AVP 96\n"
+                   "i=Channels 1-8\n"
+                   "a=rtpmap:96 L24/48000/8\n"
+                   "a=sendonly\n"
+                   "a=ptime:0.250 a=ts-refclk:ptp=IEEE1588-2008:39-A7-94-FF-FE-07-CB-D0:0\n"
+                   "a=mediaclk:direct=2216659908";
+
+
+    std::memset(&sdp, 0, sizeof(struct aes67_sdp));
+    CHECK_EQUAL(AES67_SDP_OK,aes67_sdp_fromstr(&sdp, s3, sizeof(s3)-1));
+
+    CHECK_EQUAL(sizeof("192.168.1.1")-1, sdp.connections.data[0].address.length);
+    MEMCMP_EQUAL("192.168.1.1", sdp.connections.data[0].address.data, sizeof("192.168.1.1")-1);
 }
 
