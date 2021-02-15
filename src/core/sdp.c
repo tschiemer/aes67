@@ -217,8 +217,13 @@ s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp_originator * lhs, struct aes6
 u32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin)
 {
     AES67_ASSERT("str != NULL", str != NULL);
-    AES67_ASSERT("maxlen > 32", maxlen > 32);
+//    AES67_ASSERT("maxlen > sizeof(\"o=    IN IP4 \\r\")", maxlen > sizeof("o=    IN IP4 \r"));
     AES67_ASSERT("origin != NULL", origin != NULL);
+
+    // "o=<username> <id> <version> IN IP<ipver> <address>\r\n"
+    if (maxlen < sizeof("o=   IN IP4 \r") + origin->username.length + origin->session_id.length + origin->session_version.length + origin->address.length){
+        return 0;
+    }
 
     u32_t len = 0;
 
@@ -297,6 +302,11 @@ u32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_con
             continue;
         }
 
+        // "c=IN IP<ipver> <address>[/<ttl>][/<naddr>]\r\n"
+        if (maxlen < len + sizeof("c=IN IP4 \r") + cons->data[i].address.length + 8){
+            return -1;
+        }
+
         str[len++] = 'c';
         str[len++] = '=';
         str[len++] = 'I';
@@ -348,6 +358,11 @@ u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * 
         // skip all unwanted context
         if ( ptps->data[i].flags != flags ){
             continue;
+        }
+
+        // compare to longest possible length
+        if (maxlen < len + sizeof("a=ts-refclk:ptp=IEEE802.1AS-2011:01-02-03-04-05-06-07-08\r")){
+            return -1;
         }
 
         AES67_ASSERT("AES67_PTP_TYPE_ISVALID(ptps->data[i].ptp.type)", AES67_PTP_TYPE_ISVALID(ptps->data[i].ptp.type));
@@ -420,7 +435,10 @@ u32_t aes67_sdp_attrmode_tostr( u8_t * str, u32_t maxlen, enum aes67_sdp_attr_mo
 
     u32_t len = 0;
 
-    //a=(inactive|recvonly|sendonly|sendrecv)
+    // "a=(inactive|recvonly|sendonly|sendrecv)\r\n" (all have same length)
+    if (maxlen < sizeof("a=inactive\r")){
+        return -1;
+    }
 
     AES67_ASSERT("AES67_SDP_ATTR_MODE_ISVALID(sdp->streams.data[s].mode)", AES67_SDP_ATTR_MODE_ISVALID(mode));
 
@@ -482,8 +500,12 @@ u32_t aes67_sdp_attrmode_tostr( u8_t * str, u32_t maxlen, enum aes67_sdp_attr_mo
 u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 {
     AES67_ASSERT("str != NULL", str != NULL);
-    AES67_ASSERT("maxlen > 32", maxlen > 32);
+    AES67_ASSERT("maxlen > 5", maxlen > 5); // the length of a meaningful AES67-SDP packet
     AES67_ASSERT("sdp != NULL", sdp != NULL);
+
+    if (maxlen < 5){
+        return 0;
+    }
 
     // length of sdp packet
     u32_t len = 0, l;
@@ -497,9 +519,16 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     str[len++] = NL;
 
     // originator (o=..)
-    len += aes67_sdp_origin_tostr(&str[len], maxlen - 5, &sdp->originator);
+    l = aes67_sdp_origin_tostr(&str[len], maxlen - 5, &sdp->originator);
+    if (l == 0){
+        return 0;
+    }
+    len += l;
 
     //s=<session_data name>
+    if (maxlen < len + sizeof("s= \r") + sdp->name.length){
+        return 0;
+    }
     str[len++] = 's';
     str[len++] = '=';
     if (sdp->name.length == 0){
@@ -515,6 +544,9 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     // i=<session_data info>
 #if 0 < AES67_SDP_MAXSESSIONINFO
     if (0 < sdp->info.length){
+        if (maxlen < len + sizeof("i=\r") + sdp->info.length){
+            return 0;
+        }
         str[len++] = 'i';
         str[len++] = '=';
 
@@ -527,12 +559,19 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 #endif
 
     // c=<connection data> (0-N)
-    len += aes67_sdp_connections_tostr(&str[len], maxlen - len, &sdp->connections, AES67_SDP_FLAG_DEFLVL_SESSION);
+    l = aes67_sdp_connections_tostr(&str[len], maxlen - len, &sdp->connections, AES67_SDP_FLAG_DEFLVL_SESSION);
+    if (l == -1){
+        return 0;
+    }
+    len += l;
 
     // b=<bwtype>:<bandwidth>
 
     // t=<start-time> <stop-time>
     // ALWAYS t=0 0
+    if (maxlen < len + sizeof("t=0 0\r")){
+        return 0;
+    }
     str[len++] = 't';
     str[len++] = '=';
     str[len++] = '0';
@@ -546,6 +585,9 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
 #if AES67_SDP_TOOL_ENABLED == 1
     // a=tool:
+    if (maxlen < len + sizeof("a=tool:") + sizeof(AES67_SDP_TOOL)){
+        return 0;
+    }
     str[len++] = 'a';
     str[len++] = '=';
     str[len++] = 't';
@@ -562,6 +604,9 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     // a=clock-domain:PTPv2 <domainNumber>
     // RAVENNA SHALL session level attribute
     if ((sdp->ptp_domain & AES67_SDP_PTP_DOMAIN_SET) == AES67_SDP_PTP_DOMAIN_SET){
+        if (maxlen < len + sizeof("a=clock-domain:PTPv2 127\r")){
+            return 0;
+        }
         str[len++] = 'a';
         str[len++] = '=';
         str[len++] = 'c';
@@ -590,14 +635,28 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     }
 
     // add session level reference clocks ts-refclk
-    len += aes67_sdp_ptp_tostr(&str[len], maxlen - len, &sdp->ptps, AES67_SDP_FLAG_DEFLVL_SESSION);
+    l = aes67_sdp_ptp_tostr(&str[len], maxlen - len, &sdp->ptps, AES67_SDP_FLAG_DEFLVL_SESSION);
+    if (l == -1){
+        return 0;
+    }
+    len += l;
 
     // add session level mode
-    len += aes67_sdp_attrmode_tostr(&str[len], maxlen - len, sdp->mode);
+    l = aes67_sdp_attrmode_tostr(&str[len], maxlen - len, sdp->mode);
+    if (l == -1){
+        return 0;
+    }
+    len += l;
+
 
     for(u8_t s = 0; s < sdp->streams.count; s++){
 
         struct aes67_sdp_stream * stream = &sdp->streams.data[s];
+
+        // roughly
+        if (maxlen < len + sizeof("a=audio 65535/100 RTP/AVP ")  + stream->nencodings * sizeof("127")){
+            return 0;
+        }
 
         // m=audio port[/<no-of-ports>] RTP/AVP <fmt1> ..
         str[len++] = 'm';
@@ -642,14 +701,20 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         str[len++] = NL;
 
         // c=<connection data> (0-N)
-        len += aes67_sdp_connections_tostr(&str[len], maxlen - len, &sdp->connections, AES67_SDP_FLAG_DEFLVL_STREAM | s);
-
+        l = aes67_sdp_connections_tostr(&str[len], maxlen - len, &sdp->connections, AES67_SDP_FLAG_DEFLVL_STREAM | s);
+        if (l == -1){
+            return 0;
+        }
+        len += l;
 
 #if 0 < AES67_SDP_MAXSTREAMINFO
         // optional stream/media information
         // i=<stream info>
 
         if (stream->info.length > 0){
+            if (maxlen < len + sizeof("i=\r") + stream->info.length){
+                return 0;
+            }
             str[len++] = 'i';
             str[len++] = '=';
 
@@ -665,12 +730,21 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         //// Media/stream attributes
 
         // add media level mode
-        len += aes67_sdp_attrmode_tostr(&str[len], maxlen - len, stream->mode);
+        l = aes67_sdp_attrmode_tostr(&str[len], maxlen - len, stream->mode);
+        if (l == -1){
+            return 0;
+        }
+        len += l;
 
 
         // each possible encoding for a stream
         // a=rtpmap:<fmtX> (L16|L24)/<sample-rate>[/<nchannels>]
         for(u8_t e = 0; e < stream->nencodings; e++){
+
+            // just roughly
+            if (maxlen < len + sizeof("a=rtpmap:127 L32/192000/64\r")){
+                return 0;
+            }
 
             attrenc = aes67_sdp_get_stream_encoding(sdp, s, e);
 
@@ -718,6 +792,10 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         // if ptime is set, write it out
         if ((stream->ptime & AES67_SDP_PTIME_SET) == AES67_SDP_PTIME_SET){
 
+            if (maxlen < len - sizeof("a=ptime:0.123\r")){
+                return 0;
+            }
+
             str[len++] = 'a';
             str[len++] = '=';
             str[len++] = 'p';
@@ -736,7 +814,11 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         // only process ptime capabilities (and maxptime) when capabilities have necessary space..
 #if 0 < AES67_SDP_MAXPTIMECAPS
         // when several ptime propositions are given, list them
-        if ((stream->ptime_cap.cfg & AES67_SDP_CAP_SET) == AES67_SDP_CAP_PROPOSED && sdp->streams.data[s].ptime_cap.count > 1){
+        if ((stream->ptime_cap.cfg & AES67_SDP_CAP_SET) == AES67_SDP_CAP_PROPOSED && stream->ptime_cap.count > 1){
+
+            if (maxlen < len + stream->ptime_cap.count * sizeof("a=pcap:12 ptime:0.123\r") + sizeof("a=maxptime:0.123\r")){
+                return 0;
+            }
 
             for(u8_t p = 0; p < stream->ptime_cap.count; p++){
 
@@ -788,6 +870,10 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         // when proposing or accepting a ptime value, communicate accordingly
         if ( (stream->ptime_cap.cfg & AES67_SDP_CAP_SET) != 0 ){
 
+            if (maxlen < len + sizeof("a=pcfg:12 a=12\r")){
+                return 0;
+            }
+
             // make sure to write which cfg is proposed/active
             str[len++] = 'a';
             str[len++] = '=';
@@ -820,9 +906,16 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
         // add stream level ptps
         // ie a=ts-refclk:ptp=.....
-        len += aes67_sdp_ptp_tostr(&str[len], maxlen - len, &sdp->ptps, AES67_SDP_FLAG_DEFLVL_STREAM | s);
+        l = aes67_sdp_ptp_tostr(&str[len], maxlen - len, &sdp->ptps, AES67_SDP_FLAG_DEFLVL_STREAM | s);
+        if (l == -1){
+            return 0;
+        }
+        len += l;
 
         // a=mediaclk:direct=<offset>
+        if (maxlen < len + sizeof("a=mediaclock:direct=4294967295\r")){
+            return 0;
+        }
         str[len++] = 'a';
         str[len++] = '=';
         str[len++] = 'm';

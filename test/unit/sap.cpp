@@ -823,8 +823,8 @@ TEST(SAP_TestGroup, sap_msg)
             .originator.address         = {8,"10.0.0.1"},
     };
 
-    uint8_t data[256];
-    uint8_t sdp_data[256];
+    uint8_t data[1500];
+    uint8_t sdp_data[1500];
     uint8_t origin_data[256];
     uint16_t len, sdp_len, origin_len;
 
@@ -988,7 +988,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
             .originator.address         = {8,"10.0.0.1"},
     };
 
-    uint8_t data[256];
+    uint8_t data[1500];
     uint16_t len;
 
     sap_packet_t p1 = {

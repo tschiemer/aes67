@@ -432,7 +432,7 @@ s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp_originator *lhs, struct aes67
  * @param str
  * @param maxlen    max length of target buffer <str>
  * @param origin
- * @return          length of string written
+ * @return          length of string, 0 if maxlen too short
  */
 u32_t aes67_sdp_origin_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin);
 
@@ -445,7 +445,7 @@ u32_t aes67_sdp_origin_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_originat
  * @param maxlen    max length of target buffer <str>
  * @param cons
  * @param flags     either AES67_SDP_FLAG_DEFLVL_SESSION or AES67_SDP_FLAG_DEFLVL_STREAM | <stream-index>
- * @return
+ * @return          length of string, -1 if maxlen too short
  */
 u32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_list * cons, aes67_sdp_flags flags);
 
@@ -457,9 +457,19 @@ u32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_con
  * @param maxlen    max length of target buffer <str>
  * @param ptps
  * @param flags     either AES67_SDP_FLAG_DEFLVL_SESSION or AES67_SDP_FLAG_DEFLVL_STREAM | <stream-index>
- * @return          length of string written
+ * @return          length of string, -1 if maxlen too short
  */
 u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags);
+
+/**
+ * Write SDP conform mode (a=sendonly|recvonly|inactive|sendrecv)
+ *
+ * @param str
+ * @param maxlen
+ * @param mode
+ * @return          length of string, -1 if maxlen too short
+ */
+u32_t aes67_sdp_attrmode_tostr( u8_t * str, u32_t maxlen, enum aes67_sdp_attr_mode mode);
 
 /**
  * Generate SDP string from struct.
@@ -467,7 +477,7 @@ u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * 
  * @param str
  * @param maxlen    max length of target buffer <str>
  * @param sdp
- * @return          length of generated string
+ * @return          length of string, 0 if maxlen too short
  */
 u32_t aes67_sdp_tostr(u8_t *str, u32_t maxlen, struct aes67_sdp *sdp);
 
