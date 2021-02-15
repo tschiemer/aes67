@@ -63,6 +63,13 @@ extern "C" {
 #define AES67_SDP_FLAG_DEFLVL_SESSION   0b0100000000000000
 #define AES67_SDP_FLAG_DEFLVL_STREAM    0b0010000000000000
 
+/**
+ * Marker for storing identifying context of SDP option/attribute
+ *
+ * In particular also used to query for options (once parsed).
+ */
+typedef u16_t aes67_sdp_flags;
+
 #define AES67_SDP_PTP_DOMAIN_SET        0b10000000
 #define AES67_SDP_PTP_DOMAIN_VALUE      0b01111111
 
@@ -74,6 +81,9 @@ extern "C" {
 #define AES67_SDP_CAP_ACTIVE            0b01000000
 #define AES67_SDP_CAP_VALUE             0b00111111
 
+/**
+ * Result code (for parser specifically)
+ */
 enum {
     AES67_SDP_OK            = 0,
     AES67_SDP_ERROR,                // generic error
@@ -82,8 +92,9 @@ enum {
     AES67_SDP_NOTSUPPORTED          // unsupported feature
 };
 
-typedef u16_t aes67_sdp_flags;
-
+/**
+ * SDP Mode attribute
+ */
 enum aes67_sdp_attr_mode {
     aes67_sdp_attr_mode_undefined = 0,
     aes67_sdp_attr_mode_inactive = 1,
@@ -99,6 +110,9 @@ enum aes67_sdp_attr_mode {
     (x) == aes67_sdp_attr_mode_sendrecv \
 )
 
+/**
+ * Originator data
+ */
 struct aes67_sdp_originator {
 #if 0 < AES67_SDP_MAXUSERNAME
     AES67_STRING(AES67_SDP_MAXUSERNAME) username;
@@ -111,7 +125,7 @@ struct aes67_sdp_originator {
 };
 
 /**
- *
+ * Data of connection options
  */
 struct aes67_sdp_connection {
     aes67_sdp_flags flags;
@@ -121,6 +135,9 @@ struct aes67_sdp_connection {
     AES67_STRING(AES67_SDP_MAXADDRESS) address;
 };
 
+/**
+ * Internally used connection list
+ */
 struct aes67_sdp_connection_list {
     u8_t count;
     struct aes67_sdp_connection data[AES67_SDP_MAXCONNECTIONS];
@@ -137,11 +154,17 @@ struct aes67_sdp_ptp_list {
 };
 
 
+/**
+ * ptime capability data
+ */
 struct aes67_sdp_attr_ptimecap {
     u32_t cap;
     ptime_t ptime;
 } PACK_STRUCT;
 
+/**
+ * Data of dynamic media payload types
+ */
 struct aes67_sdp_attr_encoding {
     aes67_sdp_flags flags;
     u8_t payloadtype;
@@ -150,11 +173,17 @@ struct aes67_sdp_attr_encoding {
     u8_t nchannels;
 };
 
+/**
+ * Internally used encoding list.
+ */
 struct aes67_sdp_attr_encoding_list {
     u8_t count;
     struct aes67_sdp_attr_encoding data[AES67_SDP_MAXENCODINGS];
 };
 
+/**
+ * Collections essential info about a stream.
+ */
 struct aes67_sdp_stream {
     u16_t port;
     u8_t nports;
@@ -177,6 +206,9 @@ struct aes67_sdp_stream {
 #endif
 };
 
+/**
+ * Internally used stream list
+ */
 struct aes67_sdp_stream_list {
     u8_t count;
     struct aes67_sdp_stream data[AES67_SDP_MAXSTREAMS];
@@ -218,7 +250,18 @@ struct aes67_sdp {
     struct aes67_sdp_attr_encoding_list encodings;
 };
 
+/**
+ * Resets/inits origin struct
+ *
+ * @param origin
+ */
 void aes67_sdp_origin_init(struct aes67_sdp_originator * origin);
+
+/**
+ * Resets/inits sdp struct
+ *
+ * @param sdp
+ */
 void aes67_sdp_init(struct aes67_sdp * sdp);
 
 /**
@@ -334,41 +377,51 @@ inline u8_t aes67_sdp_get_ptp_count(struct aes67_sdp * sdp, aes67_sdp_flags flag
 struct aes67_sdp_ptp * aes67_sdp_get_ptp(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t pi);
 
 
+/**
+ * Returns session or media level mode
+ *
+ * Primary use case is assumed to be getting a stream level mode (which may not be set and fallbacks to session-level)
+ *
+ * @param sdp
+ * @param flags     either AES67_SDP_FLAG_DEFLVL_SESSION or AES67_SDP_FLAG_DEFLVL_STREAM | <stream-index>
+ * @return
+ */
 inline enum aes67_sdp_attr_mode aes67_sdp_get_mode(struct aes67_sdp * sdp, aes67_sdp_flags flags)
 {
     // if specifically requested session level mode return it
     if ((flags & AES67_SDP_FLAG_DEFLVL_SESSION) == AES67_SDP_FLAG_DEFLVL_SESSION){
         return sdp->mode;
     }
-    // otherwise check if stream/media level mode is set
+    // if media/stream level attribute is not set fallback to session level value
     if (sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].mode == aes67_sdp_attr_mode_undefined){
         return sdp->mode;
     }
-    // if not fallback to session level mode
+    // otherwise just return the media level attribute
     return sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].mode;
 }
 
 /**
- * Compares two SDP structs w.r.t. originator (not considering the (ever increasing) session version)
+ * Compares two SDP structs w.r.t. originator NOT considering the (ever increasing) session version
  *
- * If the originator is identical       -> 1
- * If the originator is NOT identical   -> 0
- *
- * Note: the unicast address is compared bytewise, ie if one is given as IP and the other as hostname it will
+ * NOTE the unicast address is compared bytewise, ie if one is given as IP and the other as hostname it will
  * not be considered equal even if it may indeed be the same device.
  *
  * Also see aes67_sdp_origin_cmpversion
+ *
+ * @param lhs
+ * @param rhs
+ * @return          1 (iff originator is equal), 0 otherwise
  */
 u8_t aes67_sdp_origin_eq(struct aes67_sdp_originator *lhs, struct aes67_sdp_originator *rhs);
 
 /**
  * Compares two SDP structs denoting the same originator w.r.t. the version.
  *
- * If the version is less       -> -1
- * If the version is identical  -> 0
- * If the version is later      -> 1
- *
  * Note: only compares version. Requires prior originator match (see aes67_sdp_origin_eq)
+ *
+ * @param lhs
+ * @param rhs
+ * @return          -1 (iff lhs version is earlier), 0 (iff version is equal), 1 (iff lhs version is later)
  */
 s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp_originator *lhs, struct aes67_sdp_originator *rhs);
 
@@ -377,32 +430,65 @@ s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp_originator *lhs, struct aes67
  * Writes originator line to given memory.
  *
  * @param str
- * @param maxlen
+ * @param maxlen    max length of target buffer <str>
  * @param origin
- * @return
+ * @return          length of string written
  */
 u32_t aes67_sdp_origin_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin);
 
+/**
+ * Write SDP conform connection ("c=..") option of first connection in list <cons> matching criteria in <flags>
+ *
+ * Note: there SHOULD only be one such match at most.
+ *
+ * @param str
+ * @param maxlen    max length of target buffer <str>
+ * @param cons
+ * @param flags     either AES67_SDP_FLAG_DEFLVL_SESSION or AES67_SDP_FLAG_DEFLVL_STREAM | <stream-index>
+ * @return
+ */
 u32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_list * cons, aes67_sdp_flags flags);
 
 
+/**
+ * Writes SDP conform ts-refclk attributes of all clocks in list <ptps> matching <flags>
+ *
+ * @param str
+ * @param maxlen    max length of target buffer <str>
+ * @param ptps
+ * @param flags     either AES67_SDP_FLAG_DEFLVL_SESSION or AES67_SDP_FLAG_DEFLVL_STREAM | <stream-index>
+ * @return          length of string written
+ */
 u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags);
 
 /**
  * Generate SDP string from struct.
+ *
+ * @param str
+ * @param maxlen    max length of target buffer <str>
+ * @param sdp
+ * @return          length of generated string
  */
 u32_t aes67_sdp_tostr(u8_t *str, u32_t maxlen, struct aes67_sdp *sdp);
 
 
+/**
+ * Attempts to parse given originator string(line)
+ *
+ * @param origin
+ * @param str
+ * @param len       length of string
+ * @return          AES67_SDP_ERROR | AES67_SDP_OK
+ */
 u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str, u32_t len);
 
 /**
- * Parse SDP string into struct.
+ * Attempts to parse given SDP string
  *
  * @param sdp
  * @param str
- * @param len
- * @return 0 on success, 1 on error
+ * @param len       length of string
+ * @return          AES67_SDP_OK | AES67_SDP_ERROR | AES67_SDP_NOMEMORY | AES67_SDP_INCOMPLETE | AES67_SDP_NOTSUPPORTED
  */
 u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len);
 
