@@ -164,13 +164,14 @@ Examples:
 ```
 ### `sap-unpack`
 ```
-Usage: ./sap-unpack [-h?a]
+Usage: ./sap-unpack [-h?ad]
 Attempts to parse SAP packets incoming on STDIN and prints to STDOUT in the following format:
 	 (announce|delete) <hash> <ip> <payload-type>
 	 <payload-data>
 	 <newline>
 Options:
 	 -a	 Print SAP headers
+	 -d	 Print basic dbg info to STDERR
 	 -h,-?	 Prints this help.
 Examples:
 socat -u UDP4-RECVFROM:9875,ip-add-membership=224.2.127.254:192.168.1.122,fork - | ./sap-unpack -a

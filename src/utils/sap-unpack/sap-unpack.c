@@ -27,20 +27,24 @@
 
 static char * argv0;
 
-struct {
+static struct {
   bool print_headers;
+  bool print_debug;
 } opts;
+
+static bool handled;
 
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s [-h?a]\n"
+             "Usage: %s [-h?ad]\n"
              "Attempts to parse SAP packets incoming on STDIN and prints to STDOUT in the following format:\n"
              "\t (announce|delete) <hash> <ip> <payload-type>\n"
              "\t <payload-data>\n"
              "\t <newline>\n"
              "Options:\n"
              "\t -a\t Print SAP headers\n"
+             "\t -d\t Print basic dbg info to STDERR\n"
              "\t -h,-?\t Prints this help.\n"
              "Examples:\n"
              "socat -u UDP4-RECVFROM:9875,ip-add-membership=224.2.127.254:192.168.1.122,fork - | ./sap-unpack -a\n"
@@ -52,6 +56,17 @@ void
 aes67_sap_service_event(enum aes67_sap_event event, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype,
                         u16_t payloadtypelen, u8_t *payload, u16_t payloadlen, void *user_data)
 {
+    if (opts.print_debug){
+
+        handled = true;
+
+        u8_t ipstr[64];
+        uint16_t l = aes67_net_ip2str(ipstr, ipver, ip, 0);
+        ipstr[l] = '\0';
+
+        fprintf(stderr, "%s: Handled packet %s %d %s %s payloadsize=%d\n", argv0, event == aes67_sap_event_new ? "announce" : "delete", hash, ipstr, (payloadtype == NULL ? AES67_SDP_MIMETYPE : (char*)payloadtype), payloadlen);
+    }
+
     if (opts.print_headers){
         printf("%s ", event == aes67_sap_event_new ? "announce" : "delete");
         printf("%d ", hash);
@@ -77,13 +92,18 @@ int main(int argc, char * argv[])
     argv0 = argv[0];
 
     opts.print_headers = false;
+    opts.print_debug = false;
 
     int opt;
 
-    while ((opt = getopt(argc, argv, "h?a")) != -1) {
+    while ((opt = getopt(argc, argv, "h?ad")) != -1) {
         switch (opt) {
             case 'a':
                 opts.print_headers = true;
+                break;
+
+            case 'd':
+                opts.print_debug = true;
                 break;
 
             case 'h':
@@ -120,7 +140,13 @@ int main(int argc, char * argv[])
             }
         } else if (r > 0){ // data read
 
+            handled = false;
+
             aes67_sap_service_handle(NULL, rbuf, r, NULL);
+
+            if (opts.print_debug == true && handled == false){
+                fprintf(stderr, "%s: Unhandled packet of size %zd\n", argv0, r);
+            }
 
         } else { // r == 0 if stdin closed
             break;
