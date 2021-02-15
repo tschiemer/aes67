@@ -1927,7 +1927,8 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                                         break;
 
                                     default:
-                                        if (delim != &line[llen]){
+                                        // by virtue of moving 3 bytes before, we'd technically be 1 byte behind the line-end
+                                        if (delim-1 != &line[llen]){
                                             return AES67_SDP_ERROR;
                                         }
                                         break;
