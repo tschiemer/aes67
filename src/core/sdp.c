@@ -1486,8 +1486,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                     return AES67_SDP_ERROR;
                 }
 
-                // only audio formats are supported
-                // TODO in principle we could just skip this media/stream instead of aborting
+                // only audio streams are supported
                 if (line[2] != 'a' || line[3] != 'u' || line[4] != 'd' || line[5] != 'i' || line[6] != 'o' ||
                     line[7] != ' ') {
 
@@ -1538,6 +1537,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                 pos += 9;
 
                 u8_t nenc = 0;
+                u8_t nenc_unknown = 0;
                 while (pos < &line[llen]){
                     s32_t e = aes67_atoi(pos, &line[llen] - pos, 10, &readlen);
                     if (readlen == 0){
@@ -1545,8 +1545,9 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                     }
                     pos += 1 + readlen;
                     if (e < AES67_RTP_AVP_PAYLOADTYPE_DYNAMIC_START || AES67_RTP_AVP_PAYLOADTYPE_DYNAMIC_END < e){
-                        return AES67_SDP_NOTSUPPORTED;
+                        nenc_unknown++;
                     }
+
                     //TODO remember encoding indices (?) possibly just for validation
                     nenc++;
                 }
@@ -1555,12 +1556,26 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                     return AES67_SDP_ERROR;
                 }
 
+                // if all given payload types are unknown (ie not dynamic), skip this media
+                if (nenc == nenc_unknown){
+                    skipmedia = 1;
+
+                    aes67_sdp_fromstr_unhandled(sdp, 0, line, llen, user_data);
+
+                    continue;
+                }
+
                 if (sdp->streams.count >= AES67_SDP_MAXSTREAMS) {
                     return AES67_SDP_NOMEMORY;
                 }
 
-
                 context = AES67_SDP_FLAG_DEFLVL_STREAM | sdp->streams.count;
+
+                // if there were unknown payload types, just report this, but continue parsing
+                if (nenc_unknown > 0){
+                    aes67_sdp_fromstr_unhandled(sdp, context, line, llen, user_data);
+                }
+
                 stream = &sdp->streams.data[sdp->streams.count];
 
                 sdp->streams.count++;
@@ -1655,7 +1670,9 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                             enc = aes67_audio_encoding_L32;
                         }
                         else {
-                            // encoding is not supported, skip this one
+
+                            aes67_sdp_fromstr_unhandled(sdp, context, line, llen, user_data);
+
                             continue;
                         }
 

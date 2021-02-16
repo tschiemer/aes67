@@ -1468,7 +1468,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "c=IN IP4 192.168.1.1\n"
                    "t=2873397496 2873404696\n"
                    "r=604800 3600 0 90000\n"
-                   "m=audio 5004 RTP/AVP 96\n"
+                   "m=audio 5004 RTP/AVP 96 2\n"
                    "i=Channels 1-8\n"
                    "a=rtpmap:96 L24/48000/8\n"
                    "a=sendonly\n"
@@ -1480,6 +1480,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "m=video 51372 RTP/AVP 99\n"
                    "a=rtpmap:99 h263-1998/90000\n"
                    "m=audio 5004 RTP/AVP 96\n"
+                   "a=rtpmap:96 PCMU/8000/1\n"
                    "a=fmtp:18 annexb=yes\n"
                    "m=audio 5004 SRTP/AVP 96\n"
                    "a=rtpmap:96 L16/48000/8\n"
@@ -1497,43 +1498,51 @@ TEST(SDP_TestGroup, sdp_fromstr)
             },
             {
                     .context = AES67_SDP_FLAG_DEFLVL_STREAM | 0,
-                    .str = "a=sync-time:12332"
+                    .str = "m=audio 5004 RTP/AVP 96 2" // reported because unknown payload type
             },
             {
                     .context = AES67_SDP_FLAG_DEFLVL_STREAM | 0,
-                    .str = "a=clock-deviation:1001/1000"
+                    .str = "a=sync-time:12332" // unknown RAVENNA attr
+            },
+            {
+                    .context = AES67_SDP_FLAG_DEFLVL_STREAM | 0,
+                    .str = "a=clock-deviation:1001/1000" // unknown RAVENNA attr
             },
             {
                     .context = 0,
-                    .str = "m=video 51372 RTP/AVP 99"
+                    .str = "m=video 51372 RTP/AVP 99" // unkonwn media type
             },
             {
                     .context = 0,
-                    .str = "a=rtpmap:99 h263-1998/90000"
+                    .str = "a=rtpmap:99 h263-1998/90000" // part of unknown media
             },
             {
                     .context = AES67_SDP_FLAG_DEFLVL_STREAM | 1,
-                    .str = "a=fmtp:18 annexb=yes"
+                    .str = "a=rtpmap:96 PCMU/8000/1" // unknown encoding
+            },
+            {
+                    .context = AES67_SDP_FLAG_DEFLVL_STREAM | 1,
+                    .str = "a=fmtp:18 annexb=yes" // unknown attr
             },
             {
                     .context = 0,
-                    .str = "m=audio 5004 SRTP/AVP 96"
+                    .str = "m=audio 5004 SRTP/AVP 96" // unknown media profile
             },
             {
                     .context = 0,
-                    .str = "a=rtpmap:96 L16/48000/8"
+                    .str = "a=rtpmap:96 L16/48000/8" // part of unknown media
             },
             {
                     .context = 0,
-                    .str = "a=ts-refclk:ptp=IEEE1588-2008:01-02-03-04-05-06-07-08:0"
+                    .str = "a=ts-refclk:ptp=IEEE1588-2008:01-02-03-04-05-06-07-08:0" // part of unknown media
             },
             {
                     .context = 0,
-                    .str = "a=mediaclk:direct=1234"
+                    .str = "a=mediaclk:direct=1234" // part of unknown media
             }
     };
 
-    set_unhandled_expectations(11, u1);
+    set_unhandled_expectations(13, u1);
 
     std::memset(&sdp, 0, sizeof(struct aes67_sdp));
     CHECK_EQUAL(AES67_SDP_OK, aes67_sdp_fromstr(&sdp, s4, sizeof(s4) - 1, NULL));
