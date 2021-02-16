@@ -591,7 +591,7 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
 //    }
 }
 
-__attribute__((weak)) void
+WEAK_FUN void
 aes67_sap_service_event(enum aes67_sap_event event, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype,
                         u16_t payloadtypelen, u8_t *payload, u16_t payloadlen, void *user_data)
 {

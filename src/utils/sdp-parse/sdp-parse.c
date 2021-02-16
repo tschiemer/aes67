@@ -18,21 +18,28 @@
 
 #include "aes67/sdp.h"
 
-//#include <getopt.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/errno.h>
 #include <string.h>
-
+#include <stdbool.h>
 
 static char * argv0;
+
+static struct {
+    bool print_debug;
+} opts;
 
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s \n"
+             "Usage: %s [-hd]\n"
              "Attempts to parse SDP incoming on STDIN\n"
+             "Options:\n"
+             "\t -h\t Prints this info\n"
+             "\t -d\t Prints some debug info to STDERR\n"
              , argv0);
 }
 
@@ -41,9 +48,25 @@ int main(int argc, char * argv[])
 {
     argv0 = argv[0];
 
-    if ( argc != 1 ){ // 1 < argc &&
-        help(stdout);
-        return 0;
+    int opt;
+
+    while ((opt = getopt(argc, argv, "h?d")) != -1) {
+        switch (opt) {
+            case 'd':
+                opts.print_debug = true;
+                break;
+
+            case 'h':
+            case '?':
+            default: /* '?' */
+                help(stdout);
+                exit(EXIT_FAILURE);
+        }
+    }
+
+    if ( optind < argc ){ // 1 < argc &&
+        fprintf(stderr, "ERROR too many arguments\n");
+        return EXIT_FAILURE;
     }
 
     // set non-blocking stdin
@@ -53,7 +76,7 @@ int main(int argc, char * argv[])
         return 1;
     }
 
-    u8_t rbuf[1024];
+    u8_t rbuf[1500];
 
     while(feof(stdin) == 0){
 
@@ -72,12 +95,12 @@ int main(int argc, char * argv[])
                 struct aes67_sdp sdp;
 
 
-                r = aes67_sdp_fromstr(&sdp, rbuf, r);
+                r = aes67_sdp_fromstr(&sdp, rbuf, r, NULL);
 
                 if (r == AES67_SDP_OK){
 
                     sdp.originator.address.data[sdp.originator.address.length] = '\0';
-                    printf("src=%s nstream=%d nptp=%d ", sdp.originator.address.data, sdp.streams.count, sdp.ptps.count);
+                    printf("SESSION src=%s nstream=%d nptp=%d ", sdp.originator.address.data, sdp.streams.count, sdp.ptps.count);
 
                     if ((sdp.ptp_domain & AES67_SDP_PTP_DOMAIN_SET) == AES67_SDP_PTP_DOMAIN_SET) {
                         printf("ptp-domain=%d ", sdp.ptp_domain & AES67_SDP_PTP_DOMAIN_VALUE);
@@ -93,28 +116,41 @@ int main(int argc, char * argv[])
                         struct aes67_sdp_connection * con = aes67_sdp_get_connection(&sdp, i);
 
                         con->address.data[con->address.length] = '\0';
-                        printf("%s:%d ", con->address.data, stream->port);
+                        printf("%s:%d/%d ", con->address.data, stream->port, stream->nports);
 
-                        if (stream->mode == aes67_sdp_attr_mode_inactive){
+                        enum aes67_sdp_attr_mode mode = aes67_sdp_get_mode(&sdp, i);
+
+                        if (mode == aes67_sdp_attr_mode_inactive){
                             printf("mode=inactive ");
-                        } else if (stream->mode == aes67_sdp_attr_mode_recvonly){
+                        } else if (mode == aes67_sdp_attr_mode_recvonly){
                             printf("mode=recvonly ");
-                        } else if (stream->mode == aes67_sdp_attr_mode_sendonly){
+                        } else if (mode == aes67_sdp_attr_mode_sendonly){
                             printf("mode=sendonly ");
-                        } else if (stream->mode == aes67_sdp_attr_mode_sendrecv){
+                        } else if (mode == aes67_sdp_attr_mode_sendrecv){
                             printf("mode=sendrecv ");
                         }
 
-                        printf("nenc=%d clk-offset=%u", stream->nencodings, stream->mediaclock_offset);
+                        printf("clk-offset=%u", stream->mediaclock_offset);
 
-                        if ( (stream->ptime.cap & AES67_SDP_CAP_SET) == AES67_SDP_CAP_SET){
-                            printf(" ptime=%d", stream->ptime.msec);
-                            if (stream->ptime.msec_frac){
-                                printf(".%d", stream->ptime.msec_frac);
-                            }
+                        if ( (stream->ptime & AES67_SDP_PTIME_SET) == AES67_SDP_PTIME_SET){
+                            printf(" ptime=%d", stream->ptime & AES67_SDP_PTIME_VALUE);
                         }
 
+                        printf(" nenc=%d nptp=%d", stream->nencodings, stream->nptp);
+
                         printf("\n");
+
+#if 0 < AES67_SDP_MAXPTIMECAPS
+                        if ((stream->ptime_cap.cfg & AES67_SDP_CAP_SET) == AES67_SDP_CAP_ACTIVE){
+                            printf("  ptime-acfg=%d\n", stream->ptime_cap.cfg & AES67_SDP_CAP_VALUE);
+                        }
+                        if ((stream->ptime_cap.cfg & AES67_SDP_CAP_SET) == AES67_SDP_CAP_PROPOSED){
+
+                            for (int j = 0; j < stream->ptime_cap.count; j++){
+                                printf("  ptime-pcap#%d.%d ptime=%d proposed=%d\n", i, stream->ptime_cap.data[j].cap, stream->ptime_cap.data[j].ptime, stream->ptime_cap.cfg_a == stream->ptime_cap.data[j].cap);
+                            }
+                        }
+#endif // 0 < AES67_SDP_MAXPTIMECAPS
 
                         for (int e = 0; e < sdp.streams.data[i].nencodings; e++){
 

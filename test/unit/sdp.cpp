@@ -21,6 +21,42 @@
 
 #include "aes67/sdp.h"
 
+typedef struct {
+    aes67_sdp_flags context;
+    char str[64];
+} unhandled_t;
+
+static struct {
+    int seen;
+    int expected;
+    unhandled_t * lines;
+} unhandled;
+
+static void set_unhandled_expectations(int expected, unhandled_t * lines){
+    assert( expected || lines != NULL );
+
+    unhandled.seen = 0;
+    unhandled.expected = expected;
+    unhandled.lines = lines;
+}
+
+void aes67_sdp_fromstr_unhandled(struct aes67_sdp *sdp, aes67_sdp_flags context, u8_t *line, u32_t len, void *user_data)
+{
+    CHECK_COMPARE(NULL, !=,  unhandled.lines);
+    CHECK_COMPARE(unhandled.seen, <, unhandled.expected);
+
+    assert(line != NULL);
+    assert(len > 0);
+
+    char str[256];
+
+    assert(len < sizeof(str)-1);
+
+    std::memcpy(str, line, len);
+    str[len] = '\0';
+
+    STRCMP_EQUAL(unhandled.lines[unhandled.seen++].str, str);
+}
 
 TEST_GROUP(SDP_TestGroup)
 {
@@ -1273,7 +1309,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
     uint8_t s1[] = "random";
 
     std::memset(&sdp, 0, sizeof(struct aes67_sdp));
-    CHECK_EQUAL(AES67_SDP_ERROR,aes67_sdp_fromstr(&sdp, s1, sizeof(s1)-1));
+    CHECK_EQUAL(AES67_SDP_ERROR, aes67_sdp_fromstr(&sdp, s1, sizeof(s1) - 1, NULL));
 
 
     uint8_t s2[] = "v=0\r\n"
@@ -1297,7 +1333,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
 
 
     std::memset(&sdp, 0, sizeof(struct aes67_sdp));
-    CHECK_EQUAL(AES67_SDP_OK,aes67_sdp_fromstr(&sdp, s2, sizeof(s2)-1));
+    CHECK_EQUAL(AES67_SDP_OK, aes67_sdp_fromstr(&sdp, s2, sizeof(s2) - 1, NULL));
 
     // originator
     CHECK_EQUAL(0, sdp.originator.username.length);
@@ -1378,19 +1414,132 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "o=audio 1311738121 1311738121 IN IP4 192.168.1.1\n"
                    "s=Stage left I/O\n"
                    "c=IN IP4 192.168.1.1\n"
+                   "u=https://jdoe.wrong/fancy-pants\n"
+                   "e=foobert@jdoe.wrong\n"
+                   "p=+666 1234567890\n"
                    "t=0 0\n"
+                   "a=tool:gst\n"
+                   "a=charset:ISO-8859-1\n"
                    "m=audio 5004 RTP/AVP 96\n"
                    "i=Channels 1-8\n"
                    "a=rtpmap:96 L24/48000/8\n"
                    "a=sendonly\n"
-                   "a=ptime:0.250 a=ts-refclk:ptp=IEEE1588-2008:39-A7-94-FF-FE-07-CB-D0:0\n"
+                   "a=ptime:0.250\n"
+                   "a=ts-refclk:ptp=IEEE1588-2008:39-A7-94-FF-FE-07-CB-D0:0\n"
+                   "a=ts-refclk:ptp=IEEE802.1AS-2011:08-07-06-05-04-03-02-01\n"
                    "a=mediaclk:direct=2216659908";
 
 
     std::memset(&sdp, 0, sizeof(struct aes67_sdp));
-    CHECK_EQUAL(AES67_SDP_OK,aes67_sdp_fromstr(&sdp, s3, sizeof(s3)-1));
+    CHECK_EQUAL(AES67_SDP_OK, aes67_sdp_fromstr(&sdp, s3, sizeof(s3) - 1, NULL));
 
     CHECK_EQUAL(sizeof("192.168.1.1")-1, sdp.connections.data[0].address.length);
     MEMCMP_EQUAL("192.168.1.1", sdp.connections.data[0].address.data, sizeof("192.168.1.1")-1);
+
+#if 0 < AES67_SDP_MAXURI
+    CHECK_EQUAL(sizeof("https://jdoe.wrong/fancy-pants")-1, sdp.uri.length);
+    MEMCMP_EQUAL("https://jdoe.wrong/fancy-pants", sdp.uri.data, sizeof("https://jdoe.wrong/fancy-pants")-1);
+#endif
+
+#if 0 < AES67_SDP_MAXEMAIL
+    CHECK_EQUAL(sizeof("foobert@jdoe.wrong")-1, sdp.email.length);
+    MEMCMP_EQUAL("foobert@jdoe.wrong", sdp.email.data, sizeof("foobert@jdoe.wrong")-1);
+#endif
+
+#if 0 < AES67_SDP_MAXPHONE
+    CHECK_EQUAL(sizeof("+666 1234567890")-1, sdp.phone.length);
+    MEMCMP_EQUAL("+666 1234567890", sdp.phone.data, sizeof("+666 1234567890")-1);
+#endif
+
+#if 0 < AES67_SDP_MAXTOOL
+    CHECK_EQUAL(sizeof("gst")-1, sdp.tool.length);
+    MEMCMP_EQUAL("gst", sdp.tool.data, sizeof("gst")-1);
+#endif
+
+#if 0 < AES67_SDP_MAXCHARSET
+    CHECK_EQUAL(sizeof("ISO-8859-1")-1, sdp.charset.length);
+    MEMCMP_EQUAL("ISO-8859-1", sdp.charset.data, sizeof("ISO-8859-1")-1);
+#endif
+
+
+    uint8_t s4[] = "v=0\n"
+                   "o=audio 1311738121 1311738121 IN IP4 192.168.1.1\n"
+                   "s=Stage left I/O\n"
+                   "c=IN IP4 192.168.1.1\n"
+                   "t=2873397496 2873404696\n"
+                   "r=604800 3600 0 90000\n"
+                   "m=audio 5004 RTP/AVP 96\n"
+                   "i=Channels 1-8\n"
+                   "a=rtpmap:96 L24/48000/8\n"
+                   "a=sendonly\n"
+                   "a=ptime:0.250\n"
+                   "a=ts-refclk:ptp=IEEE1588-2008:39-A7-94-FF-FE-07-CB-D0:0\n"
+                   "a=mediaclk:direct=2216659908\n"
+                   "a=sync-time:12332\n" // optional RAVENNA attr
+                   "a=clock-deviation:1001/1000\n" // optional RAVENNA attr
+                   "m=video 51372 RTP/AVP 99\n"
+                   "a=rtpmap:99 h263-1998/90000\n"
+                   "m=audio 5004 RTP/AVP 96\n"
+                   "a=fmtp:18 annexb=yes\n"
+                   "m=audio 5004 SRTP/AVP 96\n"
+                   "a=rtpmap:96 L16/48000/8\n"
+                   "a=ts-refclk:ptp=IEEE1588-2008:01-02-03-04-05-06-07-08:0\n"
+                   "a=mediaclk:direct=1234\n";
+
+    unhandled_t u1[] = {
+            {
+                    .context = AES67_SDP_FLAG_DEFLVL_SESSION,
+                    .str = "t=2873397496 2873404696"
+            },
+            {
+                    .context = AES67_SDP_FLAG_DEFLVL_SESSION,
+                    .str = "r=604800 3600 0 90000"
+            },
+            {
+                    .context = AES67_SDP_FLAG_DEFLVL_STREAM | 0,
+                    .str = "a=sync-time:12332"
+            },
+            {
+                    .context = AES67_SDP_FLAG_DEFLVL_STREAM | 0,
+                    .str = "a=clock-deviation:1001/1000"
+            },
+            {
+                    .context = 0,
+                    .str = "m=video 51372 RTP/AVP 99"
+            },
+            {
+                    .context = 0,
+                    .str = "a=rtpmap:99 h263-1998/90000"
+            },
+            {
+                    .context = AES67_SDP_FLAG_DEFLVL_STREAM | 1,
+                    .str = "a=fmtp:18 annexb=yes"
+            },
+            {
+                    .context = 0,
+                    .str = "m=audio 5004 SRTP/AVP 96"
+            },
+            {
+                    .context = 0,
+                    .str = "a=rtpmap:96 L16/48000/8"
+            },
+            {
+                    .context = 0,
+                    .str = "a=ts-refclk:ptp=IEEE1588-2008:01-02-03-04-05-06-07-08:0"
+            },
+            {
+                    .context = 0,
+                    .str = "a=mediaclk:direct=1234"
+            }
+    };
+
+    set_unhandled_expectations(11, u1);
+
+    std::memset(&sdp, 0, sizeof(struct aes67_sdp));
+    CHECK_EQUAL(AES67_SDP_OK, aes67_sdp_fromstr(&sdp, s4, sizeof(s4) - 1, NULL));
+
+    CHECK_EQUAL(2, sdp.streams.count);
+
+    CHECK_EQUAL(unhandled.expected, unhandled.seen);
 }
 

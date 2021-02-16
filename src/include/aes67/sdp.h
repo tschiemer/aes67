@@ -231,6 +231,34 @@ struct aes67_sdp {
     AES67_STRING(AES67_SDP_MAXSESSIONINFO) info;
 #endif
 
+#if 0 < AES67_SDP_MAXURI
+    AES67_STRING(AES67_SDP_MAXURI) uri;
+#endif
+
+#if 0 < AES67_SDP_MAXEMAIL
+    AES67_STRING(AES67_SDP_MAXEMAIL) email;
+#endif
+
+#if 0 < AES67_SDP_MAXPHONE
+    AES67_STRING(AES67_SDP_MAXPHONE) phone;
+#endif
+
+#if 0 < AES67_SDP_MAXCATEGORY
+    AES67_STRING(AES67_SDP_MAXCATEGORY) category;
+#endif
+
+#if 0 < AES67_SDP_MAXKEYWORDS
+    AES67_STRING(AES67_SDP_MAXKEYWORDS) keywords;
+#endif
+
+#if 0 < AES67_SDP_MAXTOOL
+    AES67_STRING(AES67_SDP_MAXTOOL) tool;
+#endif
+
+#if 0 < AES67_SDP_MAXCHARSET
+    AES67_STRING(AES67_SDP_MAXCHARSET) charset;
+#endif
+
 
     // for the moment being, just forget about bandwidth ("b=.."), timing ("t=", assume "t=0 0"),
     // repeat times ("r="), time zones ("z="), encryption keys ("k=")
@@ -500,8 +528,20 @@ u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str,
  * @param len       length of string
  * @return          AES67_SDP_OK | AES67_SDP_ERROR | AES67_SDP_NOMEMORY | AES67_SDP_INCOMPLETE | AES67_SDP_NOTSUPPORTED
  */
-u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len);
+u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void * user_data);
 
+/**
+ * Callback for unhandled settings and attributes on session- and media-level.
+ *
+ * To be implemented by user.
+ *
+ * @param sdp
+ * @param context       0 (iff skipped media), AES67_SDP_FLAG_DEFLEVEL_SESSION or AES67_SDP_FLAG_DEFLEVEL_STREAM | <stream-index> otherwise
+ * @param line          non-null-terminated string
+ * @param len           length of line without line delimiter
+ * @param user_data     as passed to aes67_sdp_fromstr()
+ */
+void aes67_sdp_fromstr_unhandled(struct aes67_sdp *sdp, aes67_sdp_flags context, u8_t *line, u32_t len, void *user_data);
 
 
 #ifdef __cplusplus

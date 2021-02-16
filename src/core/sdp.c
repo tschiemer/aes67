@@ -76,6 +76,27 @@ void aes67_sdp_init(struct aes67_sdp * sdp)
 #if 0 < AES67_SDP_MAXSESSIONINFO
     sdp->info.length = 0;
 #endif
+
+#if 0 < AES67_SDP_MAXURI
+    sdp->uri.length = 0;
+#endif
+
+#if 0 < AES67_SDP_MAXEMAIL
+    sdp->email.length = 0;
+#endif
+
+#if 0 < AES67_SDP_MAXPHONE
+    sdp->phone.length = 0;
+#endif
+
+#if 0 < AES67_SDP_MAXTOOL
+    sdp->tool.length = 0;
+#endif
+
+#if 0 < AES67_SDP_MAXCHARSET
+    sdp->charset.length = 0;
+#endif
+
     sdp->mode = aes67_sdp_attr_mode_undefined;
 
     sdp->connections.count = 0;
@@ -558,6 +579,58 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     }
 #endif
 
+    // u=<uri>
+#if 0 < AES67_SDP_MAXURI
+    if (0 < sdp->uri.length){
+        if (maxlen < len + sizeof("u=\r") + sdp->uri.length){
+            return 0;
+        }
+        str[len++] = 'u';
+        str[len++] = '=';
+
+        aes67_memcpy(&str[len], sdp->uri.data, sdp->uri.length);
+        len += sdp->uri.length;
+
+        str[len++] = CR;
+        str[len++] = NL;
+    }
+#endif
+
+    // e=<email>
+#if 0 < AES67_SDP_MAXEMAIL
+    if (0 < sdp->email.length){
+        if (maxlen < len + sizeof("e=\r") + sdp->email.length){
+            return 0;
+        }
+        str[len++] = 'e';
+        str[len++] = '=';
+
+        aes67_memcpy(&str[len], sdp->email.data, sdp->email.length);
+        len += sdp->email.length;
+
+        str[len++] = CR;
+        str[len++] = NL;
+    }
+#endif
+
+    // p=<phone number>
+#if 0 < AES67_SDP_MAXPHONE
+    if (0 < sdp->phone.length){
+        if (maxlen < len + sizeof("p=\r") + sdp->phone.length){
+            return 0;
+        }
+        str[len++] = 'p';
+        str[len++] = '=';
+
+        aes67_memcpy(&str[len], sdp->phone.data, sdp->phone.length);
+        len += sdp->phone.length;
+
+        str[len++] = CR;
+        str[len++] = NL;
+    }
+#endif
+
+
     // c=<connection data> (0-N)
     l = aes67_sdp_connections_tostr(&str[len], maxlen - len, &sdp->connections, AES67_SDP_FLAG_DEFLVL_SESSION);
     if (l == -1){
@@ -583,6 +656,51 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
     //// session level-attributes
 
+    // a=cat:<category>
+#if 0 < AES67_SDP_MAXCATEGORY
+    if (0 < sdp->category.length){
+        if (maxlen < len + sizeof("a=cat:\r") + sdp->category.length){
+            return 0;
+        }
+        str[len++] = 'a';
+        str[len++] = '=';
+        str[len++] = 'c';
+        str[len++] = 'a';
+        str[len++] = 't';
+        str[len++] = ':';
+
+        aes67_memcpy(&str[len], sdp->category.data, sdp->category.length);
+        len += sdp->category.length;
+
+        str[len++] = CR;
+        str[len++] = NL;
+    }
+#endif
+
+    // a=keywds:<keywords>
+#if 0 < AES67_SDP_MAXCATEGORY
+    if (0 < sdp->keywords.length){
+        if (maxlen < len + sizeof("a=keywds:\r") + sdp->keywords.length){
+            return 0;
+        }
+        str[len++] = 'a';
+        str[len++] = '=';
+        str[len++] = 'k';
+        str[len++] = 'e';
+        str[len++] = 'y';
+        str[len++] = 'w';
+        str[len++] = 'd';
+        str[len++] = 's';
+        str[len++] = ':';
+
+        aes67_memcpy(&str[len], sdp->keywords.data, sdp->keywords.length);
+        len += sdp->keywords.length;
+
+        str[len++] = CR;
+        str[len++] = NL;
+    }
+#endif
+
 #if AES67_SDP_TOOL_ENABLED == 1
     // a=tool:
     if (maxlen < len + sizeof("a=tool:") + sizeof(AES67_SDP_TOOL)){
@@ -599,6 +717,51 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     len += sizeof(AES67_SDP_TOOL)-1;
     str[len++] = CR;
     str[len++] = NL;
+#elif 0 < AES67_SDP_MAXTOOL
+    if (sdp->tool.length > 0){
+        if (maxlen < len + sizeof("a=tool:") + sdp->tool.length){
+            return 0;
+        }
+
+        str[len++] = 'a';
+        str[len++] = '=';
+        str[len++] = 't';
+        str[len++] = 'o';
+        str[len++] = 'o';
+        str[len++] = 'l';
+        str[len++] = ':';
+
+        aes67_memcpy(&str[len], sdp->tool.data, sdp->tool.length);
+        len += sdp->tool.length;
+
+        str[len++] = CR;
+        str[len++] = NL;
+    }
+#endif
+
+    // a=charset:<charset>
+#if 0 < AES67_SDP_MAXCHARSET
+    if (0 < sdp->charset.length){
+        if (maxlen < len + sizeof("a=charset:\r") + sdp->charset.length){
+            return 0;
+        }
+        str[len++] = 'a';
+        str[len++] = '=';
+        str[len++] = 'c';
+        str[len++] = 'h';
+        str[len++] = 'a';
+        str[len++] = 'r';
+        str[len++] = 's';
+        str[len++] = 'e';
+        str[len++] = 't';
+        str[len++] = ':';
+
+        aes67_memcpy(&str[len], sdp->charset.data, sdp->charset.length);
+        len += sdp->charset.length;
+
+        str[len++] = CR;
+        str[len++] = NL;
+    }
 #endif
 
     // a=clock-domain:PTPv2 <domainNumber>
@@ -1042,7 +1205,7 @@ u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str,
 //
 //}
 
-u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
+u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_data)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
     AES67_ASSERT("str != NULL", str != NULL);
@@ -1087,6 +1250,8 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
     u16_t seen = 0; // for basic (but incomplete) checking if required fields have been seen
     size_t llen = 0; // line length
 
+    u8_t skipmedia = 0;
+
 #if 0 < AES67_SDP_MAXPTIMECAPS
     // remember if unsupported capabilities/configurations were detected
     u8_t unsupported_caps = false;
@@ -1119,6 +1284,12 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
         // if line length is too short/invalid, abort or when second char not =
         if (llen < 3 || line[1] != '='){
             return AES67_SDP_ERROR;
+        }
+
+        // if current media is skipped, just skip them all (let new media pass)
+        if (skipmedia == 1 && line[0] != 'm'){
+            aes67_sdp_fromstr_unhandled(sdp, 0, line, llen, user_data);
+            continue;
         }
 
         // now parse given line
@@ -1156,9 +1327,6 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                     aes67_memcpy(sdp->info.data, &line[2], min);
                     sdp->info.length = min;
                 }
-#if 0 < AES67_SDP_MAXSTREAMINFO
-                else
-#endif
 #endif // 0 < AES67_SDP_MAXSESSIONNAME
 #if 0 < AES67_SDP_MAXSTREAMINFO
                 if ((context & AES67_SDP_FLAG_DEFLVL_STREAM) == AES67_SDP_FLAG_DEFLVL_STREAM){
@@ -1167,6 +1335,36 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                     stream->info.length = min;
                 }
 #endif // 0 < AES67_SDP_MAXSTREAMINFO
+                break;
+
+            case 'u': // u=<uri>
+#if 0 < AES67_SDP_MAXURI
+                if (context == AES67_SDP_FLAG_DEFLVL_SESSION){
+                    u32_t min = AES67_SDP_MAXURI < llen - 2 ? AES67_SDP_MAXURI : llen - 2;
+                    aes67_memcpy(sdp->uri.data, &line[2], min);
+                    sdp->uri.length = min;
+                }
+#endif // 0 < AES67_SDP_MAXURI
+                break;
+
+            case 'e': // e=<email>
+#if 0 < AES67_SDP_MAXEMAIL
+                if (context == AES67_SDP_FLAG_DEFLVL_SESSION){
+                    u32_t min = AES67_SDP_MAXEMAIL < llen - 2 ? AES67_SDP_MAXEMAIL : llen - 2;
+                    aes67_memcpy(sdp->email.data, &line[2], min);
+                    sdp->email.length = min;
+                }
+#endif // 0 < AES67_SDP_MAXEMAIL
+                break;
+
+            case 'p': // p=<phone number>
+#if 0 < AES67_SDP_MAXPHONE
+                if (context == AES67_SDP_FLAG_DEFLVL_SESSION){
+                    u32_t min = AES67_SDP_MAXPHONE < llen - 2 ? AES67_SDP_MAXPHONE : llen - 2;
+                    aes67_memcpy(sdp->phone.data, &line[2], min);
+                    sdp->phone.length = min;
+                }
+#endif // 0 < AES67_SDP_MAXSESSIONNAME
                 break;
 
             case 'c': { // c=IN (IP4|IP6) <host>[/<ttl>][/<no-of-addresses>]
@@ -1183,6 +1381,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                     //TODO report insufficient memory
                     return AES67_SDP_NOMEMORY;
                 }
+
 
                 // get new connection pointer and increase connection counter
                 struct aes67_sdp_connection *con = &sdp->connections.data[sdp->connections.count++];
@@ -1273,9 +1472,8 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 
                 s32_t end = aes67_atoi(&line[3 + readlen], llen - 3 - readlen, 10, &readlen);
 
-                // TODO note: this is just a basic format check, at the moment this is not used
                 if (start != 0 || end != 0) {
-                    return AES67_SDP_NOTSUPPORTED;
+                    aes67_sdp_fromstr_unhandled(sdp, context, line, llen, user_data);
                 }
             }
                 break;
@@ -1292,8 +1490,15 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                 // TODO in principle we could just skip this media/stream instead of aborting
                 if (line[2] != 'a' || line[3] != 'u' || line[4] != 'd' || line[5] != 'i' || line[6] != 'o' ||
                     line[7] != ' ') {
-                    return AES67_SDP_NOTSUPPORTED;
+
+                    skipmedia = 1;
+
+                    aes67_sdp_fromstr_unhandled(sdp, 0, line, llen, user_data);
+
+                    continue;
                 }
+
+                skipmedia = 0;
 
                 u16_t readlen = 0;
 
@@ -1321,7 +1526,12 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 
                 // check format and profile type
                 if (pos[0] != ' ' || pos[1] != 'R' || pos[2] != 'T' || pos[3] != 'P' || pos[4] != '/' || pos[5] != 'A' || pos[6] != 'V' || pos[7] != 'P' || pos[8] != ' '){
-                    return AES67_SDP_NOTSUPPORTED;
+
+                    skipmedia = 1;
+
+                    aes67_sdp_fromstr_unhandled(sdp, 0, line, llen, user_data);
+
+                    continue;
                 }
 
                 // move beyond profile type
@@ -1749,7 +1959,39 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                         }
 
                         sdp->ptp_domain = AES67_SDP_PTP_DOMAIN_SET | (AES67_SDP_PTP_DOMAIN_VALUE & t);
+                    } // a=ptp-domain:..
+
+#if 0 < AES67_SDP_MAXTOOL
+                    else if (llen > sizeof("a=tool:") &&
+                             line[2] == 't' &&
+                             line[3] == 'o' &&
+                             line[4] == 'o' &&
+                             line[5] == 'l' &&
+                             line[6] == ':'){
+
+                        u32_t min = AES67_SDP_MAXTOOL < llen - 7 ? AES67_SDP_MAXTOOL : llen - 7;
+                        aes67_memcpy(sdp->tool.data, &line[7], min);
+                        sdp->tool.length = min;
                     }
+#endif // 0 < AES67_SDP_MAXTOOL
+
+#if 0 < AES67_SDP_MAXCHARSET
+                    else if (llen > sizeof("a=charset:") &&
+                             line[2] == 'c' &&
+                             line[3] == 'h' &&
+                             line[4] == 'a' &&
+                             line[5] == 'r' &&
+                             line[6] == 's' &&
+                             line[7] == 'e' &&
+                             line[8] == 't' &&
+                             line[9] == ':'){
+
+                        u32_t min = AES67_SDP_MAXCHARSET < llen - 10 ? AES67_SDP_MAXCHARSET : llen - 10;
+                        aes67_memcpy(sdp->charset.data, &line[10], min);
+                        sdp->charset.length = min;
+                    }
+#endif // 0 < AES67_SDP_MAXCHARSET
+
                     // no matching attribute
                     else {
                         processed = false;
@@ -1759,6 +2001,8 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
                 // if not processed so far it can be a session OR media/stream level attribute
                 if (processed == false){
 
+                    // assume processed to be true, set false when not
+                    processed = true;
 
                     if (llen == sizeof("a=recvonly") - 1 &&
                         line[2] == 'r' &&
@@ -1937,25 +2181,26 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
 
                         }
                     } // a=ts-refclk
+                    else {
+                        processed = false;
+                    }
                 }
 
                 if (processed == false){
-                    //TODO what todo? generic callback?
-                    // ex aes67_sdp_fromstr_unknown(context, line, llen)
+                    aes67_sdp_fromstr_unhandled(sdp, context, line, llen, user_data);
                 }
             }
                 break;
 
-            case 'u':
-            case 'e':
-            case 'p':
-            case 'b':
-            case 'z':
-            case 'k':
-            case 'r':
+            // ignore
+            case 'b': // bandwidth
+            case 'z': // timezone
+            case 'k': // encryption keys
+            case 'r': // repetitions
                 // fall through to default, ie ignore
 
             default:
+                aes67_sdp_fromstr_unhandled(sdp, context, line, llen, user_data);
                 break;
         }
     }
@@ -1975,3 +2220,8 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp * sdp, u8_t * str, u32_t len)
     return (seen & SEEN_ALL) == SEEN_ALL ? AES67_SDP_OK : AES67_SDP_INCOMPLETE;
 }
 
+WEAK_FUN void
+aes67_sdp_fromstr_unhandled(struct aes67_sdp *sdp, aes67_sdp_flags context, u8_t *line, u32_t len, void *user_data)
+{
+    // do nothing (can be overriden by user
+}

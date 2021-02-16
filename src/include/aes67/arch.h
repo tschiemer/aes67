@@ -73,4 +73,8 @@ typedef struct {
 #define PACK_STRUCT __attribute__((packed))
 #endif
 
+#ifndef WEAK_FUN
+#define WEAK_FUN __attribute__((weak))
+#endif
+
 #endif //AES67_ARCH_H
