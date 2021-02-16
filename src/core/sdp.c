@@ -766,7 +766,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
     // a=clock-domain:PTPv2 <domainNumber>
     // RAVENNA SHALL session level attribute
-    if ((sdp->ptp_domain & AES67_SDP_PTP_DOMAIN_SET) == AES67_SDP_PTP_DOMAIN_SET){
+    if ((sdp->ptp_domain & AES67_SDP_PTPDOMAIN_SET) == AES67_SDP_PTPDOMAIN_SET){
         if (maxlen < len + sizeof("a=clock-domain:PTPv2 127\r")){
             return 0;
         }
@@ -791,7 +791,7 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         str[len++] = 'v';
         str[len++] = '2';
         str[len++] = ' ';
-        u8_t d = (AES67_SDP_PTP_DOMAIN_VALUE & sdp->ptp_domain);
+        u8_t d = (AES67_SDP_PTPDOMAIN_VALUE & sdp->ptp_domain);
         SUB1kTOSTR(d, str, len);
         str[len++] = CR;
         str[len++] = NL;
@@ -1975,7 +1975,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                             return AES67_SDP_ERROR;
                         }
 
-                        sdp->ptp_domain = AES67_SDP_PTP_DOMAIN_SET | (AES67_SDP_PTP_DOMAIN_VALUE & t);
+                        sdp->ptp_domain = AES67_SDP_PTPDOMAIN_SET | (AES67_SDP_PTPDOMAIN_VALUE & t);
                     } // a=ptp-domain:..
 
 #if 0 < AES67_SDP_MAXTOOL

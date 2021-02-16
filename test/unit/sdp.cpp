@@ -830,7 +830,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                             }
                     }
             },
-            .ptp_domain = AES67_SDP_PTP_DOMAIN_SET | 2,
+            .ptp_domain = AES67_SDP_PTPDOMAIN_SET | 2,
             .nptp = 1,
             .ptps = {
                     .count = 2,
@@ -1401,7 +1401,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(2,  stream->ptime_cap.cfg_a);
 #endif //0 < AES67_SDP_MAXPTIMECAPS
 
-    CHECK_EQUAL(AES67_SDP_PTP_DOMAIN_SET | 13, sdp.ptp_domain);
+    CHECK_EQUAL(AES67_SDP_PTPDOMAIN_SET | 13, sdp.ptp_domain);
     CHECK_EQUAL(0, sdp.nptp);
     CHECK_EQUAL(1, aes67_sdp_get_ptp_count(&sdp, 0));
     struct aes67_sdp_ptp * ptp = aes67_sdp_get_ptp(&sdp, 0, 0);

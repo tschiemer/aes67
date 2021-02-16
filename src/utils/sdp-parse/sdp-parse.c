@@ -102,8 +102,8 @@ int main(int argc, char * argv[])
                     sdp.originator.address.data[sdp.originator.address.length] = '\0';
                     printf("SESSION src=%s nstream=%d nptp=%d ", sdp.originator.address.data, sdp.streams.count, sdp.ptps.count);
 
-                    if ((sdp.ptp_domain & AES67_SDP_PTP_DOMAIN_SET) == AES67_SDP_PTP_DOMAIN_SET) {
-                        printf("ptp-domain=%d ", sdp.ptp_domain & AES67_SDP_PTP_DOMAIN_VALUE);
+                    if ((sdp.ptp_domain & AES67_SDP_PTPDOMAIN_SET) == AES67_SDP_PTPDOMAIN_SET) {
+                        printf("ptp-domain=%d ", sdp.ptp_domain & AES67_SDP_PTPDOMAIN_VALUE);
                     }
 
                     printf("\n");

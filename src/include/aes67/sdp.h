@@ -70,8 +70,8 @@ extern "C" {
  */
 typedef u16_t aes67_sdp_flags;
 
-#define AES67_SDP_PTP_DOMAIN_SET        0b10000000
-#define AES67_SDP_PTP_DOMAIN_VALUE      0b01111111
+#define AES67_SDP_PTPDOMAIN_SET        0b10000000
+#define AES67_SDP_PTPDOMAIN_VALUE      0b01111111
 
 #define AES67_SDP_PTIME_SET             0b1000000000000000
 #define AES67_SDP_PTIME_VALUE           0b0111111111111111
@@ -293,6 +293,43 @@ void aes67_sdp_origin_init(struct aes67_sdp_originator * origin);
 void aes67_sdp_init(struct aes67_sdp * sdp);
 
 /**
+ * Comfort getter for (RAVENNA) ptpdomain  attribute
+ *
+ * @param sdp
+ * @return
+ */
+inline u8_t aes67_sdp_get_ptpdomain(struct aes67_sdp * sdp)
+{
+    return AES67_SDP_PTPDOMAIN_VALUE & sdp->ptp_domain;
+}
+
+/**
+ * Comfort setter for (RAVENNA) ptpdomain  attribute
+ *
+ * @param sdp
+ * @param domain
+ * @return
+ */
+inline u8_t aes67_sdp_set_ptpdomain(struct aes67_sdp * sdp, u8_t domain)
+{
+    return sdp->ptp_domain = AES67_SDP_PTPDOMAIN_SET | (AES67_SDP_PTPDOMAIN_VALUE & domain);
+}
+
+/**
+ * Comfort unsetter for (RAVENNA) ptpdomain attribute
+ *
+ * @param sdp
+ * @param domain
+ * @return
+ */
+inline u8_t aes67_sdp_unset_ptpdomain(struct aes67_sdp * sdp)
+{
+    return sdp->ptp_domain = 0;
+}
+
+
+
+/**
  * Get total connection setting count.
  *
  * @param sdp
@@ -318,6 +355,23 @@ inline u8_t aes67_sdp_get_connection_count(struct aes67_sdp * sdp)
  * @return
  */
 struct aes67_sdp_connection * aes67_sdp_get_connection(struct aes67_sdp * sdp, aes67_sdp_flags flags);
+
+/**
+ * Adds session-/stream-level connection to struct returning pointer (comfort function)
+ *
+ * @param sdp
+ * @param di
+ * @return
+ */
+inline struct aes67_sdp_connection * aes67_sdp_add_connection(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+    AES67_ASSERT("sdp->connections.count < AES67_SDP_MAXCONNECTIONS", sdp->connections.count < AES67_SDP_MAXCONNECTIONS);
+
+    return &sdp->connections.data[sdp->connections.count++];
+}
+
+
 
 /**
  * Get total stream count.
@@ -348,6 +402,26 @@ inline struct aes67_sdp_stream * aes67_sdp_get_stream(struct aes67_sdp * sdp, u8
 }
 
 /**
+ * Comfort function to add new stream.
+ *
+ * @param sdp
+ * @param si        if not NULL, is set to stream index
+ * @return
+ */
+inline struct aes67_sdp_stream * aes67_sdp_add_stream(struct aes67_sdp * sdp, u8_t * si)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+    AES67_ASSERT("si < sdp->streams.count", sdp->streams.count < AES67_SDP_MAXSTREAMS);
+
+    if (si != NULL){
+        *si = sdp->streams.count;
+    }
+
+    return &sdp->streams.data[sdp->streams.count++];
+}
+
+
+/**
  * Get number of (alternative) encodings for specific stream
  *
  * @param sdp
@@ -371,6 +445,28 @@ inline u8_t aes67_sdp_get_stream_encoding_count(struct aes67_sdp * sdp, u8_t si)
  * @return
  */
 struct aes67_sdp_attr_encoding * aes67_sdp_get_stream_encoding(struct aes67_sdp * sdp, u8_t si, u8_t ei);
+
+/**
+ * Comfort function to add a new stream encoding.
+ *
+ * @param sdp
+ * @param si
+ * @return
+ */
+inline struct aes67_sdp_attr_encoding * aes67_sdp_add_stream_encoding(struct aes67_sdp * sdp, u8_t si)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+    AES67_ASSERT("si < sdp->streams.count", si < sdp->streams.count);
+    AES67_ASSERT("sdp->encodings.count < AES67_SDP_MAXENCODINGS", sdp->encodings.count < AES67_SDP_MAXENCODINGS);
+
+    struct aes67_sdp_attr_encoding * enc = &sdp->encodings.data[ sdp->encodings.count++ ];
+
+    AES67_ASSERT("(enc->flags & AES67_SDP_FLAG_SET_MASK) == AES67_SDP_FLAG_SET_YES", (enc->flags & AES67_SDP_FLAG_SET_MASK) == AES67_SDP_FLAG_SET_YES);
+
+    enc->flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | si;
+
+    return enc;
+}
 
 
 inline u8_t aes67_sdp_get_ptp_count(struct aes67_sdp * sdp, aes67_sdp_flags flags)
@@ -404,6 +500,28 @@ inline u8_t aes67_sdp_get_ptp_count(struct aes67_sdp * sdp, aes67_sdp_flags flag
  */
 struct aes67_sdp_ptp * aes67_sdp_get_ptp(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t pi);
 
+/**
+ * Comfort function to add new session- or media-level ptp refclock
+ *
+ * @param sdp
+ * @param flags
+ * @param pi
+ * @return
+ */
+inline struct aes67_sdp_ptp * aes67_sdp_add_ptp(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+{
+    AES67_ASSERT("sdp != NULL", sdp != NULL);
+    AES67_ASSERT("(flags & AES67_SDP_FLAG_DEFLVL_MASK) != 0", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != 0);
+    AES67_ASSERT("sdp->ptps.count < AES67_SDP_MAXPTPS", sdp->ptps.count < AES67_SDP_MAXPTPS);
+
+    struct aes67_sdp_ptp * ptp = &sdp->ptps.data[ sdp->ptps.count++ ];
+
+    AES67_ASSERT("(ptp->flags &AES67_SDP_FLAG_SET_MASK) == AES67_SDP_FLAG_SET_YES", (ptp->flags &AES67_SDP_FLAG_SET_MASK) == AES67_SDP_FLAG_SET_YES);
+
+    ptp->flags = AES67_SDP_FLAG_SET_YES | flags;
+
+    return ptp;
+}
 
 /**
  * Returns session or media level mode
