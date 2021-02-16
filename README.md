@@ -24,7 +24,7 @@ https://github.com/tschiemer/aes67
   - [x] SAP (required for broader interoperability)
     - [x] ~~zlib (de-)compression support?~~ -> interface for external implementation
     - [x] ~~authentication support?~~ -> interface for external implementation
-  - [ ] SDP
+  - [x] SDP
   - [ ] SIP ? (for unicast management according to standard, but most systems use multicast only..)
   - [ ] RSTP ? (meaningful for system with Ravenna-based components if no RAV2SAP)
   - [ ] [AES70/OCA](https://github.com/tschiemer/ocac) *work in progress*
