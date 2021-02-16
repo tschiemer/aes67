@@ -36,11 +36,15 @@ https://github.com/tschiemer/aes67
 
   
 - Command line / developer utilities
-  - [ ] SAP
+  - SAP
     - [x] sap-pack, sap-unpack
-    - [ ] sap-server
-  - [ ] SDP
+    - [ ] ~~sap-server~~ -> general session server
+    - [ ] RAV2SAP alternative? (discovery through mDNS, querying through RTSP)
+  - SDP
     - [ ] sdp-parse 
+  - PTP
+    - [ ] ptp-monitor? -> https://www.ptptrackhound.com/
+    - [ ] ptp-server?
 
 
 
@@ -125,11 +129,40 @@ RTSP may be considered (in the future) for management of unicast streams aswell 
 
 ### Audio
 
+#### Encoding
+
 AES67 Audio is to be streamed in L16 or L24 encoding; that is, each sample is a two-, three-byte respectively signed integer
 in two's complement representation in network byte order (bigendian),
  samples are interleaved.
 The common I2S & TDM inter-chip audio protocols, AES3, AES10 (MADI), AES50  use identical formats (roughly speaking).
 Thus, other formats are generally not considered herein.
+
+#### Routing
+
+Given a fixed local audio sour multicast streaming is rather straightforward.
+
+For potential optimization multiple instances might be considered supported.
+
+In the most simple case incoming streams might be handled similarly, ie just one
+multicast stream might be listened to and passed on to the local output.
+
+But if audio is to come from different sources the situation gets more complicated: either
+the device has the capability of listening to multiple streams and extracting the necessary
+channels or the single channels are joined on another device into a single (multicast) stream.
+Obviously this would introduce further latency and make configuration more complicated.
+
+Interesting to note, even basic AES70 connection management by default 
+allows for internal routing of local channels to transmitted stream channels (of a multichannel 
+stream), and analogously allows for custom assignment of incoming stream channels to
+local output channels. Thus a receiving device should support (at most) as many streams as it
+has internal (receiving) channels - although practically speaking there typically will be less
+senders than relevant received channels unless each sender transmits only one relevant channel,
+so this can be constrained (thereby constraining possible system configurations).
+
+In the sense of AES70 transmission and reception buffers are designed to provide a single
+interface for local in- and output of channels to be processed but allowing for merging of
+multiple stream sources into one reception buffer (discarding any unwanted audio channels).
+
 
 
 
