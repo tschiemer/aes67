@@ -99,12 +99,35 @@ int main(int argc, char * argv[])
 
                 if (r == AES67_SDP_OK){
 
+                    sdp.originator.username.data[sdp.originator.username.length] = '\0';
                     sdp.originator.address.data[sdp.originator.address.length] = '\0';
-                    printf("SESSION src=%s nstream=%d nptp=%d ", sdp.originator.address.data, sdp.streams.count, sdp.ptps.count);
+                    sdp.originator.session_id.data[sdp.originator.session_id.length] = '\0';
+                    sdp.originator.session_version.data[sdp.originator.session_version.length] = '\0';
+
+                    printf("SESSION %s@%s %s.%s", sdp.originator.username.data, sdp.originator.address.data, sdp.originator.session_id.data, sdp.originator.session_version.data);
 
                     if ((sdp.ptp_domain & AES67_SDP_PTPDOMAIN_SET) == AES67_SDP_PTPDOMAIN_SET) {
-                        printf("ptp-domain=%d ", sdp.ptp_domain & AES67_SDP_PTPDOMAIN_VALUE);
+                        printf(" ptp-domain=%d", sdp.ptp_domain & AES67_SDP_PTPDOMAIN_VALUE);
                     }
+
+#if 0 < AES67_SDP_MAXSESSIONNAME
+//                    if (sdp.name.length){
+                        sdp.name.data[sdp.name.length] = '\0';
+                        printf(" \"%s\"", sdp.name.data);
+//                    }
+#endif
+#if 0 < AES67_SDP_MAXSESSIONINFO
+//                    if (sdp.info.length){
+                        sdp.info.data[sdp.info.length] = '\0';
+                        printf(" \"%s\"", sdp.info.data);
+//                    }
+#endif
+#if 0 < AES67_SDP_MAXTOOL
+//                    if (sdp.tool.length){
+                        sdp.tool.data[sdp.tool.length] = '\0';
+                        printf(" tool=%s", sdp.tool.data);
+//                    }
+#endif
 
                     printf("\n");
 
@@ -116,7 +139,7 @@ int main(int argc, char * argv[])
                         struct aes67_sdp_connection * con = aes67_sdp_get_connection(&sdp, i);
 
                         con->address.data[con->address.length] = '\0';
-                        printf("%s:%d/%d ", con->address.data, stream->port, stream->nports);
+                        printf("%s:%d/%d IP%c ", con->address.data, stream->port, stream->nports, con->ipver == aes67_net_ipver_4 ? '4' : '6');
 
                         enum aes67_sdp_attr_mode mode = aes67_sdp_get_mode(&sdp, i);
 
@@ -128,29 +151,29 @@ int main(int argc, char * argv[])
                             printf("mode=sendonly ");
                         } else if (mode == aes67_sdp_attr_mode_sendrecv){
                             printf("mode=sendrecv ");
+                        } else {
+                            printf("mode= ");
                         }
 
                         printf("clk-offset=%u", stream->mediaclock_offset);
 
                         if ( (stream->ptime & AES67_SDP_PTIME_SET) == AES67_SDP_PTIME_SET){
                             printf(" ptime=%d", stream->ptime & AES67_SDP_PTIME_VALUE);
+                        } else {
+                            printf(" ptime=0");
                         }
 
-                        printf(" nenc=%d nptp=%d", stream->nencodings, stream->nptp);
-
-                        printf("\n");
+                        printf(" nenc=%d nptp=%d", stream->nencodings, aes67_sdp_get_ptp_count(&sdp, i));
 
 #if 0 < AES67_SDP_MAXPTIMECAPS
-                        if ((stream->ptime_cap.cfg & AES67_SDP_CAP_SET) == AES67_SDP_CAP_ACTIVE){
-                            printf("  ptime-acfg=%d\n", stream->ptime_cap.cfg & AES67_SDP_CAP_VALUE);
-                        }
-                        if ((stream->ptime_cap.cfg & AES67_SDP_CAP_SET) == AES67_SDP_CAP_PROPOSED){
+                        printf( " nptime-cap=%d", stream->ptime_cap.count);
+#endif
+#if 0 < AES67_SDP_MAXSTREAMINFO
+                        stream->info.data[stream->info.length] = '\0';
+                        printf(" \"%s\"", stream->info.data);
+#endif
 
-                            for (int j = 0; j < stream->ptime_cap.count; j++){
-                                printf("  ptime-pcap#%d.%d ptime=%d proposed=%d\n", i, stream->ptime_cap.data[j].cap, stream->ptime_cap.data[j].ptime, stream->ptime_cap.cfg_a == stream->ptime_cap.data[j].cap);
-                            }
-                        }
-#endif // 0 < AES67_SDP_MAXPTIMECAPS
+                        printf("\n");
 
                         for (int e = 0; e < sdp.streams.data[i].nencodings; e++){
 
@@ -158,19 +181,9 @@ int main(int argc, char * argv[])
 
                             struct aes67_sdp_attr_encoding * enc = aes67_sdp_get_stream_encoding(&sdp, i, e);
 
-                            if (enc->encoding == aes67_audio_encoding_L8){
-                                printf("L8/");
-                            } else if (enc->encoding == aes67_audio_encoding_L16){
-                                printf("L16/");
-                            } else if (enc->encoding == aes67_audio_encoding_L24){
-                                printf("L24/");
-                            } else if (enc->encoding == aes67_audio_encoding_L32){
-                                printf("L32/");
-                            } else {
-                                printf("?/");
-                            }
+                            printf("L%d ", (enc->encoding & AES67_AUDIO_ENC_SAMPLESIZE) * 8);
 
-                            printf("%d/%d\n", enc->samplerate, enc->nchannels);
+                            printf("%d %d\n", enc->samplerate, enc->nchannels);
                         }
 
                         int np = aes67_sdp_get_ptp_count(&sdp, i);
@@ -199,7 +212,19 @@ int main(int argc, char * argv[])
                             printf("\n");
                         }
 
-                        printf("\n");
+#if 0 < AES67_SDP_MAXPTIMECAPS
+                        if ((stream->ptime_cap.cfg & AES67_SDP_CAP_SET) == AES67_SDP_CAP_ACTIVE){
+                            printf("  ptime-acfg#%d %d\n", i, stream->ptime_cap.cfg & AES67_SDP_CAP_VALUE);
+                        }
+                        if ((stream->ptime_cap.cfg & AES67_SDP_CAP_SET) == AES67_SDP_CAP_PROPOSED){
+
+                            for (int j = 0; j < stream->ptime_cap.count; j++){
+                                printf("  ptime-pcap#%d.%d ptime=%d %s\n", i, stream->ptime_cap.data[j].cap, stream->ptime_cap.data[j].ptime, (stream->ptime_cap.cfg_a == stream->ptime_cap.data[j].cap) ? "proposed" : "");
+                            }
+                        }
+#endif // 0 < AES67_SDP_MAXPTIMECAPS
+
+//                        printf("\n");
                     }
                 }
 
@@ -207,33 +232,44 @@ int main(int argc, char * argv[])
 
                 struct aes67_sdp_originator origin;
 
-                r = aes67_sdp_origin_fromstr(&origin, rbuf, r);
+                r = aes67_sdp_origin_fromstr(&origin, rbuf, r-1);
+
 
                 if (r == AES67_SDP_OK){
+
+                    origin.username.data[origin.username.length] = '\0';
+                    origin.address.data[origin.address.length] = '\0';
+                    origin.session_id.data[origin.session_id.length] = '\0';
+                    origin.session_version.data[origin.session_version.length] = '\0';
+
+                    printf("ORIGIN %s@%s %s.%s\n", origin.username.data, origin.address.data, origin.session_id.data, origin.session_version.data);
 
                 }
             }
 
-            if (r != AES67_SDP_OK){
-                switch(r){
-                    case AES67_SDP_ERROR:
-                        fprintf(stderr, "ERROR generic\n");
-                        break;
+            if (opts.print_debug){
 
-                    case AES67_SDP_NOTSUPPORTED:
-                        fprintf(stderr, "ERROR features not supported\n");
-                        break;
+                if (r != AES67_SDP_OK){
+                    switch(r){
+                        case AES67_SDP_ERROR:
+                            fprintf(stderr, "ERROR generic\n");
+                            break;
 
-                    case AES67_SDP_NOMEMORY:
-                        fprintf(stderr, "ERROR not enough memory\n");
-                        break;
+                        case AES67_SDP_NOTSUPPORTED:
+                            fprintf(stderr, "ERROR features not supported\n");
+                            break;
 
-                    case AES67_SDP_INCOMPLETE:
-                        fprintf(stderr, "ERROR incomplete parsing\n");
-                        break;
+                        case AES67_SDP_NOMEMORY:
+                            fprintf(stderr, "ERROR not enough memory\n");
+                            break;
 
-                    default:
-                        fprintf(stderr, "ERROR\n");
+                        case AES67_SDP_INCOMPLETE:
+                            fprintf(stderr, "ERROR incomplete parsing\n");
+                            break;
+
+                        default:
+                            fprintf(stderr, "ERROR\n");
+                    }
                 }
             }
 
