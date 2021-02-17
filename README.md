@@ -197,6 +197,7 @@ Usage: ./sap-pack (announce|delete) <msg-hash> <origin-ip> [<payloadtype>] <sdp-
 Writes SAPv2 packet to STDOUT.
 Examples:
 ./sap-pack announce 123 10.0.0.2 test.sdp | socat -u - UDP4-DATAGRAM:224.2.127.254:9875
+watch -t 300 "./sap-pack announce 123 10.0.0.2 test.sdp | socat -u -v - UDP4-DATAGRAM:224.2.127.254:9875"
 ```
 ### `sap-unpack`
 ```

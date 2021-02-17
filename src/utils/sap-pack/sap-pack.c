@@ -39,6 +39,7 @@ static void help(FILE * fd)
              "Writes SAPv2 packet to STDOUT.\n"
              "Examples:\n"
              "./sap-pack announce 123 10.0.0.2 test.sdp | socat -u - UDP4-DATAGRAM:224.2.127.254:9875\n"
+             "watch -t 300 \"./sap-pack announce 123 10.0.0.2 test.sdp | socat -u -v - UDP4-DATAGRAM:224.2.127.254:9875\"\n"
              , argv0);
 }
 
