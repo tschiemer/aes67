@@ -40,14 +40,54 @@ inline void rtp_zerofill(u8_t * dst, size_t count)
         *dst++ = 0;
     }
 }
+void aes67_rtp_init(struct aes67_rtp * rtp)
+{
+    // see RFC 3550  Section 5
+    rtp->seqno = AES67_RAND();
+    rtp->timestamp = AES67_RAND();
+    rtp->ssrc = AES67_RAND();
+}
 
-//inline void rtp_txfifo_update(struct aes67_rtp_txfifo * fifo)
-//{
-//    size_t min = fifo->in.min;
-//    size_t max = fifo->in.max;
-//
-//
-//}
+u32_t aes67_rtp_pack_raw(u8_t * packet, u8_t payloadtype, u16_t seqno, u32_t timestamp, u32_t ssrc, void * samples, u16_t ssize)
+{
+    AES67_ASSERT("packet != NULL", packet != NULL);
+    AES67_ASSERT("samples != NULL", samples != NULL);
+    AES67_ASSERT("ssize > 0" , ssize > 0);
+
+    packet[AES67_RTP_STATUS1] = AES67_RTP_STATUS1_VERSION_2;
+    packet[AES67_RTP_STATUS2] = AES67_RTP_STATUS2_PAYLOADTYPE & payloadtype;
+    *(u16_t*)(&packet[AES67_RTP_SEQNO]) = aes67_htons(seqno);
+    *(u32_t*)(&packet[AES67_RTP_TIMESTAMP]) = aes67_htonl(timestamp);
+    *(u32_t*)(&packet[AES67_RTP_SSRC]) = aes67_htonl(ssrc);
+
+    aes67_memmove(&packet[AES67_RTP_CSRC], samples, ssize);
+
+    //TODO padding??
+
+    return AES67_RTP_CSRC + ssize;
+}
+
+u32_t aes67_rtp_pack(struct aes67_rtp *rtp, u8_t * packet)
+{
+    AES67_ASSERT("rtp != NULL", rtp != NULL);
+    AES67_ASSERT("rtp->nsamples > 0", rtp->nsamples > 0);
+    AES67_ASSERT("packet != NULL", packet != NULL);
+
+    packet[AES67_RTP_STATUS1] = AES67_RTP_STATUS1_VERSION_2;
+    packet[AES67_RTP_STATUS2] = AES67_RTP_STATUS2_PAYLOADTYPE & rtp->payloadtype;
+    *(u16_t*)(&packet[AES67_RTP_SEQNO]) = aes67_htons(rtp->seqno);
+    *(u32_t*)(&packet[AES67_RTP_TIMESTAMP]) = aes67_htonl(rtp->timestamp);
+    *(u32_t*)(&packet[AES67_RTP_SSRC]) = aes67_htonl(rtp->ssrc);
+
+    aes67_rtp_buffer_read_allch(&rtp->buf, &packet[AES67_RTP_CSRC], rtp->nsamples );
+
+    //TODO padding??
+
+    rtp->seqno++;
+    rtp->timestamp += rtp->nsamples;
+
+    return AES67_RTP_CSRC + (rtp->nsamples * rtp->buf.samplesize * rtp->buf.nchannels);
+}
 
 void aes67_rtp_buffer_insert_allch(struct aes67_rtp_buffer *buf, void *src, size_t nsamples)
 {
@@ -301,23 +341,4 @@ void aes67_rtp_buffer_read_1ch_1smpl(struct aes67_rtp_buffer *buf, void *dst, si
 
     // shift in-pointer
     buf->out.ch[channel] = (buf->out.ch[channel] + 1) % buf->nsamples;
-}
-
-u16_t aes67_rtp_pack(u8_t * packet, u8_t payloadtype, u16_t seqno, u32_t timestamp, u32_t ssrc, void * samples, u16_t ssize)
-{
-    AES67_ASSERT("packet != NULL", packet != NULL);
-    AES67_ASSERT("samples != NULL", samples != NULL);
-    AES67_ASSERT("ssize > 0" , ssize > 0);
-
-    packet[AES67_RTP_STATUS1] = AES67_RTP_STATUS1_VERSION_2;
-    packet[AES67_RTP_STATUS2] = AES67_RTP_STATUS2_PAYLOADTYPE & payloadtype;
-    *(u16_t*)(&packet[AES67_RTP_SEQNO]) = aes67_htons(seqno);
-    *(u32_t*)(&packet[AES67_RTP_TIMESTAMP]) = aes67_htonl(timestamp);
-    *(u32_t*)(&packet[AES67_RTP_SSRC]) = aes67_htonl(ssrc);
-
-    aes67_memmove(&packet[AES67_RTP_CSRC], samples, ssize);
-
-    //TODO padding??
-
-    return AES67_RTP_CSRC + ssize;
 }

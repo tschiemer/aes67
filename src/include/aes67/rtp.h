@@ -114,13 +114,13 @@ struct aes67_rtp_buffer {
     size_t samplesize;
     size_t nsamples;
     struct {
-        u32_t min;
-        u32_t max;
+//        u32_t min;
+//        u32_t max;
         u32_t ch[AES67_RTP_MAXCHANNELS];
     } in;
     struct {
-        u32_t min;
-        u32_t max;
+//        u32_t min;
+//        u32_t max;
         u32_t ch[AES67_RTP_MAXCHANNELS];
     } out;
     u8_t data[];
@@ -129,13 +129,23 @@ struct aes67_rtp_buffer {
 #define AES67_RTP_RAWBUFFER_SIZE(nchannels, samplesize, nsamples)    ((nchannels)*(samplesize)*(nsamples))
 #define AES67_RTP_BUFFER_SIZE(nchannels, samplesize, nsamples)      (sizeof(struct aes67_rtp_buffer) + AES67_RTP_RAWBUFFER_SIZE(nchannels, samplesize, nsamples))
 
-struct aes67_rtp_tx {
+struct aes67_rtp {
+
+    u32_t nsamples; // number of samples to be sent or last number of samples received.
+
     u8_t payloadtype;
     u16_t seqno;
     u32_t timestamp;
     u32_t ssrc;
-    struct aes67_rtp_buffer * buf;
+    struct aes67_rtp_buffer buf;
 };
+
+void aes67_rtp_init(struct aes67_rtp * rtp);
+
+u32_t aes67_rtp_pack_raw(u8_t * packet, u8_t payloadtype, u16_t seqno, u32_t timestamp, u32_t ssrc, void * samples, u16_t ssize);
+
+u32_t aes67_rtp_pack(struct aes67_rtp * rtp, u8_t * packet);
+
 
 /**
  * Computes number of samples that should be present in a packet given ptime and samplerate.
@@ -189,9 +199,11 @@ inline ptime_t aes67_rtp_packet2nsamples(void * packet, u16_t len, u32_t nchanne
  *
  *  It generally is assumed that all sources and sinks are synchronized which implies that
  *  all samples are generally produced and consumed at the same rate - which is why there is no guard
- *  against overflowing buffers (to keep complexitly lower).
+ *  against overflowing buffers (to keep complexitly lower). A certain degree of asynchronicity is possible.
  *
  *  Single, serial and block-wise sample buffers operations are available.
+ *
+ *  Functions for all- and 1-channel operations are given to allow for fixed and more dynamic channel setups.
  *
  *  If AES67_RTP_BUFREAD_ZEROFILL == 1 all read values are zeroed (see opt)
  *
@@ -200,6 +212,7 @@ inline ptime_t aes67_rtp_packet2nsamples(void * packet, u16_t len, u32_t nchanne
  *  from given sources would be more efficient (...) (this is what xmos is doing according to AVB app note)
  *  You could even do something as fancy as having an RTP packet based buffer such that no further space
  *  or buffer copy operations are needed to write a packet (hmm, let me think about that).
+ *
  */
 
 void aes67_rtp_buffer_insert_allch(struct aes67_rtp_buffer *buf, void *src, size_t nsamples);
@@ -215,29 +228,21 @@ void aes67_rtp_buffer_insert_1ch_1smpl(struct aes67_rtp_buffer *buf, void *src, 
 void aes67_rtp_buffer_read_1ch_1smpl(struct aes67_rtp_buffer *buf, void *dst, size_t channel);
 
 
-inline void aes67_rtp_header_ntoh(struct aes67_rtp_packet *packet)
-{
-    packet->header.seqno = aes67_ntohs(packet->header.seqno);
-    packet->header.timestamp = aes67_ntohl(packet->header.timestamp);
-    packet->header.ssrc = aes67_ntohl(packet->header.ssrc);
-    // ignore csrc
-}
-
-inline void aes67_rtp_header_hton(struct aes67_rtp_packet * packet)
-{
-    aes67_rtp_header_ntoh(packet);
-}
+//inline void aes67_rtp_header_ntoh(struct aes67_rtp_packet *packet)
+//{
+//    packet->header.seqno = aes67_ntohs(packet->header.seqno);
+//    packet->header.timestamp = aes67_ntohl(packet->header.timestamp);
+//    packet->header.ssrc = aes67_ntohl(packet->header.ssrc);
+//    // ignore csrc
+//}
+//
+//inline void aes67_rtp_header_hton(struct aes67_rtp_packet * packet)
+//{
+//    aes67_rtp_header_ntoh(packet);
+//}
 
 //ptime_t aes67_rtp_ptime_from_packdiff(struct aes67_rtp_packet *before, struct aes67_rtp_packet * after, u32_t samplerate);
 
-
-u16_t aes67_rtp_pack(u8_t * packet, u8_t payloadtype, u16_t seqno, u32_t timestamp, u32_t ssrc, void * samples, u16_t ssize);
-
-//u16_t aes67_rtp_pack_buf()
-//inline u16_t aes67_rtp_pack_rtp(struct aes67_rtp_packet * packet, struct aes67_rtp_tx * rtp, void * samples, u16_t ssize)
-//{
-//    return aes67_rtp_pack(packet, rtp->payloadtype, rtp->seqno, rtp->timestamp, rtp->timestamp, rtp->ssrc, samples, ssize);
-//}
 
 #ifdef __cplusplus
 }
