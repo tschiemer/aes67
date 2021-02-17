@@ -106,6 +106,9 @@ struct aes67_rtp_packet {
     u8_t data[];
 } PACK_STRUCT;
 
+/**
+ * The data buffer herein is assumed be to interleaved (as L16/24 would have it).
+ */
 struct aes67_rtp_buffer {
     size_t nchannels;
     size_t samplesize;
@@ -181,33 +184,36 @@ inline ptime_t aes67_rtp_packet2nsamples(void * packet, u16_t len, u32_t nchanne
     return payloadlen / samplesize / nchannels;
 }
 
-
 /**
- * Inserts a continuous block of audio samples into buffer.
+ *  Different variants of writing data to, reading from respectively buffers
  *
- * NOTE number of channels and samplesize MUST match those of the buffer itself.
+ *  It generally is assumed that all sources and sinks are synchronized which implies that
+ *  all samples are generally produced and consumed at the same rate - which is why there is no guard
+ *  against overflowing buffers (to keep complexitly lower).
  *
- * @param buf
- * @param src       source buffer (pointing at first sample to insert)
- * @param nsamples  number of samples to insert
+ *  Single, serial and block-wise sample buffers operations are available.
+ *
+ *  If AES67_RTP_BUFREAD_ZEROFILL == 1 all read values are zeroed (see opt)
+ *
+ *  Of course, using the given buffer structures is not required - it's more of a non-optimized
+ *  construction kit for general use cases. Using a swapped double buffer that is directly written into
+ *  from given sources would be more efficient (...) (this is what xmos is doing according to AVB app note)
+ *  You could even do something as fancy as having an RTP packet based buffer such that no further space
+ *  or buffer copy operations are needed to write a packet (hmm, let me think about that).
  */
-void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer *buf, void *src, size_t nsamples);
 
-/**
- * Inserts a single channel's audio into the buffer.
- * Allows copying from interleaved sources
- *
- * NOTE the samplesize MUST match those of the buffer itself
- *
- * @param buf
- * @param src       source buffer (pointing at first sample to insert)
- * @param srcinc    offset of samples; equal to samplesize if from a non-interleaved source or samplesize*nchannels when from
- *                  a source of nchannels interleaved channels
- * @param channel   which channel of the buffer to insert into
- * @param nsamples  number of samples to insert
- */
-void
-aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer *buf, void *src, size_t srcinc, size_t channel, size_t nsamples);
+void aes67_rtp_buffer_insert_allch(struct aes67_rtp_buffer *buf, void *src, size_t nsamples);
+void aes67_rtp_buffer_read_allch(struct aes67_rtp_buffer *buf, void *dst, size_t nsamples);
+
+void aes67_rtp_buffer_insert_allch_1smpl(struct aes67_rtp_buffer *buf, void *src);
+void aes67_rtp_buffer_read_allch_1smpl(struct aes67_rtp_buffer *buf, void *dst);
+
+void aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer *buf, void *src, size_t srcinc, size_t channel, size_t nsamples);
+void aes67_rtp_buffer_read_1ch(struct aes67_rtp_buffer *buf, void *dst, size_t srcinc, size_t channel, size_t nsamples);
+
+void aes67_rtp_buffer_insert_1ch_1smpl(struct aes67_rtp_buffer *buf, void *src, size_t channel);
+void aes67_rtp_buffer_read_1ch_1smpl(struct aes67_rtp_buffer *buf, void *dst, size_t channel);
+
 
 inline void aes67_rtp_header_ntoh(struct aes67_rtp_packet *packet)
 {
@@ -227,6 +233,7 @@ inline void aes67_rtp_header_hton(struct aes67_rtp_packet * packet)
 
 u16_t aes67_rtp_pack(u8_t * packet, u8_t payloadtype, u16_t seqno, u32_t timestamp, u32_t ssrc, void * samples, u16_t ssize);
 
+//u16_t aes67_rtp_pack_buf()
 //inline u16_t aes67_rtp_pack_rtp(struct aes67_rtp_packet * packet, struct aes67_rtp_tx * rtp, void * samples, u16_t ssize)
 //{
 //    return aes67_rtp_pack(packet, rtp->payloadtype, rtp->seqno, rtp->timestamp, rtp->timestamp, rtp->ssrc, samples, ssize);

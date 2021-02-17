@@ -110,8 +110,9 @@ TEST(RTP_TestGroup, rtp_packet2nsamples)
     CHECK_EQUAL(48, aes67_rtp_packet2nsamples(&h1, l, 8, 3));
 }
 
-TEST(RTP_TestGroup, rtp_buffer_insert_all)
-{struct aes67_rtp_buffer * b1 = (struct aes67_rtp_buffer *)std::calloc(1, AES67_RTP_BUFFER_SIZE(4, 3, 10));
+TEST(RTP_TestGroup, rtp_buffer_insert_allch)
+{
+    struct aes67_rtp_buffer * b1 = (struct aes67_rtp_buffer *)std::calloc(1, AES67_RTP_BUFFER_SIZE(4, 3, 10));
 
     b1->nsamples = 10;
     b1->nchannels = 4;
@@ -132,7 +133,7 @@ TEST(RTP_TestGroup, rtp_buffer_insert_all)
 
     CHECK_EQUAL(0, b1->in.ch[0]);
 
-    aes67_rtp_buffer_insert_all(b1, d1, 3);
+    aes67_rtp_buffer_insert_allch(b1, d1, 3);
     CHECK_EQUAL(3, b1->in.ch[0]);
 
     u8_t c1[] = {
@@ -149,7 +150,7 @@ TEST(RTP_TestGroup, rtp_buffer_insert_all)
     };
     MEMCMP_EQUAL(c1, b1->data, sizeof(c1));
 
-    aes67_rtp_buffer_insert_all(b1, d1, 3);
+    aes67_rtp_buffer_insert_allch(b1, d1, 3);
     CHECK_EQUAL(6, b1->in.ch[0]);
 
     u8_t c2[] = {
@@ -169,7 +170,7 @@ TEST(RTP_TestGroup, rtp_buffer_insert_all)
 
     // now insert whole buffer d1
     // because it was non-empty we'll end up with a rotated buffer
-    aes67_rtp_buffer_insert_all(b1, d1, 10);
+    aes67_rtp_buffer_insert_allch(b1, d1, 10);
     CHECK_EQUAL(6, b1->in.ch[0]);
 
     u8_t c3[] = {
@@ -183,6 +184,69 @@ TEST(RTP_TestGroup, rtp_buffer_insert_all)
             0,0,2, 0,0,3, 0,0,4, 0,0,5,
             0,0,3, 0,0,4, 0,0,5, 0,0,6,
             0,0,4, 0,0,5, 0,0,6, 0,0,7,
+    };
+    MEMCMP_EQUAL(c3, b1->data, sizeof(c3));
+
+    free(b1);
+}
+
+TEST(RTP_TestGroup, rtp_buffer_insert_allch_1smpl)
+{
+    struct aes67_rtp_buffer *b1 = (struct aes67_rtp_buffer *) std::calloc(1, AES67_RTP_BUFFER_SIZE(4, 3, 5));
+
+    b1->nsamples = 5;
+    b1->nchannels = 4;
+    b1->samplesize = 3;
+
+    u8_t d1[] = {0,0,1, 0,0,2, 0,0,3, 0,0,4};
+    u8_t d2[] = {0, 0, 2, 0, 0, 3, 0, 0, 4, 0, 0, 5};
+    u8_t d3[] = {0, 0, 3, 0, 0, 4, 0, 0, 5, 0, 0, 6};
+
+    CHECK_EQUAL(0, b1->in.ch[0]);
+
+    aes67_rtp_buffer_insert_allch_1smpl(b1, d1);
+
+    CHECK_EQUAL(1, b1->in.ch[0]);
+
+
+    u8_t c1[] = {
+            0,0,1, 0,0,2, 0,0,3, 0,0,4,
+            0,0,0, 0,0,0, 0,0,0, 0,0,0,
+            0,0,0, 0,0,0, 0,0,0, 0,0,0,
+            0,0,0, 0,0,0, 0,0,0, 0,0,0,
+            0,0,0, 0,0,0, 0,0,0, 0,0,0,
+    };
+    MEMCMP_EQUAL(c1, b1->data, sizeof(c1));
+
+
+    aes67_rtp_buffer_insert_allch_1smpl(b1, d2);
+    aes67_rtp_buffer_insert_allch_1smpl(b1, d3);
+    aes67_rtp_buffer_insert_allch_1smpl(b1, d1);
+
+    CHECK_EQUAL(4, b1->in.ch[0]);
+
+
+    u8_t c2[] = {
+            0,0,1, 0,0,2, 0,0,3, 0,0,4,
+            0,0,2, 0,0,3, 0,0,4, 0,0,5,
+            0,0,3, 0,0,4, 0,0,5, 0,0,6,
+            0,0,1, 0,0,2, 0,0,3, 0,0,4,
+            0,0,0, 0,0,0, 0,0,0, 0,0,0,
+    };
+    MEMCMP_EQUAL(c2, b1->data, sizeof(c2));
+
+
+    aes67_rtp_buffer_insert_allch_1smpl(b1, d2);
+    aes67_rtp_buffer_insert_allch_1smpl(b1, d2);
+
+    CHECK_EQUAL(1, b1->in.ch[0]);
+
+    u8_t c3[] = {
+            0,0,2, 0,0,3, 0,0,4, 0,0,5,
+            0,0,2, 0,0,3, 0,0,4, 0,0,5,
+            0,0,3, 0,0,4, 0,0,5, 0,0,6,
+            0,0,1, 0,0,2, 0,0,3, 0,0,4,
+            0,0,2, 0,0,3, 0,0,4, 0,0,5,
     };
     MEMCMP_EQUAL(c3, b1->data, sizeof(c3));
 
@@ -274,6 +338,76 @@ TEST(RTP_TestGroup, rtp_buffer_insert_1ch)
             0,0,0, 0,0,10, 0,0,0, 0,0,0,
     };
     MEMCMP_EQUAL(c3, b1->data, sizeof(c3));
+
+    std::free(b1);
+}
+
+
+TEST(RTP_TestGroup, rtp_buffer_insert_1ch_1smpl)
+{
+    struct aes67_rtp_buffer *b1 = (struct aes67_rtp_buffer *) std::calloc(1, AES67_RTP_BUFFER_SIZE(4, 3, 10));
+
+    b1->nsamples = 10;
+    b1->nchannels = 4;
+    b1->samplesize = 3;
+
+    u8_t d1[][3] = {{0,0,1}, {0,0,2}, {0,0,3}, {0,0,4}, {0,0,5}, {0,0,6}, {0,0,7}, {0,0,8}, {0,0,9}, {0,0,10} };
+
+    u8_t c1[] = {
+            0,0,1, 0,0,2, 0,0,3, 0,0,4,
+            0,0,5, 0,0,6, 0,0,7, 0,0,8,
+            0,0,9, 0,0,10, 0,0,1, 0,0,2,
+            0,0,3, 0,0,4, 0,0,5, 0,0,6,
+            0,0,7, 0,0,8, 0,0,9, 0,0,10,
+            0,0,1, 0,0,2, 0,0,3, 0,0,4,
+            0,0,5, 0,0,6, 0,0,7, 0,0,8,
+            0,0,9, 0,0,10, 0,0,1, 0,0,2,
+            0,0,3, 0,0,4, 0,0,5, 0,0,6,
+            0,0,7, 0,0,8, 0,0,9, 0,0,10
+    };
+
+    CHECK_EQUAL(0, b1->in.ch[0]);
+    CHECK_EQUAL(0, b1->in.ch[1]);
+    CHECK_EQUAL(0, b1->in.ch[2]);
+    CHECK_EQUAL(0, b1->in.ch[3]);
+
+    for(int s = 0, v = 0; s < b1->nsamples; s++){
+        for(int c = 0; c < b1->nchannels; c++, v++){
+            aes67_rtp_buffer_insert_1ch_1smpl(b1, &d1[v % 10], c);
+        }
+    }
+
+    CHECK_EQUAL(0, b1->in.ch[0]);
+    CHECK_EQUAL(0, b1->in.ch[1]);
+    CHECK_EQUAL(0, b1->in.ch[2]);
+    CHECK_EQUAL(0, b1->in.ch[3]);
+
+    MEMCMP_EQUAL(c1, b1->data, sizeof(c1));
+
+
+    u8_t c2[] = {
+            0,0,2, 0,0,3, 0,0,4, 0,0,5,
+            0,0,6, 0,0,7, 0,0,7, 0,0,8,
+            0,0,9, 0,0,10, 0,0,1, 0,0,2,
+            0,0,3, 0,0,4, 0,0,5, 0,0,6,
+            0,0,7, 0,0,8, 0,0,9, 0,0,10,
+            0,0,1, 0,0,2, 0,0,3, 0,0,4,
+            0,0,5, 0,0,6, 0,0,7, 0,0,8,
+            0,0,9, 0,0,10, 0,0,1, 0,0,2,
+            0,0,3, 0,0,4, 0,0,5, 0,0,6,
+            0,0,7, 0,0,8, 0,0,9, 0,0,10
+    };
+
+    for(int v = 1, c = 0; v < 7; v++, c++){
+        aes67_rtp_buffer_insert_1ch_1smpl(b1, &d1[v % 10], c % b1->nchannels);
+    }
+
+    CHECK_EQUAL(2, b1->in.ch[0]);
+    CHECK_EQUAL(2, b1->in.ch[1]);
+    CHECK_EQUAL(1, b1->in.ch[2]);
+    CHECK_EQUAL(1, b1->in.ch[3]);
+
+    MEMCMP_EQUAL(c2, b1->data, sizeof(c2));
 
     std::free(b1);
 }

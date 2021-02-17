@@ -20,9 +20,24 @@
 
 #include "aes67/debug.h"
 
-static inline void rtp_memcpy(u8_t * dst, u8_t * src, size_t size){
-    while(size--){
+inline void rtp_memcpy(u8_t * dst, u8_t * src, size_t count)
+{
+    while(count--){
         *dst++ = *src++;
+    }
+}
+
+inline void rtp_memset(u8_t * dst, u8_t val, size_t count)
+{
+    while(count--){
+        *dst++ = val;
+    }
+}
+
+inline void rtp_zerofill(u8_t * dst, size_t count)
+{
+    while(count--){
+        *dst++ = 0;
     }
 }
 
@@ -34,16 +49,16 @@ static inline void rtp_memcpy(u8_t * dst, u8_t * src, size_t size){
 //
 //}
 
-void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer *buf, void *src, size_t nsamples)
+void aes67_rtp_buffer_insert_allch(struct aes67_rtp_buffer *buf, void *src, size_t nsamples)
 {
     AES67_ASSERT("buf != NULL", buf != NULL);
     AES67_ASSERT("data != NULL", src != NULL);
 
-    size_t nch = buf->nchannels;
-    size_t ss = buf->samplesize;
+    size_t nch_ss = buf->nchannels * buf->samplesize;
+//    size_t ss = ;
 
     // compute offset of where to insert first sample
-    u8_t * dst = &buf->data[ss*(nch * buf->in.ch[0])];
+    u8_t * dst = &buf->data[nch_ss * buf->in.ch[0]];
 
     // remember how many samples could be inserted until end of (circular) buffer
     size_t last = (buf->in.ch[0] + nsamples);
@@ -55,8 +70,8 @@ void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer *buf, void *src, size_t
 
         c = nsamples - last;
 
-        rtp_memcpy(dst, src, nch * ss * c);
-        src += nch * ss * c;
+        rtp_memcpy(dst, src, nch_ss * c);
+        src += nch_ss * c;
 
         c = last;
         dst = &buf->data[0];
@@ -65,9 +80,90 @@ void aes67_rtp_buffer_insert_all(struct aes67_rtp_buffer *buf, void *src, size_t
         c = nsamples;
     }
 
-    rtp_memcpy(dst, src, nch * ss * c);
+    rtp_memcpy(dst, src, nch_ss * c);
 
     buf->in.ch[0] = last;
+}
+
+void aes67_rtp_buffer_read_allch(struct aes67_rtp_buffer *buf, void *dst, size_t nsamples)
+{
+    AES67_ASSERT("buf != NULL", buf != NULL);
+    AES67_ASSERT("dst != NULL", dst != NULL);
+
+    size_t nch_ss = buf->nchannels * buf->samplesize;
+
+    // compute offset of where to insert first sample
+    u8_t * src = &buf->data[nch_ss * buf->out.ch[0]];
+
+    // remember how many samples could be inserted until end of (circular) buffer
+    size_t last = (buf->out.ch[0] + nsamples);
+    size_t c;
+
+    if (last >= buf->nsamples){
+
+        last -= buf->nsamples;
+
+        c = nsamples - last;
+
+        rtp_memcpy(dst, src, nch_ss * c);
+
+#if AES67_RTP_BUFREAD_ZEROFILL == 1
+        rtp_zerofill(src, nch_ss*c);
+#endif
+
+        dst += nch_ss * c;
+
+        c = last;
+        src = &buf->data[0];
+
+    } else {
+        c = nsamples;
+    }
+
+    rtp_memcpy(dst, src, nch_ss * c);
+
+#if AES67_RTP_BUFREAD_ZEROFILL == 1
+    rtp_zerofill(src, nch_ss*c);
+#endif
+
+    buf->out.ch[0] = last;
+}
+
+
+void aes67_rtp_buffer_insert_allch_1smpl(struct aes67_rtp_buffer *buf, void *src)
+{
+    AES67_ASSERT("buf != NULL", buf != NULL);
+    AES67_ASSERT("src != NULL", src != NULL);
+
+    size_t nch_ss = buf->nchannels * buf->samplesize;
+
+    // compute offset of where to insert first sample
+    u8_t * dst = &buf->data[nch_ss * buf->in.ch[0]];
+
+    rtp_memcpy(dst, src, nch_ss);
+
+    // shift in-pointer
+    buf->in.ch[0] = (buf->in.ch[0] + 1) % buf->nsamples;
+}
+
+void aes67_rtp_buffer_read_allch_1smpl(struct aes67_rtp_buffer *buf, void *dst)
+{
+    AES67_ASSERT("buf != NULL", buf != NULL);
+    AES67_ASSERT("dst != NULL", dst != NULL);
+
+    size_t nch_ss = buf->nchannels * buf->samplesize;
+
+    // compute offset of where to insert first sample
+    u8_t * src = &buf->data[nch_ss * buf->out.ch[0]];
+
+    rtp_memcpy(dst, src, nch_ss);
+
+#if AES67_RTP_BUFREAD_ZEROFILL == 1
+    rtp_zerofill(src, nch_ss);
+#endif
+
+    // shift in-pointer
+    buf->out.ch[0] = (buf->out.ch[0] + 1) % buf->nsamples;
 }
 
 void aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer *buf, void *src, size_t srcinc, size_t channel, size_t nsamples)
@@ -117,30 +213,95 @@ void aes67_rtp_buffer_insert_1ch(struct aes67_rtp_buffer *buf, void *src, size_t
     buf->in.ch[channel] = last;
 }
 
-//ptime_t aes67_rtp_ptime_from_packdiff(struct aes67_rtp_packet *before, struct aes67_rtp_packet * after, u32_t samplerate)
-//{
-//    // require strictly increasing sequence number to safely establish a packet was really before
-//    // will wrap around every ~60 sec with a ptime of 250ms
-//    // note: computing this makes only sense, when the ptime is not yet known
-//    if (before->header.seqno >= after->header.seqno){
-//        return 0;
-//    }
-//
-//    u32_t seqdiff = after->header.seqno - before->header.seqno;
-//
-//    u32_t tdiff;
-//
-//    // get timestamp/clock difference
-//    if (before->header.timestamp < after->header.timestamp){
-//        tdiff = after->header.timestamp - before->header.timestamp;
-//    } else {
-//        tdiff = (UINT32_MAX - before->header.timestamp) + after->header.timestamp + 1;
-//    }
-//
-//    // the number of samples per packet is fixed and has a fixed relationship to the media clock
-//    // ie each sample is exactly one clock increment
-//    return (1000000*tdiff) / seqdiff / samplerate;
-//}
+
+void aes67_rtp_buffer_read_1ch(struct aes67_rtp_buffer *buf, void *dst, size_t srcinc, size_t channel, size_t nsamples)
+{
+    AES67_ASSERT("buf != NULL", buf != NULL);
+    AES67_ASSERT("dst != NULL", dst != NULL);
+    AES67_ASSERT("channel < buf->nchannels", channel < buf->nchannels);
+
+    size_t nch = buf->nchannels;
+    size_t ss = buf->samplesize;
+    size_t inc = ss * nch;
+
+    // compute offset of where to insert first sample
+    u8_t * src = &buf->data[ss*(nch * buf->out.ch[channel] + channel)];
+
+    // remember how many samples could be inserted until end of (circular) buffer
+    size_t last = (buf->in.ch[channel] + nsamples);
+    size_t c;
+
+    if (last >= buf->nsamples){
+
+        last -= buf->nsamples;
+
+        c = nsamples - last;
+
+        while(c--){
+            rtp_memcpy(dst, src, ss);
+            dst += inc;
+            src += srcinc;
+        }
+
+        c = last;
+        dst = &buf->data[ss*channel];
+
+    } else {
+        c = nsamples;
+    }
+
+    // if was necessary to wrap around circular buffer copy remaining data
+
+    while(c--){
+        rtp_memcpy(dst, src, ss);
+        dst += inc;
+        src += srcinc;
+    }
+
+    buf->in.ch[channel] = last;
+}
+
+
+
+void aes67_rtp_buffer_insert_1ch_1smpl(struct aes67_rtp_buffer *buf, void *src, size_t channel)
+{
+    AES67_ASSERT("buf != NULL", buf != NULL);
+    AES67_ASSERT("src != NULL", src != NULL);
+    AES67_ASSERT("channel < buf->nchannels", channel < buf->nchannels);
+
+    size_t nch = buf->nchannels;
+    size_t ss = buf->samplesize;
+
+    // compute offset of where to insert first sample
+    u8_t * dst = &buf->data[ss*(nch * buf->in.ch[channel] + channel)];
+
+    rtp_memcpy(dst, src, ss);
+
+    // shift in-pointer
+    buf->in.ch[channel] = (buf->in.ch[channel] + 1) % buf->nsamples;
+}
+
+void aes67_rtp_buffer_read_1ch_1smpl(struct aes67_rtp_buffer *buf, void *dst, size_t channel)
+{
+    AES67_ASSERT("buf != NULL", buf != NULL);
+    AES67_ASSERT("dst != NULL", dst != NULL);
+    AES67_ASSERT("channel < buf->nchannels", channel < buf->nchannels);
+
+    size_t nch = buf->nchannels;
+    size_t ss = buf->samplesize;
+
+    // compute offset of where sample is
+    u8_t * src = &buf->data[ss*(nch * buf->out.ch[channel] + channel)];
+
+    rtp_memcpy(dst, src, ss);
+
+#if AES67_RTP_BUFREAD_ZEROFILL == 1
+    rtp_zerofill(src, ss);
+#endif
+
+    // shift in-pointer
+    buf->out.ch[channel] = (buf->out.ch[channel] + 1) % buf->nsamples;
+}
 
 u16_t aes67_rtp_pack(u8_t * packet, u8_t payloadtype, u16_t seqno, u32_t timestamp, u32_t ssrc, void * samples, u16_t ssize)
 {
@@ -148,13 +309,15 @@ u16_t aes67_rtp_pack(u8_t * packet, u8_t payloadtype, u16_t seqno, u32_t timesta
     AES67_ASSERT("samples != NULL", samples != NULL);
     AES67_ASSERT("ssize > 0" , ssize > 0);
 
-    ((struct aes67_rtp_packet *)packet)->header.status1 = AES67_RTP_STATUS1_VERSION_2;
-    ((struct aes67_rtp_packet *)packet)->header.status2 = AES67_RTP_STATUS2_PAYLOADTYPE & payloadtype;
-    ((struct aes67_rtp_packet *)packet)->header.seqno = aes67_htons(seqno);
-    ((struct aes67_rtp_packet *)packet)->header.timestamp = aes67_htonl(timestamp);
-    ((struct aes67_rtp_packet *)packet)->header.ssrc = aes67_htonl(ssrc);
+    packet[AES67_RTP_STATUS1] = AES67_RTP_STATUS1_VERSION_2;
+    packet[AES67_RTP_STATUS2] = AES67_RTP_STATUS2_PAYLOADTYPE & payloadtype;
+    *(u16_t*)(&packet[AES67_RTP_SEQNO]) = aes67_htons(seqno);
+    *(u32_t*)(&packet[AES67_RTP_TIMESTAMP]) = aes67_htonl(timestamp);
+    *(u32_t*)(&packet[AES67_RTP_SSRC]) = aes67_htonl(ssrc);
 
-    aes67_memcpy(((struct aes67_rtp_packet *)packet)->data, samples, ssize);
+    aes67_memmove(&packet[AES67_RTP_CSRC], samples, ssize);
+
+    //TODO padding??
 
     return AES67_RTP_CSRC + ssize;
 }

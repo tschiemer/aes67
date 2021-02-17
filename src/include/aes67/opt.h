@@ -163,4 +163,8 @@
 #define AES67_RTP_MAXCHANNELS 8
 #endif
 
+#ifndef AES67_RTP_BUFREAD_ZEROFILL
+#define AES67_RTP_BUFREAD_ZEROFILL 1
+#endif
+
 #endif //AES67_OPT_H
