@@ -1115,6 +1115,11 @@ u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str,
     AES67_ASSERT("origin != NULL", origin != NULL);
     AES67_ASSERT("str != NULL", str != NULL);
 
+    // trim potentially trailing CRNL
+    while(len > 10 && (str[len] == CR || str[len] == NL)){
+        len--;
+    }
+
     if (len < sizeof("o=- 1 1 IN IP4 a")-1 || str[0] != 'o' || str[1] != '='){
         return AES67_SDP_ERROR;
     }
