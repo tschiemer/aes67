@@ -190,7 +190,7 @@ struct aes67_sdp_stream {
     u8_t nencodings;                // count of alternative stream encodings (in separate list)
     enum aes67_sdp_attr_mode mode;
     u8_t nptp;                      // count of stream level ptps (in separate list)
-    u32_t mediaclock_offset;        //
+    u32_t mediaclock_offset;        // must be 0 in ST2110 TODO can also be session-level (!)
     ptime_t ptime;
 #if 0 < AES67_SDP_MAXPTIMECAPS
     struct {
