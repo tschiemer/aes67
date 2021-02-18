@@ -36,7 +36,7 @@ static void help(FILE * fd)
 {
     fprintf( fd,
              "Usage: %s [-hd]\n"
-             "Attempts to parse SDP incoming on STDIN\n"
+             "Attempts to parse SDP incoming on STDIN (primarily useful to validate custom SDP files quickly).\n"
              "Options:\n"
              "\t -h\t Prints this info\n"
              "\t -d\t Prints some debug info to STDERR\n"
@@ -155,7 +155,10 @@ int main(int argc, char * argv[])
                             printf("mode= ");
                         }
 
-                        printf("clk-offset=%u", stream->mediaclock_offset);
+                        struct aes67_sdp_attr_mediaclk * mediaclk = aes67_sdp_get_mediaclock(&sdp, i);
+                        if (mediaclk && mediaclk->set) {
+                            printf("clk-offset=%u", mediaclk->offset);
+                        }
 
                         if ( (stream->ptime & AES67_SDP_PTIME_SET) == AES67_SDP_PTIME_SET){
                             printf(" ptime=%d", stream->ptime & AES67_SDP_PTIME_VALUE);

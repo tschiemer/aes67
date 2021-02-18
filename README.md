@@ -217,8 +217,11 @@ socat -u UDP4-RECVFROM:9875,ip-add-membership=224.2.127.254:192.168.1.122,fork -
 ### `sdp-parse`
 
 ```
-Usage: ./sdp-parse
-Attempts to parse SDP incoming on STDIN
+Usage: ./sdp-parse [-hd]
+Attempts to parse SDP incoming on STDIN (primarily useful to validate custom SDP files quickly).
+Options:
+	 -h	 Prints this info
+	 -d	 Prints some debug info to STDERR
 ```
 
 ## References
