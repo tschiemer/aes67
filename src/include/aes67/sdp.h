@@ -14,6 +14,8 @@
  * Session Description Protocol (SDP) Capability Negotiation https://tools.ietf.org/html/rfc5939
  * An Offer/Answer Model with the Session Description Protocol (SDP) https://tools.ietf.org/html/rfc3264
  * RAVENNA Operating Principles (Draft 1.0 2011-06-01, final), ALC NetworX GmbH
+ * ST2110-10:2017 ST 2110-10:2017 - SMPTE Standard - Professional Media Over Managed IP Networks: System Timing and Definitions https://ieeexplore.ieee.org/document/8165974
+ * ST 2110-30:2017 - SMPTE Standard - Professional Media Over Managed IP Networks: PCM Digital Audio https://ieeexplore.ieee.org/document/8167392
  */
 
 /**
@@ -158,6 +160,7 @@ struct aes67_sdp_connection_list {
     struct aes67_sdp_connection data[AES67_SDP_MAXCONNECTIONS];
 };
 
+// TODO ST2110 also allows a=ts-refclk:localmac=<Ethernet MAC address of sender> + a=ts-refclk:ptp=traceable
 struct aes67_sdp_ptp {
     aes67_sdp_flags flags;
     struct aes67_ptp ptp;

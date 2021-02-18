@@ -865,6 +865,10 @@ TEST(SDP_TestGroup, sdp_tostr)
                                             .set = 1,
                                             .offset = 12345,
                                     },
+                                    .synctime = {
+                                            .set = 1,
+                                            .value = 7890
+                                    },
                                     .nencodings = 3,
                                     .ptime = AES67_SDP_PTIME_SET | 1000,
                                     .ptime_cap = {
@@ -970,6 +974,7 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=pcfg:1 a=1\r\n"
             "a=ts-refclk:ptp=IEEE1588-2008:01-02-03-04-05-06-07-08:1\r\n"
             "a=mediaclk:direct=12345\r\n"
+            "a=sync-time:7890\r\n"
             "m=audio 5002 RTP/AVP 96\r\n"
             "c=IN IP6 some.host.name\r\n"
             "a=recvonly\r\n"
