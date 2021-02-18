@@ -1335,6 +1335,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "a=pcfg:5 a=2\r\n"
                    "a=ts-refclk:ptp=IEEE1588-2008:39-A7-94-FF-FE-07-CB-D0:2\r\n"
                    "a=mediaclk:direct=963214424\r\n"
+                   "a=sync-time:46482394\r\n"
                    ;
 
 
@@ -1393,6 +1394,9 @@ TEST(SDP_TestGroup, sdp_fromstr)
 
     CHECK_EQUAL(1, stream->mediaclock.set);
     CHECK_EQUAL(963214424, stream->mediaclock.offset);
+
+    CHECK_EQUAL(1, stream->synctime.set);
+    CHECK_EQUAL(46482394, stream->synctime.value);
 
     CHECK_EQUAL(AES67_SDP_PTIME_SET, (stream->ptime & AES67_SDP_PTIME_SET));
     CHECK_EQUAL(1330, stream->ptime & AES67_SDP_PTIME_VALUE);
@@ -1510,10 +1514,6 @@ TEST(SDP_TestGroup, sdp_fromstr)
             },
             {
                     .context = AES67_SDP_FLAG_DEFLVL_STREAM | 0,
-                    .str = "a=sync-time:12332" // unknown RAVENNA attr
-            },
-            {
-                    .context = AES67_SDP_FLAG_DEFLVL_STREAM | 0,
                     .str = "a=clock-deviation:1001/1000" // unknown RAVENNA attr
             },
             {
@@ -1550,7 +1550,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
             }
     };
 
-    set_unhandled_expectations(13, u1);
+    set_unhandled_expectations(12, u1);
 
     std::memset(&sdp, 0, sizeof(struct aes67_sdp));
     CHECK_EQUAL(AES67_SDP_OK, aes67_sdp_fromstr(&sdp, s4, sizeof(s4) - 1, NULL));

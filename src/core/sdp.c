@@ -1134,6 +1134,30 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         }
         len += l;
 
+        if (stream->synctime.set){
+            if (maxlen < len + sizeof("a=sync-time:4294967295")){
+                return 0;
+            }
+
+            str[len++] = 'a';
+            str[len++] = '=';
+            str[len++] = 's';
+            str[len++] = 'y';
+            str[len++] = 'n';
+            str[len++] = 'c';
+            str[len++] = '-';
+            str[len++] = 't';
+            str[len++] = 'i';
+            str[len++] = 'm';
+            str[len++] = 'e';
+            str[len++] = ':';
+
+            len += aes67_itoa(stream->synctime.value, &str[len], 10);
+
+            str[len++] = CR;
+            str[len++] = NL;
+        }
+
     }
 
     return len;
@@ -1275,14 +1299,14 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
 #define SEEN_C  4
 #define SEEN_M  8
 #define SEEN_T  16
-#define SEEN_MODE   0
-#define SEEN_RTPMAP 0
-#define SEEN_REFCLK 0
-#define SEEN_PTIME 0
-#define SEEN_MEDIACLK 0
+#define SEEN_MODE   32
+#define SEEN_RTPMAP 64
+#define SEEN_REFCLK 128
+#define SEEN_PTIME 0    // not needed
+#define SEEN_MEDIACLK 256
 #define SEEN_ALL (SEEN_O | SEEN_S | SEEN_C | SEEN_M | SEEN_T | SEEN_MODE | SEEN_RTPMAP | SEEN_REFCLK | SEEN_PTIME | SEEN_MEDIACLK)
 
-    u16_t seen = 0; // for basic (but incomplete) checking if required fields have been seen
+    u32_t seen = 0; // for basic (but incomplete) checking if required fields have been seen
     size_t llen = 0; // line length
 
     u8_t skipmedia = 0;
@@ -1515,7 +1539,6 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
 
 
             case 'm': {
-                seen |= SEEN_M;
 
                 if (llen < sizeof("m=audio 0 RTP/AVP 96") - 1) {
                     return AES67_SDP_ERROR;
@@ -1611,6 +1634,8 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                     aes67_sdp_fromstr_unhandled(sdp, context, line, llen, user_data);
                 }
 
+                seen |= SEEN_M;
+
                 stream = &sdp->streams.data[sdp->streams.count];
 
                 sdp->streams.count++;
@@ -1626,6 +1651,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                 stream->ptime_cap.count = 0;
                 stream->ptime_cap.cfg = 0;
                 stream->mediaclock.set = 0;
+                stream->synctime.set = 0;
             }
                 break;
 
@@ -1743,6 +1769,9 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                             return AES67_SDP_NOMEMORY;
                         }
 
+
+                        seen |= SEEN_RTPMAP;
+
                         struct aes67_sdp_attr_encoding * encoding = &sdp->encodings.data[sdp->encodings.count++];
 
                         stream->nencodings++;
@@ -1786,6 +1815,8 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                                 return AES67_SDP_ERROR;
                             }
                         }
+
+                        seen |= SEEN_PTIME;
 
                         stream->ptime |= AES67_SDP_PTIME_SET;
 
@@ -1942,6 +1973,27 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                     }
 #endif //0 < AES67_SDP_MAXPTIMECAPS
 
+                        // synctime
+                    else if (delim - line == sizeof("a=sync-time")-1 &&
+                             line[2] == 's' &&
+                             line[3] == 'y' &&
+                             line[4] == 'n' &&
+                             line[5] == 'c' &&
+                             line[6] == '-' &&
+                             line[7] == 't' &&
+                             line[8] == 'i' &&
+                             line[9] == 'm' &&
+                             line[10] == 'e'){
+
+                        u16_t readlen = 0;
+
+                        stream->synctime.set = 1;
+                        stream->synctime.value = aes67_atoi(&line[12], llen - 12, 10, &readlen);
+
+                        if (readlen == 0){
+                            return AES67_SDP_ERROR;
+                        }
+                    }
                     // no matching attribute
                     else {
                         processed = false;
@@ -2041,6 +2093,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                         } else {
                             stream->mode = aes67_sdp_attr_mode_recvonly;
                         }
+                        seen |= SEEN_MODE;
                     }
                     else if (llen == sizeof("a=sendrecv") - 1 &&
                              line[2] == 's' &&
@@ -2056,6 +2109,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                         } else {
                             stream->mode = aes67_sdp_attr_mode_sendrecv;
                         }
+                        seen |= SEEN_MODE;
                     }
                     else if (llen == sizeof("a=sendonly") - 1 &&
                              line[2] == 's' &&
@@ -2071,6 +2125,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                         } else {
                             stream->mode = aes67_sdp_attr_mode_sendonly;
                         }
+                        seen |= SEEN_MODE;
                     }
                     else if (llen == sizeof("a=inactive") - 1 &&
                              line[2] == 'i' &&
@@ -2086,6 +2141,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                         } else {
                             stream->mode = aes67_sdp_attr_mode_inactive;
                         }
+                        seen |= SEEN_MODE;
                     }
                     else if (delim - line == sizeof("a=ts-refclk")-1 && line[2] == 't' && line[3] == 's' && line[4] == '-' &&  line[5] == 'r' && line[6] == 'e' && line[7] == 'f' && line[8] == 'c' && line[9] == 'l' && line[10] == 'k'){
 
@@ -2200,6 +2256,8 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                                         }
                                         break;
                                 }
+
+                                seen |= SEEN_REFCLK;
                             }
 
                         }
@@ -2246,6 +2304,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                             stream->mediaclock.offset = o;
                         }
 
+                        seen |= SEEN_MEDIACLK;
                     }
                     else {
                         processed = false;

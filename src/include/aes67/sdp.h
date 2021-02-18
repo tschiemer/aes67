@@ -115,6 +115,16 @@ struct aes67_sdp_attr_mediaclk {
     u32_t offset; // must be 0 in ST2110
 } PACK_STRUCT;
 
+
+/**
+ * RAVENNA / ST2110 stream level attribute
+ * RTP timestamp of stream at reference clocks epoch
+ */
+struct aes67_sdp_attr_synctime {
+    u8_t set;
+    u32_t value;
+} PACK_STRUCT;
+
 /**
  * Originator data
  */
@@ -199,6 +209,7 @@ struct aes67_sdp_stream {
     u8_t nptp;                      // count of stream level ptps (in separate list)
 
     struct aes67_sdp_attr_mediaclk mediaclock;        // potential session level mediaclock
+    struct aes67_sdp_attr_synctime synctime;         //
 
     ptime_t ptime;
 #if 0 < AES67_SDP_MAXPTIMECAPS
