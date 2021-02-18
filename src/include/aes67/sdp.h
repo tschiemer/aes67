@@ -110,6 +110,11 @@ enum aes67_sdp_attr_mode {
     (x) == aes67_sdp_attr_mode_sendrecv \
 )
 
+struct aes67_sdp_attr_mediaclk {
+    u8_t set;
+    u32_t offset; // must be 0 in ST2110
+} PACK_STRUCT;
+
 /**
  * Originator data
  */
@@ -176,7 +181,7 @@ struct aes67_sdp_attr_encoding {
 /**
  * Internally used encoding list.
  */
-struct aes67_sdp_attr_encoding_list {
+struct aes67_sdp_encoding_list {
     u8_t count;
     struct aes67_sdp_attr_encoding data[AES67_SDP_MAXENCODINGS];
 };
@@ -188,9 +193,13 @@ struct aes67_sdp_stream {
     u16_t port;
     u8_t nports;
     u8_t nencodings;                // count of alternative stream encodings (in separate list)
+
     enum aes67_sdp_attr_mode mode;
+
     u8_t nptp;                      // count of stream level ptps (in separate list)
-    u32_t mediaclock_offset;        // must be 0 in ST2110 TODO can also be session-level (!)
+
+    struct aes67_sdp_attr_mediaclk mediaclock;        // potential session level mediaclock
+
     ptime_t ptime;
 #if 0 < AES67_SDP_MAXPTIMECAPS
     struct {
@@ -269,13 +278,15 @@ struct aes67_sdp {
 
     u8_t ptp_domain; // session level ptp domain attribute (RAVENNA)
 
+    struct aes67_sdp_attr_mediaclk mediaclock; // session level attribute
+
     struct aes67_sdp_connection_list connections;
 
     struct aes67_sdp_stream_list streams;
 
     struct aes67_sdp_ptp_list ptps;
 
-    struct aes67_sdp_attr_encoding_list encodings;
+    struct aes67_sdp_encoding_list encodings;
 };
 
 /**
@@ -493,6 +504,9 @@ inline u8_t aes67_sdp_get_ptp_count(struct aes67_sdp * sdp, aes67_sdp_flags flag
  * - stream level ptp declarations are considered only (flags = AES67_SDP_FLAG_DEFLVL_STREAM | <stream-index>)
  * - session and stream level ptp declarations are considered (flags = <stream-index>), ie all ptp declarations valid for a stream
  *
+ * NOTE By virtue of RFC 7273 Section 5.4 multiple clocks on different definition levels are only equivalent if a clock is
+ * repeated.
+ *
  * @param sdp
  * @param flags
  * @param pi
@@ -538,12 +552,70 @@ inline enum aes67_sdp_attr_mode aes67_sdp_get_mode(struct aes67_sdp * sdp, aes67
     if ((flags & AES67_SDP_FLAG_DEFLVL_SESSION) == AES67_SDP_FLAG_DEFLVL_SESSION){
         return sdp->mode;
     }
-    // if media/stream level attribute is not set fallback to session level value
-    if (sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].mode == aes67_sdp_attr_mode_undefined){
+    // if NOT specifically requested media level or if media/stream level attribute is not set fallback to session level value
+    if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_STREAM && sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].mode == aes67_sdp_attr_mode_undefined){
         return sdp->mode;
     }
     // otherwise just return the media level attribute
     return sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].mode;
+}
+
+/**
+ * Comfort function to set mode.
+ *
+ * @param sdp
+ * @param flags
+ * @param mode
+ */
+inline void aes67_sdp_set_mode(struct aes67_sdp * sdp, aes67_sdp_flags flags, enum aes67_sdp_attr_mode mode)
+{
+    if ((flags & AES67_SDP_FLAG_DEFLVL_SESSION) == AES67_SDP_FLAG_DEFLVL_SESSION){
+        sdp->mode = mode;
+    } else {
+        sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].mode = mode;
+    }
+}
+
+/**
+ * Returns session or media level mediaclock
+ *
+ * Primary use case is assumed to be getting a stream level mediaclock attr (which may not be set and fallbacks to session-level)
+ *
+ * @param sdp
+ * @param flags
+ * @return
+ */
+inline struct aes67_sdp_attr_mediaclk * aes67_sdp_get_mediaclock(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+{
+    // if specifically requested session level mode return it
+    if ((flags & AES67_SDP_FLAG_DEFLVL_SESSION) == AES67_SDP_FLAG_DEFLVL_SESSION){
+        return &sdp->mediaclock;
+    }
+    // if NOT specifically requested media level or if media/stream level attribute is not set fallback to session level value
+    if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_STREAM && !sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].mediaclock.set){
+        return &sdp->mediaclock;
+    }
+    // otherwise just return the media level attribute
+    return &sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].mediaclock;
+}
+
+/**
+ * Comfort function to set mediaclock
+ *
+ * @param sdp
+ * @param flags
+ * @param set
+ * @param offset
+ */
+inline void aes67_sdp_set_mediaclock(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t set, u32_t offset)
+{
+    if ((flags & AES67_SDP_FLAG_DEFLVL_SESSION) == AES67_SDP_FLAG_DEFLVL_SESSION){
+        sdp->mediaclock.set = set;
+        sdp->mediaclock.offset = offset;
+    } else {
+        sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].mediaclock.set = set;
+        sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].mediaclock.offset = offset;
+    }
 }
 
 /**
@@ -580,7 +652,7 @@ s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp_originator *lhs, struct aes67
  * @param origin
  * @return          length of string, 0 if maxlen too short
  */
-u32_t aes67_sdp_origin_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin);
+s32_t aes67_sdp_origin_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin);
 
 /**
  * Write SDP conform connection ("c=..") option of first connection in list <cons> matching criteria in <flags>
@@ -593,7 +665,7 @@ u32_t aes67_sdp_origin_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_originat
  * @param flags     either AES67_SDP_FLAG_DEFLVL_SESSION or AES67_SDP_FLAG_DEFLVL_STREAM | <stream-index>
  * @return          length of string, -1 if maxlen too short
  */
-u32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_list * cons, aes67_sdp_flags flags);
+s32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_list * cons, aes67_sdp_flags flags);
 
 
 /**
@@ -605,7 +677,7 @@ u32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_con
  * @param flags     either AES67_SDP_FLAG_DEFLVL_SESSION or AES67_SDP_FLAG_DEFLVL_STREAM | <stream-index>
  * @return          length of string, -1 if maxlen too short
  */
-u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags);
+s32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags);
 
 /**
  * Write SDP conform mode (a=sendonly|recvonly|inactive|sendrecv)
@@ -615,7 +687,17 @@ u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * 
  * @param mode
  * @return          length of string, -1 if maxlen too short
  */
-u32_t aes67_sdp_attrmode_tostr( u8_t * str, u32_t maxlen, enum aes67_sdp_attr_mode mode);
+s32_t aes67_sdp_attrmode_tostr( u8_t * str, u32_t maxlen, enum aes67_sdp_attr_mode mode);
+
+/**
+ * Write SDP mediaclk attribute (if set)
+ *
+ * @param str
+ * @param maxlen
+ * @param mediaclk
+ * @return          length of string, -1 if maxlen too short
+ */
+s32_t aes67_sdp_attrmediaclk_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_attr_mediaclk * mediaclk);
 
 /**
  * Generate SDP string from struct.
@@ -648,6 +730,7 @@ u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str,
  */
 u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void * user_data);
 
+#if !defined(aes67_sdp_fromstr_unhandled)
 /**
  * Callback for unhandled settings and attributes on session- and media-level.
  *
@@ -660,6 +743,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void * user
  * @param user_data     as passed to aes67_sdp_fromstr()
  */
 void aes67_sdp_fromstr_unhandled(struct aes67_sdp *sdp, aes67_sdp_flags context, u8_t *line, u32_t len, void *user_data);
+#endif //
 
 
 #ifdef __cplusplus

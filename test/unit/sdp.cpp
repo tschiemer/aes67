@@ -861,7 +861,10 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     .nports = 2,
                                     .mode = aes67_sdp_attr_mode_inactive,
                                     .nptp = 1,
-                                    .mediaclock_offset = 12345,
+                                    .mediaclock = {
+                                            .set = 1,
+                                            .offset = 12345,
+                                    },
                                     .nencodings = 3,
                                     .ptime = AES67_SDP_PTIME_SET | 1000,
                                     .ptime_cap = {
@@ -887,7 +890,10 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     .nports = 0,
                                     .mode = aes67_sdp_attr_mode_recvonly,
                                     .nptp = 0,
-                                    .mediaclock_offset = 98765,
+                                    .mediaclock = {
+                                            .set = 1,
+                                            .offset = 98765,
+                                    },
                                     .nencodings = 1,
                                     .ptime = AES67_SDP_PTIME_SET | 4000,
                                     .ptime_cap = {
@@ -1385,7 +1391,8 @@ TEST(SDP_TestGroup, sdp_fromstr)
 
     CHECK_EQUAL(aes67_sdp_attr_mode_recvonly, stream->mode);
 
-    CHECK_EQUAL(963214424, stream->mediaclock_offset);
+    CHECK_EQUAL(1, stream->mediaclock.set);
+    CHECK_EQUAL(963214424, stream->mediaclock.offset);
 
     CHECK_EQUAL(AES67_SDP_PTIME_SET, (stream->ptime & AES67_SDP_PTIME_SET));
     CHECK_EQUAL(1330, stream->ptime & AES67_SDP_PTIME_VALUE);
@@ -1420,6 +1427,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "t=0 0\n"
                    "a=tool:gst\n"
                    "a=charset:ISO-8859-1\n"
+                   "a=mediaclk:direct=446172\n"
                    "m=audio 5004 RTP/AVP 96\n"
                    "i=Channels 1-8\n"
                    "a=rtpmap:96 L24/48000/8\n"
@@ -1433,8 +1441,8 @@ TEST(SDP_TestGroup, sdp_fromstr)
     std::memset(&sdp, 0, sizeof(struct aes67_sdp));
     CHECK_EQUAL(AES67_SDP_OK, aes67_sdp_fromstr(&sdp, s3, sizeof(s3) - 1, NULL));
 
-    CHECK_EQUAL(sizeof("192.168.1.1")-1, sdp.connections.data[0].address.length);
-    MEMCMP_EQUAL("192.168.1.1", sdp.connections.data[0].address.data, sizeof("192.168.1.1")-1);
+    CHECK_EQUAL(1, sdp.mediaclock.set);
+    CHECK_EQUAL(446172, sdp.mediaclock.offset);
 
 #if 0 < AES67_SDP_MAXURI
     CHECK_EQUAL(sizeof("https://jdoe.wrong/fancy-pants")-1, sdp.uri.length);

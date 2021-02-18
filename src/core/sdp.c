@@ -235,7 +235,7 @@ s32_t aes67_sdp_origin_cmpversion(struct aes67_sdp_originator * lhs, struct aes6
 }
 
 
-u32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin)
+s32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_originator * origin)
 {
     AES67_ASSERT("str != NULL", str != NULL);
 //    AES67_ASSERT("maxlen > sizeof(\"o=    IN IP4 \\r\")", maxlen > sizeof("o=    IN IP4 \r"));
@@ -243,7 +243,7 @@ u32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_origina
 
     // "o=<username> <id> <version> IN IP<ipver> <address>\r\n"
     if (maxlen < sizeof("o=   IN IP4 \r") + origin->username.length + origin->session_id.length + origin->session_version.length + origin->address.length){
-        return 0;
+        return -1;
     }
 
     u32_t len = 0;
@@ -308,7 +308,7 @@ u32_t aes67_sdp_origin_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_origina
     return len;
 }
 
-u32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_list * cons, aes67_sdp_flags flags)
+s32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_connection_list * cons, aes67_sdp_flags flags)
 {
     AES67_ASSERT( "str != NULL", str != NULL );
     AES67_ASSERT("cons != NULL", cons != NULL );
@@ -366,7 +366,7 @@ u32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_con
 }
 
 
-u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags)
+s32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags)
 {
     AES67_ASSERT( "str != NULL", str != NULL );
     AES67_ASSERT("ptps != NULL", ptps != NULL );
@@ -448,8 +448,10 @@ u32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * 
     return len;
 }
 
-u32_t aes67_sdp_attrmode_tostr( u8_t * str, u32_t maxlen, enum aes67_sdp_attr_mode mode)
+s32_t aes67_sdp_attrmode_tostr( u8_t * str, u32_t maxlen, enum aes67_sdp_attr_mode mode)
 {
+    AES67_ASSERT("str != NULL", str != NULL);
+
     if (mode == aes67_sdp_attr_mode_undefined){
         return 0;
     }
@@ -518,6 +520,50 @@ u32_t aes67_sdp_attrmode_tostr( u8_t * str, u32_t maxlen, enum aes67_sdp_attr_mo
     return len;
 }
 
+s32_t aes67_sdp_attrmediaclk_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_attr_mediaclk * mediaclk)
+{
+    AES67_ASSERT("str != NULL", str != NULL);
+    AES67_ASSERT("mediaclk != NULL", mediaclk != NULL);
+
+    // don't add if not set
+    if (!mediaclk->set){
+        return 0;
+    }
+
+    u32_t len = 0;
+
+    // a=mediaclk:direct=<offset
+
+    if (maxlen < len + sizeof("a=mediaclock:direct=4294967295\r")){
+        return 0;
+    }
+    str[len++] = 'a';
+    str[len++] = '=';
+    str[len++] = 'm';
+    str[len++] = 'e';
+    str[len++] = 'd';
+    str[len++] = 'i';
+    str[len++] = 'a';
+    str[len++] = 'c';
+    str[len++] = 'l';
+    str[len++] = 'k';
+    str[len++] = ':';
+    str[len++] = 'd';
+    str[len++] = 'i';
+    str[len++] = 'r';
+    str[len++] = 'e';
+    str[len++] = 'c';
+    str[len++] = 't';
+    str[len++] = '=';
+
+    len += aes67_itoa(mediaclk->offset, &str[len], 10);
+
+    str[len++] = CR;
+    str[len++] = NL;
+
+    return len;
+}
+
 u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 {
     AES67_ASSERT("str != NULL", str != NULL);
@@ -529,7 +575,8 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     }
 
     // length of sdp packet
-    u32_t len = 0, l;
+    u32_t len = 0;
+    s32_t l;
 
 
     //v=0
@@ -799,6 +846,12 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
 
     // add session level reference clocks ts-refclk
     l = aes67_sdp_ptp_tostr(&str[len], maxlen - len, &sdp->ptps, AES67_SDP_FLAG_DEFLVL_SESSION);
+    if (l == -1){
+        return 0;
+    }
+    len += l;
+
+    l = aes67_sdp_attrmediaclk_tostr(&str[len], maxlen - len, &sdp->mediaclock);
     if (l == -1){
         return 0;
     }
@@ -1075,34 +1128,11 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
         }
         len += l;
 
-        // a=mediaclk:direct=<offset>
-        if (maxlen < len + sizeof("a=mediaclock:direct=4294967295\r")){
+        l = aes67_sdp_attrmediaclk_tostr(&str[len], maxlen - len, &stream->mediaclock);
+        if (l == -1){
             return 0;
         }
-        str[len++] = 'a';
-        str[len++] = '=';
-        str[len++] = 'm';
-        str[len++] = 'e';
-        str[len++] = 'd';
-        str[len++] = 'i';
-        str[len++] = 'a';
-        str[len++] = 'c';
-        str[len++] = 'l';
-        str[len++] = 'k';
-        str[len++] = ':';
-        str[len++] = 'd';
-        str[len++] = 'i';
-        str[len++] = 'r';
-        str[len++] = 'e';
-        str[len++] = 'c';
-        str[len++] = 't';
-        str[len++] = '=';
-
-        len += aes67_itoa(stream->mediaclock_offset, &str[len], 10);
-
-        str[len++] = CR;
-        str[len++] = NL;
-
+        len += l;
 
     }
 
@@ -1116,7 +1146,7 @@ u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str,
     AES67_ASSERT("str != NULL", str != NULL);
 
     // trim potentially trailing CRNL
-    while(len > 10 && (str[len] == CR || str[len] == NL)){
+    while(len > 10 && (str[len-1] == CR || str[len-1] == NL)){
         len--;
     }
 
@@ -1595,7 +1625,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                 stream->ptime = 0;
                 stream->ptime_cap.count = 0;
                 stream->ptime_cap.cfg = 0;
-                stream->mediaclock_offset = 0;
+                stream->mediaclock.set = 0;
             }
                 break;
 
@@ -1911,36 +1941,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
 
                     }
 #endif //0 < AES67_SDP_MAXPTIMECAPS
-                    else if (delim - line == sizeof("a=mediaclk")-1 &&
-                        line[2] == 'm' &&
-                        line[3] == 'e' &&
-                        line[4] == 'd' &&
-                        line[5] == 'i' &&
-                        line[6] == 'a' &&
-                        line[7] == 'c' &&
-                        line[8] == 'l' &&
-                        line[9] == 'k'){
 
-                        // sanity check
-                        if (llen < sizeof("a=mediaclk:direct=0")-1 ||
-                            line[11] != 'd' ||
-                            line[12] != 'i' ||
-                            line[13] != 'r' ||
-                            line[14] != 'e' ||
-                            line[15] != 'c' ||
-                            line[16] != 't' ||
-                            line[17] != '='
-                        ){
-                            return AES67_SDP_ERROR;
-                        }
-
-                        u16_t readlen = 0;
-                        stream->mediaclock_offset = aes67_atoi(&line[18], llen - 18, 10, &readlen);
-
-                        if (readlen == 0){
-                            return AES67_SDP_ERROR;
-                        }
-                    }
                     // no matching attribute
                     else {
                         processed = false;
@@ -2203,6 +2204,49 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
 
                         }
                     } // a=ts-refclk
+                    else if (delim - line == sizeof("a=mediaclk")-1 &&
+                             line[2] == 'm' &&
+                             line[3] == 'e' &&
+                             line[4] == 'd' &&
+                             line[5] == 'i' &&
+                             line[6] == 'a' &&
+                             line[7] == 'c' &&
+                             line[8] == 'l' &&
+                             line[9] == 'k'){
+
+                        // sanity check
+                        if (llen < sizeof("a=mediaclk:direct=0")-1 ||
+                            line[11] != 'd' ||
+                            line[12] != 'i' ||
+                            line[13] != 'r' ||
+                            line[14] != 'e' ||
+                            line[15] != 'c' ||
+                            line[16] != 't' ||
+                            line[17] != '='
+                                ){
+
+                            aes67_sdp_fromstr_unhandled(sdp, context, line, llen, user_data);
+
+                            continue;
+                        }
+
+                        u16_t readlen = 0;
+
+                        u32_t o = aes67_atoi(&line[18], llen - 18, 10, &readlen);
+
+                        if (readlen == 0){
+                            return AES67_SDP_ERROR;
+                        }
+
+                        if (context == AES67_SDP_FLAG_DEFLVL_SESSION){
+                            sdp->mediaclock.set = 1;
+                            sdp->mediaclock.offset = o;
+                        } else {
+                            stream->mediaclock.set = 1;
+                            stream->mediaclock.offset = o;
+                        }
+
+                    }
                     else {
                         processed = false;
                     }
