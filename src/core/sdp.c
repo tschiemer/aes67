@@ -564,7 +564,7 @@ s32_t aes67_sdp_attrmediaclk_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_a
     return len;
 }
 
-u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
+u32_t aes67_sdp_tostr(u8_t *str, u32_t maxlen, struct aes67_sdp *sdp, void *user_data)
 {
     AES67_ASSERT("str != NULL", str != NULL);
     AES67_ASSERT("maxlen > 5", maxlen > 5); // the length of a meaningful AES67-SDP packet
@@ -864,6 +864,14 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
     }
     len += l;
 
+#if !defined(aes67_sdp_tostr_addattrs)
+    // add any custom session-level attributes
+    l = aes67_sdp_tostr_addattrs(sdp, AES67_SDP_FLAG_DEFLVL_SESSION, &str[len], maxlen - len, user_data);
+    if (l == -1){
+        return 0;
+    }
+    len += l;
+#endif
 
     for(u8_t s = 0; s < sdp->streams.count; s++){
 
@@ -1158,11 +1166,23 @@ u32_t aes67_sdp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp * sdp)
             str[len++] = NL;
         }
 
+#if !defined(aes67_sdp_tostr_addattrs)
+        // add any custom media-level attributes
+        l = aes67_sdp_tostr_addattrs(sdp, AES67_SDP_FLAG_DEFLVL_STREAM | s, &str[len], maxlen - len, user_data);
+        if (l==-1) {
+            return 0;
+        }
+#endif
     }
 
     return len;
 }
 
+WEAK_FUN s32_t aes67_sdp_tostr_addattrs(struct aes67_sdp *sdp, aes67_sdp_flags context, u8_t * str, u32_t maxlen, void *user_data)
+{
+    // do nothing
+    return 0;
+}
 
 u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str, u32_t len)
 {

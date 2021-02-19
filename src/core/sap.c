@@ -712,7 +712,7 @@ u16_t aes67_sap_service_msg_sdp(struct aes67_sap_service *sap, u8_t *msg, u16_t 
     u16_t payloadlen = 0;
 
     if ( (opt & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE ) {
-        payloadlen = aes67_sdp_tostr(&msg[offset], maxlen - offset, sdp);
+        payloadlen = aes67_sdp_tostr(&msg[offset], maxlen - offset, sdp, NULL);
     } else {
         // when deleting a session, just add first line (after version) of SDP message
         payloadlen = aes67_sdp_origin_tostr(&msg[offset], maxlen - offset, &sdp->originator);

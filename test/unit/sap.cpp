@@ -829,7 +829,7 @@ TEST(SAP_TestGroup, sap_msg)
     uint16_t len, sdp_len, origin_len;
 
     std::memset(sdp_data, 0, sizeof(sdp_data));
-    sdp_len = aes67_sdp_tostr(sdp_data, sizeof(sdp_data), &sdp);
+    sdp_len = aes67_sdp_tostr(sdp_data, sizeof(sdp_data), &sdp, NULL);
 
     assert(sdp_len > 0);
 

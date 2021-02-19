@@ -742,6 +742,17 @@ TEST(SDP_TestGroup, aes67_sdp_ptp_tostr)
     );
 }
 
+s32_t aes67_sdp_tostr_addattrs(struct aes67_sdp *sdp, aes67_sdp_flags context, u8_t * str, u32_t maxlen, void *user_data)
+{
+    if (context == AES67_SDP_FLAG_DEFLVL_SESSION){
+        //TODO
+    }
+    else if ( (context & AES67_SDP_FLAG_STREAM_INDEX_MASK) == 1){
+        //TODO
+    }
+    return 0;
+}
+
 TEST(SDP_TestGroup, sdp_tostr)
 {
     uint8_t str[1500];
@@ -758,7 +769,7 @@ TEST(SDP_TestGroup, sdp_tostr)
             .name = AES67_STRING_INIT_BYTES("")
     };
 
-    len = aes67_sdp_tostr(str, sizeof(str), &s1);
+    len = aes67_sdp_tostr(str, sizeof(str), &s1, NULL);
 
     CHECK_COMPARE(0, <, len);
     str[len] = '\0';
@@ -782,7 +793,7 @@ TEST(SDP_TestGroup, sdp_tostr)
 #endif
 
     std::memset(str, 0, sizeof(str));
-    len = aes67_sdp_tostr(str, sizeof(str), &s1);
+    len = aes67_sdp_tostr(str, sizeof(str), &s1, NULL);
 
     CHECK_COMPARE(0, <, len);
     str[len] = '\0';
@@ -943,7 +954,7 @@ TEST(SDP_TestGroup, sdp_tostr)
     };
 
     std::memset(str, 0, sizeof(str));
-    len = aes67_sdp_tostr(str, sizeof(str), &s2);
+    len = aes67_sdp_tostr(str, sizeof(str), &s2, NULL);
 
     CHECK_COMPARE(0, <, len);
     str[len] = '\0';
@@ -990,27 +1001,27 @@ TEST(SDP_TestGroup, sdp_tostr)
 #endif
 
     // maxlen checks
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o= asdfasdf"
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$1"
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
 #if 0 < AES67_SDP_MAXSESSIONINFO
             "i=my sessio"
 #endif
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1018,9 +1029,9 @@ TEST(SDP_TestGroup, sdp_tostr)
             "i=my session info\r\n"
 #endif
             "c=IN IP4 224.0"
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1029,9 +1040,9 @@ TEST(SDP_TestGroup, sdp_tostr)
 #endif
             "c=IN IP4 224.0.0.1/33\r\n"
             "t=0 "
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1043,9 +1054,9 @@ TEST(SDP_TestGroup, sdp_tostr)
 #if AES67_SDP_TOOL_ENABLED == 1
             "a=tool:" AES67_SDP_TOOL
 #endif
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1058,9 +1069,9 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=tool:" AES67_SDP_TOOL "\r\n"
 #endif
             "a=clock-domain:PTPv2 "
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1074,10 +1085,10 @@ TEST(SDP_TestGroup, sdp_tostr)
 #endif
             "a=clock-domain:PTPv2 2\r\n"
             "a=ts-refclk:ptp=IEEE802.1AS-"
-    ), &s2));
+    ), &s2, NULL));
 
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1092,9 +1103,9 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=clock-domain:PTPv2 2\r\n"
             "a=ts-refclk:ptp=IEEE802.1AS-2011:08-07-06-05-04-03-02-01\r\n"
             "m=audio 5000/2 RTP/AVP 96 97"
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1110,9 +1121,9 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=ts-refclk:ptp=IEEE802.1AS-2011:08-07-06-05-04-03-02-01\r\n"
             "m=audio 5000/2 RTP/AVP 96 97 98\r\n"
             "i=stream level"
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1129,9 +1140,9 @@ TEST(SDP_TestGroup, sdp_tostr)
             "m=audio 5000/2 RTP/AVP 96 97 98\r\n"
             "i=stream level info\r\n"
             "a=inac"
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1150,9 +1161,9 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=inactive\r\n"
             "a=rtpmap:96 L16/48000/2\r\n"
             "a=rtpmap:97 L24/480"
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1173,9 +1184,9 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=rtpmap:97 L24/48000/2\r\n"
             "a=rtpmap:98 L24/96000/2\r\n"
             "a=ptime:"
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1198,9 +1209,9 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=ptime:1\r\n"
             "a=pcap:1 ptime:0.33\r\n"
             "a=pcap:2 pt"
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1224,9 +1235,9 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=pcap:1 ptime:0.33\r\n"
             "a=pcap:2 ptime:1\r\n"
             "a=maxpti"
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1251,9 +1262,9 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=pcap:2 ptime:1\r\n"
             "a=maxptime:1\r\n"
             "a=pcfg:1 a="
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1279,9 +1290,9 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=maxptime:1\r\n"
             "a=pcfg:1 a=1\r\n"
             "a=ts-refclk:ptp=IEEE158"
-    ), &s2));
+    ), &s2, NULL));
 
-    CHECK_EQUAL(0,aes67_sdp_tostr(str, sizeof(
+    CHECK_EQUAL(0, aes67_sdp_tostr(str, sizeof(
             "v=0\r\n"
             "o=joe 1234567890 9876543210 IN IP4 random.host.name\r\n"
             "s=1337 $3$$10N\r\n"
@@ -1308,7 +1319,7 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=pcfg:1 a=1\r\n"
             "a=ts-refclk:ptp=IEEE1588-2008:01-02-03-04-05-06-07-08:1\r\n"
             "a=mediaclk:direct=1"
-    ), &s2));
+    ), &s2, NULL));
 }
 
 

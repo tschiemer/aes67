@@ -721,8 +721,23 @@ s32_t aes67_sdp_attrmediaclk_tostr( u8_t * str, u32_t maxlen, struct aes67_sdp_a
  * @param sdp
  * @return          length of string, 0 if maxlen too short
  */
-u32_t aes67_sdp_tostr(u8_t *str, u32_t maxlen, struct aes67_sdp *sdp);
+u32_t aes67_sdp_tostr(u8_t *str, u32_t maxlen, struct aes67_sdp *sdp, void *user_data);
 
+#if !defined(aes67_sdp_fromstr_addattrs)
+/**
+ * Callback for adding custom session- and media-level attributes
+ *
+ * To be implemented by user.
+ *
+ * @param sdp
+ * @param context       AES67_SDP_FLAG_DEFLEVEL_SESSION or AES67_SDP_FLAG_DEFLEVEL_STREAM | <stream-index> otherwise
+ * @param str           memory offset to start adding (CRNL terminated) attributes
+ * @param len           maximum length availabble for adding data
+ * @param user_data     as passed to aes67_sdp_tostr()
+ * @return              -1 if not enough memory (or other error), length (>= 0) of data written
+ */
+s32_t aes67_sdp_tostr_addattrs(struct aes67_sdp *sdp, aes67_sdp_flags context, u8_t * str, u32_t maxlen, void *user_data);
+#endif //
 
 /**
  * Attempts to parse given originator string(line)

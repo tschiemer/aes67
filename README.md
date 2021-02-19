@@ -177,15 +177,16 @@ multiple stream sources into one reception buffer (discarding any unwanted audio
 
 ### SDP
 
-- Narrowed down to options and attributes as required for AES67 streams.-
+- Parser to/generator from internal struct.
+- Narrowed down to options and attributes as required for AES67 streams.
 - Supports relevant session- and/or media-level options (connection, ref-clock, recvonly|sendonly|inactive|sendrecv).
 - Supports multiple ptp reference clocks on both session-/media level (1588-2002/08/19, 802.1AS-2011)
 - Support for audio media with dynamic payload types *only* and L8/L16/L24/L32 encoding media encoding.
 - Intended to support encoding and ptime negotiation - capabilities are discarded (fallback to non-negotiated configuration) if capabilities other than ptime related are offered.
-- Parser to/generator from internal struct.
 - Provides implementable interface for unhandled media, options and attributes.
   - Media sections if non-audio and unrecognized *predefined* payload types.
   - Unknown dynamic payload type encodings.
+- Provides implementable interface for adding custom session- or media-level attributes.
 
 ## Utilities
 
