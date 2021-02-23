@@ -107,7 +107,7 @@ void aes67_sdp_init(struct aes67_sdp * sdp)
 
     sdp->ptp_domain = 0;
     sdp->nptp = 0;
-    sdp->ptps.count = 0;
+    sdp->refclks.count = 0;
 
 
 }
@@ -158,33 +158,33 @@ struct aes67_sdp_attr_encoding * aes67_sdp_get_stream_encoding(struct aes67_sdp 
     return NULL;
 }
 
-struct aes67_sdp_ptp * aes67_sdp_get_ptp(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t pi)
+struct aes67_sdp_attr_refclk * aes67_sdp_get_refclk(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t pi)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
-    AES67_ASSERT("pi < sdp->ptps.count", pi < sdp->ptps.count);
+    AES67_ASSERT("pi < sdp->refclks.count", pi < sdp->refclks.count);
     AES67_ASSERT("valid session level index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_SESSION || pi < sdp->nptp);
     AES67_ASSERT("valid stream level index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_STREAM || (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count);
     AES67_ASSERT("valid stream level index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != 0 || (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count + sdp->nptp);
 
-//    struct aes67_sdp_ptp * session_level = NULL;
+//    struct aes67_sdp_attr_refclk * session_level = NULL;
 
-    for(int i = 0, pc = 0, found = 0; i < AES67_SDP_MAXPTPS; i++, found = 0){
+    for(int i = 0, pc = 0, found = 0; i < AES67_SDP_MAXREFCLKS; i++, found = 0){
         // if session level explicitly requested and found there
-        if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_SESSION &&  (sdp->ptps.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION)){
+        if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_SESSION && (sdp->refclks.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION)){
             found = 1;
         }
         // if stream level not explicitly requested and found on session level
-        else if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_STREAM && (sdp->ptps.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION) ){
+        else if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_STREAM && (sdp->refclks.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION) ){
             found = 1;
         }
         // if not session level explicitly requested and found on stream level
-        else if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_SESSION && (sdp->ptps.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK | AES67_SDP_FLAG_STREAM_INDEX_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | flags)){
+        else if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_SESSION && (sdp->refclks.data[i].flags & (AES67_SDP_FLAG_SET_MASK | AES67_SDP_FLAG_DEFLVL_MASK | AES67_SDP_FLAG_STREAM_INDEX_MASK)) == (AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | flags)){
             found = 1;
         }
         if (found == 1){
 
             if (pc == pi){
-                return &sdp->ptps.data[i];
+                return &sdp->refclks.data[i];
             }
 
             pc++;
@@ -366,27 +366,28 @@ s32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_con
 }
 
 
-s32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags)
+s32_t aes67_sdp_refclk_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_refclk_list * refclks, aes67_sdp_flags flags)
 {
     AES67_ASSERT( "str != NULL", str != NULL );
-    AES67_ASSERT("ptps != NULL", ptps != NULL );
+    AES67_ASSERT("refclks != NULL", refclks != NULL );
 
     u32_t len = 0;
 
     flags = (flags & ~AES67_SDP_FLAG_SET_MASK) | AES67_SDP_FLAG_SET_YES;
 
-    for(int i = 0; i < ptps->count; i++){
+    for(int i = 0; i < refclks->count; i++){
         // skip all unwanted context
-        if ( ptps->data[i].flags != flags ){
+        if ( refclks->data[i].flags != flags ){
             continue;
         }
 
-        // compare to longest possible length
-        if (maxlen < len + sizeof("a=ts-refclk:ptp=IEEE802.1AS-2011:01-02-03-04-05-06-07-08\r")){
+        if (maxlen < len + sizeof("a=ts-refclk:\r")){
             return -1;
         }
 
-        AES67_ASSERT("AES67_PTP_TYPE_ISVALID(ptps->data[i].ptp.type)", AES67_PTP_TYPE_ISVALID(ptps->data[i].ptp.type));
+        struct aes67_sdp_attr_refclk * clk = &refclks->data[i];
+
+        AES67_ASSERT("AES67_SDP_REFCLKTYPE_ISVALID(clk->type)", AES67_SDP_REFCLKTYPE_ISVALID(clk->type));
 
         str[len++] = 'a';
         str[len++] = '=';
@@ -400,46 +401,109 @@ s32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * 
         str[len++] = 'l';
         str[len++] = 'k';
         str[len++] = ':';
-        str[len++] = 'p';
-        str[len++] = 't';
-        str[len++] = 'p';
-        str[len++] = '=';
 
-        // add ptp variant
-        if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2002){
-            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2002, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2002) - 1);
-            len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2002) - 1;
-        }
-        else if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2008){
-            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2008, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2008) - 1);
-            len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2008) - 1;
-        }
-        else if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2019){
-            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2019, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2019) - 1);
-            len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2019) - 1;
-        }
-        else if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE802AS_2011){
-            aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE802AS_2011, sizeof(AES67_PTP_TYPE_STR_IEEE802AS_2011) - 1);
-            len += sizeof(AES67_PTP_TYPE_STR_IEEE802AS_2011) - 1;
+        switch(clk->type){
+            case aes67_sdp_refclktype_localmac:
+                if (maxlen < len + sizeof("localmac=01-02-03-04-05-06\r")){
+                    return -1;
+                }
+                str[len++] = 'l';
+                str[len++] = 'o';
+                str[len++] = 'c';
+                str[len++] = 'a';
+                str[len++] = 'l';
+                str[len++] = 'm';
+                str[len++] = 'a';
+                str[len++] = 'c';
+                str[len++] = '=';
+
+                aes67_bintohex(&clk->data.localmac[0], 1, &str[len]);
+                len += 2;
+                for(int j = 1; j < sizeof(clk->data.localmac); j++){
+                    str[len++] = '-';
+                    aes67_bintohex(&clk->data.localmac[j], 1, &str[len]);
+                    len += 2;
+                }
+
+                break;
+            case aes67_sdp_refclktype_ptptraceable:
+                if (maxlen < len + sizeof("ptp=traceable\r")){
+                    return -1;
+                }
+
+                str[len++] = 'p';
+                str[len++] = 't';
+                str[len++] = 'p';
+                str[len++] = '=';
+                str[len++] = 't';
+                str[len++] = 'r';
+                str[len++] = 'a';
+                str[len++] = 'c';
+                str[len++] = 'e';
+                str[len++] = 'a';
+                str[len++] = 'b';
+                str[len++] = 'l';
+                str[len++] = 'e';
+                break;
+
+            case aes67_sdp_refclktype_ptpclock:{
+
+                // compare to longest possible length
+                if (maxlen < len + sizeof("ptp=IEEE802.1AS-2011:01-02-03-04-05-06-07-08\r")){
+                    return -1;
+                }
+
+                AES67_ASSERT("AES67_PTP_TYPE_ISVALID(clk->ptp.type)", AES67_PTP_TYPE_ISVALID(clk->data.ptp.type));
+
+                str[len++] = 'p';
+                str[len++] = 't';
+                str[len++] = 'p';
+                str[len++] = '=';
+
+                // add ptp variant
+                if (clk->data.ptp.type == aes67_ptp_type_IEEE1588_2002){
+                    aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2002, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2002) - 1);
+                    len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2002) - 1;
+                }
+                else if (clk->data.ptp.type == aes67_ptp_type_IEEE1588_2008){
+                    aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2008, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2008) - 1);
+                    len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2008) - 1;
+                }
+                else if (clk->data.ptp.type == aes67_ptp_type_IEEE1588_2019){
+                    aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE1588_2019, sizeof(AES67_PTP_TYPE_STR_IEEE1588_2019) - 1);
+                    len += sizeof(AES67_PTP_TYPE_STR_IEEE1588_2019) - 1;
+                }
+                else if (clk->data.ptp.type == aes67_ptp_type_IEEE802AS_2011){
+                    aes67_memcpy(&str[len], AES67_PTP_TYPE_STR_IEEE802AS_2011, sizeof(AES67_PTP_TYPE_STR_IEEE802AS_2011) - 1);
+                    len += sizeof(AES67_PTP_TYPE_STR_IEEE802AS_2011) - 1;
+                }
+                else {
+                    return -1;
+                }
+
+                str[len++] = ':';
+
+                //
+                aes67_bintohex(&clk->data.ptp.gmid.u8[0], 1, &str[len]);
+                len += 2;
+                for(int j = 1; j < sizeof(union aes67_ptp_eui64); j++){
+                    str[len++] = '-';
+                    aes67_bintohex(&clk->data.ptp.gmid.u8[j], 1, &str[len]);
+                    len += 2;
+                }
+
+                // add PTP domain only if 2008 or 2019 version
+                if (clk->data.ptp.type == aes67_ptp_type_IEEE1588_2008 || clk->data.ptp.type == aes67_ptp_type_IEEE1588_2019){
+                    // domain values 0 - 127
+                    str[len++] = ':';
+                    SUB1kTOSTR(clk->data.ptp.domain, str, len);
+                }
+            }
+                break;
+            default:
+                return -1;
         }
 
-        str[len++] = ':';
-
-        //
-        aes67_bintohex(&ptps->data[i].ptp.gmid.u8[0], 1, &str[len]);
-        len += 2;
-        for(int j = 1; j < sizeof(union aes67_ptp_eui64); j++){
-            str[len++] = '-';
-            aes67_bintohex(&ptps->data[i].ptp.gmid.u8[j], 1, &str[len]);
-            len += 2;
-        }
-
-        // add PTP domain only if 2008 or 2019 version
-        if (ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2008 || ptps->data[i].ptp.type == aes67_ptp_type_IEEE1588_2019){
-            // domain values 0 - 127
-            str[len++] = ':';
-            SUB1kTOSTR(ptps->data[i].ptp.domain, str, len);
-        }
 
         str[len++] = CR;
         str[len++] = NL;
@@ -845,7 +909,7 @@ u32_t aes67_sdp_tostr(u8_t *str, u32_t maxlen, struct aes67_sdp *sdp, void *user
     }
 
     // add session level reference clocks ts-refclk
-    l = aes67_sdp_ptp_tostr(&str[len], maxlen - len, &sdp->ptps, AES67_SDP_FLAG_DEFLVL_SESSION);
+    l = aes67_sdp_refclk_tostr(&str[len], maxlen - len, &sdp->refclks, AES67_SDP_FLAG_DEFLVL_SESSION);
     if (l == -1){
         return 0;
     }
@@ -1128,9 +1192,9 @@ u32_t aes67_sdp_tostr(u8_t *str, u32_t maxlen, struct aes67_sdp *sdp, void *user
 
 
 
-        // add stream level ptps
+        // add stream level refclks
         // ie a=ts-refclk:ptp=.....
-        l = aes67_sdp_ptp_tostr(&str[len], maxlen - len, &sdp->ptps, AES67_SDP_FLAG_DEFLVL_STREAM | s);
+        l = aes67_sdp_refclk_tostr(&str[len], maxlen - len, &sdp->refclks, AES67_SDP_FLAG_DEFLVL_STREAM | s);
         if (l == -1){
             return 0;
         }
@@ -2165,8 +2229,81 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                     }
                     else if (delim - line == sizeof("a=ts-refclk")-1 && line[2] == 't' && line[3] == 's' && line[4] == '-' &&  line[5] == 'r' && line[6] == 'e' && line[7] == 'f' && line[8] == 'c' && line[9] == 'l' && line[10] == 'k'){
 
+                        if (llen == sizeof("a=ts-refclk:localmac=01-02-03-04-05-06")-1 &&
+                            delim[1] == 'l' &&
+                            delim[2] == 'o' &&
+                            delim[3] == 'c' &&
+                            delim[4] == 'a' &&
+                            delim[5] == 'l' &&
+                            delim[6] == 'm' &&
+                            delim[7] == 'a' &&
+                            delim[8] == 'c' &&
+                            delim[9] == '='
+                        ){
+
+                            if (sdp->refclks.count >= AES67_SDP_MAXREFCLKS){
+                                return AES67_SDP_NOMEMORY;
+                            }
+
+                            struct aes67_sdp_attr_refclk * clk = &sdp->refclks.data[sdp->refclks.count++];
+
+                            // init and don't forget to set flags
+                            clk->flags =AES67_SDP_FLAG_SET_YES | context;
+                            clk->type = aes67_sdp_refclktype_localmac;
+
+                            if ( context == AES67_SDP_FLAG_DEFLVL_SESSION ){
+                                sdp->nptp++;
+                            } else {
+                                sdp->streams.data[ context & AES67_SDP_FLAG_STREAM_INDEX_MASK ].nptp++;
+                            }
+
+                            delim += 10;
+
+                            for(u16_t i = 0, h; i < 6; i++, delim += 3){
+                                h  = aes67_hextobyte(delim);
+
+                                // if invalid hexdata -> abort
+                                if (h == 0xffff){
+                                    return AES67_SDP_ERROR;
+                                };
+
+                                clk->data.localmac[i] = h;
+                            }
+                        }
+                        else if (llen == sizeof("a=ts-refclk:ptp=traceable")-1 &&
+                                 delim[1] == 'p' &&
+                                 delim[2] == 't' &&
+                                 delim[3] == 'p' &&
+                                 delim[4] == '=' &&
+                                 delim[5] == 't' &&
+                                 delim[6] == 'r' &&
+                                 delim[7] == 'a' &&
+                                 delim[8] == 'c' &&
+                                 delim[9] == 'e' &&
+                                 delim[9] == 'a' &&
+                                 delim[9] == 'b' &&
+                                 delim[9] == 'l' &&
+                                 delim[9] == 'e'
+                         ) {
+
+                            if (sdp->refclks.count >= AES67_SDP_MAXREFCLKS){
+                                return AES67_SDP_NOMEMORY;
+                            }
+
+                            struct aes67_sdp_attr_refclk * clk = &sdp->refclks.data[sdp->refclks.count++];
+
+                            // init and don't forget to set flags
+                            clk->flags =AES67_SDP_FLAG_SET_YES | context;
+                            clk->type = aes67_sdp_refclktype_ptptraceable;
+
+                            if ( context == AES67_SDP_FLAG_DEFLVL_SESSION ){
+                                sdp->nptp++;
+                            } else {
+                                sdp->streams.data[ context & AES67_SDP_FLAG_STREAM_INDEX_MASK ].nptp++;
+                            }
+                        }
                         // basic sanity check
-                        if (llen < sizeof("a=ts-refclk:ptp=IEEE1588-2002:01-02-03-04-05-06-07-08")-1 ||
+                        else if (llen < sizeof("a=ts-refclk:ptp=IEEE1588-2002:01-02-03-04-05-06-07-08")-1 ||
                                 delim[1] != 'p' ||
                                 delim[2] != 't' ||
                                 delim[3] != 'p' ||
@@ -2180,16 +2317,17 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                             processed = false;
                         } else {
 
-                            if (sdp->ptps.count >= AES67_SDP_MAXPTPS){
+                            if (sdp->refclks.count >= AES67_SDP_MAXREFCLKS){
                                 return AES67_SDP_NOMEMORY;
                             }
 
-                            struct aes67_sdp_ptp * clk = &sdp->ptps.data[sdp->ptps.count++];
+                            struct aes67_sdp_attr_refclk * clk = &sdp->refclks.data[sdp->refclks.count++];
 
                             // init and don't forget to set flags
                             clk->flags =AES67_SDP_FLAG_SET_YES | context;
-                            clk->ptp.type = aes67_ptp_type_undefined;
-                            clk->ptp.domain = 0;
+                            clk->type = aes67_sdp_refclktype_ptpclock;
+                            clk->data.ptp.type = aes67_ptp_type_undefined;
+                            clk->data.ptp.domain = 0;
 
                             if ( context == AES67_SDP_FLAG_DEFLVL_SESSION ){
                                 sdp->nptp++;
@@ -2211,11 +2349,11 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                                 delim[9] == ':'){
 
                                 if (delim[7] == '0' && delim[8] == '2'){
-                                    clk->ptp.type = aes67_ptp_type_IEEE1588_2002;
+                                    clk->data.ptp.type = aes67_ptp_type_IEEE1588_2002;
                                 } else if (delim[7] == '0' && delim[8] == '8'){
-                                    clk->ptp.type = aes67_ptp_type_IEEE1588_2008;
+                                    clk->data.ptp.type = aes67_ptp_type_IEEE1588_2008;
                                 } else if (delim[7] == '1' && delim[8] == '9'){
-                                    clk->ptp.type = aes67_ptp_type_IEEE1588_2019;
+                                    clk->data.ptp.type = aes67_ptp_type_IEEE1588_2019;
                                 }
 
                             }
@@ -2234,14 +2372,14 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                                      delim[11] == '1' &&
                                      delim[12] == ':') {
 
-                                clk->ptp.type = aes67_ptp_type_IEEE802AS_2011;
+                                clk->data.ptp.type = aes67_ptp_type_IEEE802AS_2011;
                             }
 
                             // only process further if type properly detected
-                            if (clk->ptp.type != aes67_ptp_type_undefined){
+                            if (clk->data.ptp.type != aes67_ptp_type_undefined){
 
                                 // set pointer to beginning of EUI64
-                                delim += (clk->ptp.type == aes67_ptp_type_IEEE802AS_2011) ? 13 : 10;
+                                delim += (clk->data.ptp.type == aes67_ptp_type_IEEE802AS_2011) ? 13 : 10;
 
                                 for(u16_t i = 0, h; i < 8; i++, delim += 3){
                                     h  = aes67_hextobyte(delim);
@@ -2251,11 +2389,11 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                                         return AES67_SDP_ERROR;
                                     };
 
-                                    clk->ptp.gmid.u8[i] = h;
+                                    clk->data.ptp.gmid.u8[i] = h;
                                 }
 
                                 // only PTPv2 & PTPv2.1 have a domain
-                                switch(clk->ptp.type){
+                                switch(clk->data.ptp.type){
                                     case aes67_ptp_type_IEEE1588_2008:
                                     case aes67_ptp_type_IEEE1588_2019:
                                         if (delim  >= &line[llen]){
@@ -2266,7 +2404,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                                         if (readlen == 0 || t > 127){
                                             return AES67_SDP_ERROR;
                                         }
-                                        clk->ptp.domain = t;
+                                        clk->data.ptp.domain = t;
                                         break;
 
                                     default:

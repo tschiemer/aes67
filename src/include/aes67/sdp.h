@@ -161,14 +161,31 @@ struct aes67_sdp_connection_list {
 };
 
 // TODO ST2110 also allows a=ts-refclk:localmac=<Ethernet MAC address of sender> + a=ts-refclk:ptp=traceable
-struct aes67_sdp_ptp {
-    aes67_sdp_flags flags;
-    struct aes67_ptp ptp;
+enum aes67_sdp_refclktype {
+    aes67_sdp_refclktype_undefined     = 0,
+    aes67_sdp_refclktype_ptpclock,
+    aes67_sdp_refclktype_ptptraceable,
+    aes67_sdp_refclktype_localmac
 };
 
-struct aes67_sdp_ptp_list {
+#define AES67_SDP_REFCLKTYPE_ISVALID(x) ( \
+    (x) == aes67_sdp_refclktype_ptpclock || \
+    (x) == aes67_sdp_refclktype_ptptraceable || \
+    (x) == aes67_sdp_refclktype_localmac \
+    )
+
+struct aes67_sdp_attr_refclk {
+    aes67_sdp_flags flags;
+    enum aes67_sdp_refclktype type;
+    union {
+        u8_t localmac[6];
+        struct aes67_ptp ptp;
+    } data;
+};
+
+struct aes67_sdp_refclk_list {
     u8_t count;
-    struct aes67_sdp_ptp data[AES67_SDP_MAXPTPS];
+    struct aes67_sdp_attr_refclk data[AES67_SDP_MAXREFCLKS];
 };
 
 
@@ -209,7 +226,7 @@ struct aes67_sdp_stream {
 
     enum aes67_sdp_attr_mode mode;
 
-    u8_t nptp;                      // count of stream level ptps (in separate list)
+    u8_t nptp;                      // count of stream level refclks (in separate list)
 
     struct aes67_sdp_attr_mediaclk mediaclock;        // potential session level mediaclock
     struct aes67_sdp_attr_synctime synctime;         //
@@ -288,7 +305,7 @@ struct aes67_sdp {
 
     enum aes67_sdp_attr_mode mode;
 
-    u8_t nptp; // count of session level ptps
+    u8_t nptp; // count of session level refclks
 
     u8_t ptp_domain; // session level ptp domain attribute (RAVENNA)
 
@@ -298,7 +315,7 @@ struct aes67_sdp {
 
     struct aes67_sdp_stream_list streams;
 
-    struct aes67_sdp_ptp_list ptps;
+    struct aes67_sdp_refclk_list refclks;
 
     struct aes67_sdp_encoding_list encodings;
 };
@@ -494,7 +511,7 @@ inline struct aes67_sdp_attr_encoding * aes67_sdp_add_stream_encoding(struct aes
 }
 
 
-inline u8_t aes67_sdp_get_ptp_count(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+inline u8_t aes67_sdp_get_refclk_count(struct aes67_sdp * sdp, aes67_sdp_flags flags)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
 
@@ -526,7 +543,7 @@ inline u8_t aes67_sdp_get_ptp_count(struct aes67_sdp * sdp, aes67_sdp_flags flag
  * @param pi
  * @return
  */
-struct aes67_sdp_ptp * aes67_sdp_get_ptp(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t pi);
+struct aes67_sdp_attr_refclk * aes67_sdp_get_refclk(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t pi);
 
 /**
  * Comfort function to add new session- or media-level ptp refclock
@@ -536,19 +553,24 @@ struct aes67_sdp_ptp * aes67_sdp_get_ptp(struct aes67_sdp * sdp, aes67_sdp_flags
  * @param pi
  * @return
  */
-inline struct aes67_sdp_ptp * aes67_sdp_add_ptp(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+inline struct aes67_sdp_attr_refclk * aes67_sdp_add_refclk(struct aes67_sdp * sdp, aes67_sdp_flags flags)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
     AES67_ASSERT("(flags & AES67_SDP_FLAG_DEFLVL_MASK) != 0", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != 0);
-    AES67_ASSERT("sdp->ptps.count < AES67_SDP_MAXPTPS", sdp->ptps.count < AES67_SDP_MAXPTPS);
+    AES67_ASSERT("sdp->refclks.count < AES67_SDP_MAXREFCLKS", sdp->refclks.count < AES67_SDP_MAXREFCLKS);
 
-    struct aes67_sdp_ptp * ptp = &sdp->ptps.data[ sdp->ptps.count++ ];
+    if ( (flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_STREAM){
+        AES67_ASSERT("invalid index", (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < AES67_SDP_MAXSTREAMS);
+        sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].nptp++;
+    }
 
-    AES67_ASSERT("(ptp->flags &AES67_SDP_FLAG_SET_MASK) == AES67_SDP_FLAG_SET_YES", (ptp->flags &AES67_SDP_FLAG_SET_MASK) == AES67_SDP_FLAG_SET_YES);
+    struct aes67_sdp_attr_refclk * clk = &sdp->refclks.data[ sdp->refclks.count++ ];
 
-    ptp->flags = AES67_SDP_FLAG_SET_YES | flags;
+    AES67_ASSERT("too many ptp entries", (clk->flags & AES67_SDP_FLAG_SET_MASK) == AES67_SDP_FLAG_SET_YES);
 
-    return ptp;
+    clk->flags = AES67_SDP_FLAG_SET_YES | flags;
+
+    return clk;
 }
 
 /**
@@ -683,7 +705,7 @@ s32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_con
 
 
 /**
- * Writes SDP conform ts-refclk attributes of all clocks in list <ptps> matching <flags>
+ * Writes SDP conform ts-refclk attributes of all clocks in list <refclks> matching <flags>
  *
  * @param str
  * @param maxlen    max length of target buffer <str>
@@ -691,7 +713,7 @@ s32_t aes67_sdp_connections_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_con
  * @param flags     either AES67_SDP_FLAG_DEFLVL_SESSION or AES67_SDP_FLAG_DEFLVL_STREAM | <stream-index>
  * @return          length of string, -1 if maxlen too short
  */
-s32_t aes67_sdp_ptp_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_ptp_list * ptps, aes67_sdp_flags flags);
+s32_t aes67_sdp_refclk_tostr(u8_t * str, u32_t maxlen, struct aes67_sdp_refclk_list * ptps, aes67_sdp_flags flags);
 
 /**
  * Write SDP conform mode (a=sendonly|recvonly|inactive|sendrecv)

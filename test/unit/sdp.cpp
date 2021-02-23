@@ -353,7 +353,7 @@ TEST(SDP_TestGroup, sdp_get_ptps)
             .nptp = 0
     };
 
-    CHECK_EQUAL(0, aes67_sdp_get_ptp_count(&s1, AES67_SDP_FLAG_DEFLVL_SESSION));
+    CHECK_EQUAL(0, aes67_sdp_get_refclk_count(&s1, AES67_SDP_FLAG_DEFLVL_SESSION));
 
 
     aes67_sdp s2 = {
@@ -368,13 +368,13 @@ TEST(SDP_TestGroup, sdp_get_ptps)
             }
     };
 
-    CHECK_EQUAL(0, aes67_sdp_get_ptp_count(&s2, AES67_SDP_FLAG_DEFLVL_SESSION));
-    CHECK_EQUAL(1, aes67_sdp_get_ptp_count(&s2, 0));
+    CHECK_EQUAL(0, aes67_sdp_get_refclk_count(&s2, AES67_SDP_FLAG_DEFLVL_SESSION));
+    CHECK_EQUAL(1, aes67_sdp_get_refclk_count(&s2, 0));
 
 
     aes67_sdp s3 = {
             .nptp = 2,
-            .ptps = {
+            .refclks = {
                     .count = 5,
                     .data = {
                             {
@@ -407,23 +407,23 @@ TEST(SDP_TestGroup, sdp_get_ptps)
             }
     };
 
-    CHECK_EQUAL(2, aes67_sdp_get_ptp_count(&s3, AES67_SDP_FLAG_DEFLVL_SESSION));
-    CHECK_EQUAL(1, aes67_sdp_get_ptp_count(&s3, AES67_SDP_FLAG_DEFLVL_STREAM | 0));
-    CHECK_EQUAL(3, aes67_sdp_get_ptp_count(&s3, 0));
-    CHECK_EQUAL(2, aes67_sdp_get_ptp_count(&s3, AES67_SDP_FLAG_DEFLVL_STREAM | 1));
-    CHECK_EQUAL(4, aes67_sdp_get_ptp_count(&s3, 1));
-    CHECK_EQUAL(&s3.ptps.data[0], aes67_sdp_get_ptp(&s3, AES67_SDP_FLAG_DEFLVL_SESSION, 0));
-    CHECK_EQUAL(&s3.ptps.data[3], aes67_sdp_get_ptp(&s3, AES67_SDP_FLAG_DEFLVL_SESSION, 1));
-    CHECK_EQUAL(&s3.ptps.data[1], aes67_sdp_get_ptp(&s3, AES67_SDP_FLAG_DEFLVL_STREAM | 0, 0));
-    CHECK_EQUAL(&s3.ptps.data[0], aes67_sdp_get_ptp(&s3, 0, 0));
-    CHECK_EQUAL(&s3.ptps.data[1], aes67_sdp_get_ptp(&s3, 0, 1));
-    CHECK_EQUAL(&s3.ptps.data[3], aes67_sdp_get_ptp(&s3, 0, 2));
-    CHECK_EQUAL(&s3.ptps.data[2], aes67_sdp_get_ptp(&s3, AES67_SDP_FLAG_DEFLVL_STREAM | 1, 0));
-    CHECK_EQUAL(&s3.ptps.data[4], aes67_sdp_get_ptp(&s3, AES67_SDP_FLAG_DEFLVL_STREAM | 1, 1));
-    CHECK_EQUAL(&s3.ptps.data[0], aes67_sdp_get_ptp(&s3, 1, 0));
-    CHECK_EQUAL(&s3.ptps.data[2], aes67_sdp_get_ptp(&s3, 1, 1));
-    CHECK_EQUAL(&s3.ptps.data[3], aes67_sdp_get_ptp(&s3, 1, 2));
-    CHECK_EQUAL(&s3.ptps.data[4], aes67_sdp_get_ptp(&s3, 1, 3));
+    CHECK_EQUAL(2, aes67_sdp_get_refclk_count(&s3, AES67_SDP_FLAG_DEFLVL_SESSION));
+    CHECK_EQUAL(1, aes67_sdp_get_refclk_count(&s3, AES67_SDP_FLAG_DEFLVL_STREAM | 0));
+    CHECK_EQUAL(3, aes67_sdp_get_refclk_count(&s3, 0));
+    CHECK_EQUAL(2, aes67_sdp_get_refclk_count(&s3, AES67_SDP_FLAG_DEFLVL_STREAM | 1));
+    CHECK_EQUAL(4, aes67_sdp_get_refclk_count(&s3, 1));
+    CHECK_EQUAL(&s3.refclks.data[0], aes67_sdp_get_refclk(&s3, AES67_SDP_FLAG_DEFLVL_SESSION, 0));
+    CHECK_EQUAL(&s3.refclks.data[3], aes67_sdp_get_refclk(&s3, AES67_SDP_FLAG_DEFLVL_SESSION, 1));
+    CHECK_EQUAL(&s3.refclks.data[1], aes67_sdp_get_refclk(&s3, AES67_SDP_FLAG_DEFLVL_STREAM | 0, 0));
+    CHECK_EQUAL(&s3.refclks.data[0], aes67_sdp_get_refclk(&s3, 0, 0));
+    CHECK_EQUAL(&s3.refclks.data[1], aes67_sdp_get_refclk(&s3, 0, 1));
+    CHECK_EQUAL(&s3.refclks.data[3], aes67_sdp_get_refclk(&s3, 0, 2));
+    CHECK_EQUAL(&s3.refclks.data[2], aes67_sdp_get_refclk(&s3, AES67_SDP_FLAG_DEFLVL_STREAM | 1, 0));
+    CHECK_EQUAL(&s3.refclks.data[4], aes67_sdp_get_refclk(&s3, AES67_SDP_FLAG_DEFLVL_STREAM | 1, 1));
+    CHECK_EQUAL(&s3.refclks.data[0], aes67_sdp_get_refclk(&s3, 1, 0));
+    CHECK_EQUAL(&s3.refclks.data[2], aes67_sdp_get_refclk(&s3, 1, 1));
+    CHECK_EQUAL(&s3.refclks.data[3], aes67_sdp_get_refclk(&s3, 1, 2));
+    CHECK_EQUAL(&s3.refclks.data[4], aes67_sdp_get_refclk(&s3, 1, 3));
 }
 
 
@@ -639,37 +639,39 @@ TEST(SDP_TestGroup, aes67_sdp_connections_tostr)
     );
 }
 
-TEST(SDP_TestGroup, aes67_sdp_ptp_tostr)
+TEST(SDP_TestGroup, aes67_sdp_refclk_tostr)
 {
     uint8_t str[512];
     uint32_t len;
 
-    struct aes67_sdp_ptp_list p1 = {
+    struct aes67_sdp_refclk_list p1 = {
             .count = 0
     };
 
-    len = aes67_sdp_ptp_tostr(str, sizeof(str), &p1, AES67_SDP_FLAG_DEFLVL_SESSION);
+    len = aes67_sdp_refclk_tostr(str, sizeof(str), &p1, AES67_SDP_FLAG_DEFLVL_SESSION);
 
     CHECK_COMPARE(0, ==, len);
 
-    len = aes67_sdp_ptp_tostr(str, sizeof(str), &p1, AES67_SDP_FLAG_DEFLVL_STREAM | 0);
+    len = aes67_sdp_refclk_tostr(str, sizeof(str), &p1, AES67_SDP_FLAG_DEFLVL_STREAM | 0);
 
     CHECK_COMPARE(0, ==, len);
 
 
-    struct aes67_sdp_ptp_list p2 = {
+    struct aes67_sdp_refclk_list p2 = {
             .count = 5,
             .data = {
                     { // a=ts-refclk:ptp=IEEE1588-2002:01-02-03-04-05-06-07-08
                             .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
-                            .ptp = {
+                            .type = aes67_sdp_refclktype_ptpclock,
+                            .data.ptp = {
                                     .type = aes67_ptp_type_IEEE1588_2002,
                                     .gmid.u8 = {1,2,3,4,5,6,7,8}
                             }
                     },
                     { // a=ts-refclk:ptp=IEEE1588-2008:02-03-04-05-06-07-08-09:10
                             .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 1,
-                            .ptp = {
+                            .type = aes67_sdp_refclktype_ptpclock,
+                            .data.ptp = {
                                     .type = aes67_ptp_type_IEEE1588_2008,
                                     .gmid.u8 = {2,3,4,5,6,7,8,9},
                                     .domain = 10
@@ -677,7 +679,8 @@ TEST(SDP_TestGroup, aes67_sdp_ptp_tostr)
                     },
                     { // a=ts-refclk:ptp=IEEE1588-2019:03-04-05-06-07-08-09-0A:11
                             .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
-                            .ptp = {
+                            .type = aes67_sdp_refclktype_ptpclock,
+                            .data.ptp = {
                                     .type = aes67_ptp_type_IEEE1588_2019,
                                     .gmid.u8 = {3,4,5,6,7,8,9,10},
                                     .domain = 11
@@ -685,14 +688,16 @@ TEST(SDP_TestGroup, aes67_sdp_ptp_tostr)
                     },
                     { // a=ts-refclk:ptp=IEEE802.1AS-2011:04-05-06-07-08-09-0A-0B
                         .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
-                        .ptp = {
+                            .type = aes67_sdp_refclktype_ptpclock,
+                        .data.ptp = {
                                 .type = aes67_ptp_type_IEEE802AS_2011,
                                 .gmid.u8 = {4,5,6,7,8,9,10,11}
                         }
                     },
                     { // a=ts-refclk:ptp=IEEE1588-2019:05-06-07-08-09-0A-0B-0C:12
                             .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 1,
-                            .ptp = {
+                            .type = aes67_sdp_refclktype_ptpclock,
+                            .data.ptp = {
                                     .type = aes67_ptp_type_IEEE1588_2019,
                                     .gmid.u8 = {5,6,7,8,9,10,11,12},
                                     .domain = 12
@@ -703,7 +708,7 @@ TEST(SDP_TestGroup, aes67_sdp_ptp_tostr)
 
     std::memset(str, 0, sizeof(str));
 
-    len = aes67_sdp_ptp_tostr(str, sizeof(str), &p2, AES67_SDP_FLAG_DEFLVL_SESSION);
+    len = aes67_sdp_refclk_tostr(str, sizeof(str), &p2, AES67_SDP_FLAG_DEFLVL_SESSION);
 
     CHECK_COMPARE(0, <, len);
     str[len] = '\0';
@@ -717,7 +722,7 @@ TEST(SDP_TestGroup, aes67_sdp_ptp_tostr)
 
     std::memset(str, 0, sizeof(str));
 
-    len = aes67_sdp_ptp_tostr(str, sizeof(str), &p2, AES67_SDP_FLAG_DEFLVL_STREAM | 0);
+    len = aes67_sdp_refclk_tostr(str, sizeof(str), &p2, AES67_SDP_FLAG_DEFLVL_STREAM | 0);
 
     CHECK_COMPARE(0, <, len);
     str[len] = '\0';
@@ -730,13 +735,43 @@ TEST(SDP_TestGroup, aes67_sdp_ptp_tostr)
 
     std::memset(str, 0, sizeof(str));
 
-    len = aes67_sdp_ptp_tostr(str, sizeof(str), &p2, AES67_SDP_FLAG_DEFLVL_STREAM | 1);
+    len = aes67_sdp_refclk_tostr(str, sizeof(str), &p2, AES67_SDP_FLAG_DEFLVL_STREAM | 1);
 
     CHECK_COMPARE(0, <, len);
     str[len] = '\0';
     STRCMP_EQUAL(
             "a=ts-refclk:ptp=IEEE1588-2008:02-03-04-05-06-07-08-09:10\r\n"
             "a=ts-refclk:ptp=IEEE1588-2019:05-06-07-08-09-0A-0B-0C:12\r\n"
+    ,
+            (const char*)str
+    );
+
+
+    struct aes67_sdp_refclk_list p3 = {
+            .count = 5,
+            .data = {
+                    { // a=ts-refclk:ptp=traceable
+                            .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
+                            .type = aes67_sdp_refclktype_ptptraceable,
+
+                    },
+                    { // a=ts-refclk:localmac=01-02-03-04-05-06
+                            .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
+                            .type = aes67_sdp_refclktype_localmac,
+                            .data.localmac = {1, 2, 3, 4, 5, 6}
+                    }
+            }
+    };
+
+    std::memset(str, 0, sizeof(str));
+
+    len = aes67_sdp_refclk_tostr(str, sizeof(str), &p3, AES67_SDP_FLAG_DEFLVL_SESSION);
+
+    CHECK_COMPARE(0, <, len);
+    str[len] = '\0';
+    STRCMP_EQUAL(
+            "a=ts-refclk:ptp=traceable\r\n"
+            "a=ts-refclk:localmac=01-02-03-04-05-06\r\n"
     ,
             (const char*)str
     );
@@ -843,19 +878,21 @@ TEST(SDP_TestGroup, sdp_tostr)
             },
             .ptp_domain = AES67_SDP_PTPDOMAIN_SET | 2,
             .nptp = 1,
-            .ptps = {
+            .refclks = {
                     .count = 2,
                     .data = {
                             {
                                 .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_SESSION,
-                                .ptp = {
+                                .type = aes67_sdp_refclktype_ptpclock,
+                                .data.ptp = {
                                         .type = aes67_ptp_type_IEEE802AS_2011,
                                         .gmid.u8 = {8,7,6,5,4,3,2,1}
                                 }
                             },
                             {
                                 .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
-                                .ptp = {
+                                .type = aes67_sdp_refclktype_ptpclock,
+                                .data.ptp = {
                                         .type = aes67_ptp_type_IEEE1588_2008,
                                         .gmid.u8 = {1,2,3,4,5,6,7,8},
                                         .domain = 1,
@@ -1430,12 +1467,12 @@ TEST(SDP_TestGroup, sdp_fromstr)
 
     CHECK_EQUAL(AES67_SDP_PTPDOMAIN_SET | 13, sdp.ptp_domain);
     CHECK_EQUAL(0, sdp.nptp);
-    CHECK_EQUAL(1, aes67_sdp_get_ptp_count(&sdp, 0));
-    struct aes67_sdp_ptp * ptp = aes67_sdp_get_ptp(&sdp, 0, 0);
-    CHECK_EQUAL(&sdp.ptps.data[0], ptp);
-    CHECK_EQUAL(aes67_ptp_type_IEEE1588_2008, ptp->ptp.type);
-    MEMCMP_EQUAL("\x39\xA7\x94\xFF\xFE\x07\xCB\xD0", ptp->ptp.gmid.u8, 8);
-    CHECK_EQUAL(2, ptp->ptp.domain);
+    CHECK_EQUAL(1, aes67_sdp_get_refclk_count(&sdp, 0));
+    struct aes67_sdp_attr_refclk * ptp = aes67_sdp_get_refclk(&sdp, 0, 0);
+    CHECK_EQUAL(&sdp.refclks.data[0], ptp);
+    CHECK_EQUAL(aes67_ptp_type_IEEE1588_2008, ptp->data.ptp.type);
+    MEMCMP_EQUAL("\x39\xA7\x94\xFF\xFE\x07\xCB\xD0", ptp->data.ptp.gmid.u8, 8);
+    CHECK_EQUAL(2, ptp->data.ptp.domain);
 
     uint8_t s3[] = "v=0\n"
                    "o=audio 1311738121 1311738121 IN IP4 192.168.1.1\n"
