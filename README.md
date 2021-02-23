@@ -259,18 +259,19 @@ Options:
 		 <ptp-eui64> := XX-XX-XX-XX-XX-XX-XX-XX
 	 --mediaclk-offset <offset>	 Mediaclock offset (default 0)
 ```
-With default settings for command `./sdp-gen localhost 224.0.0.12`:
+With default settings for command `./sdp-gen 10.0.0.2 224.0.0.12`:
 ```
 v=0
-o=- 1 1 IN IP4 localhost
+o=- 1 1 IN IP4 10.0.0.2
 s=
-c=IN IP4 224.0.0.12/32
+c=IN IP4 224.0.0.1/32
 t=0 0
 a=tool:caes67
+a=ts-refclk:ptp=traceable
+a=recvonly
 m=audio 5004 RTP/AVP 96
 a=rtpmap:96 L24/48000/2
 a=ptime:1
-a=ts-refclk:ptp=traceable
 a=mediaclk:direct=0
 ```
 

@@ -79,6 +79,7 @@ int main(int argc, char * argv[])
     sdp.originator.session_version.data[0] = '1';
     sdp.originator.session_version.length = 1;
     sdp.originator.ipver = aes67_net_ipver_4;
+    sdp.mode = aes67_sdp_attr_mode_recvonly;
 
     struct aes67_sdp_connection * con = aes67_sdp_add_connection(&sdp, AES67_SDP_FLAG_DEFLVL_SESSION);
 
@@ -99,7 +100,7 @@ int main(int argc, char * argv[])
     encoding->samplerate = 48000;
     encoding->nchannels = 2;
 
-    struct aes67_sdp_attr_refclk * clk = aes67_sdp_add_refclk(&sdp, AES67_SDP_FLAG_DEFLVL_STREAM | 0);
+    struct aes67_sdp_attr_refclk * clk = aes67_sdp_add_refclk(&sdp, AES67_SDP_FLAG_DEFLVL_SESSION);
 
     clk->type = aes67_sdp_refclktype_ptptraceable;
 
