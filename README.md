@@ -232,8 +232,8 @@ Options:
 ### `sdp-gen`
 ```
 Usage:
-	 cmake-build-debug/src/utils/sdp-gen/sdp-gen [-h?]
-	 cmake-build-debug/src/utils/sdp-gen/sdp-gen [options...] <src-host> <dst-ip>[:<rtp-port>]
+	 ./sdp-gen [-h?]
+	 ./sdp-gen [options...] <src-host> <dst-ip>[:<rtp-port>]
 Generator for quick and dirty single-stream SDP generation.
 Arguments:
 	 <src-host>			 IPv4/v6 or hostname of SDP originator host (see --src-ipver to explicitly set ip version)
