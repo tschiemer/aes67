@@ -106,7 +106,7 @@ void aes67_sdp_init(struct aes67_sdp * sdp)
     sdp->encodings.count = 0;
 
     sdp->ptp_domain = 0;
-    sdp->nptp = 0;
+    sdp->nrefclk = 0;
     sdp->refclks.count = 0;
 
 
@@ -162,9 +162,9 @@ struct aes67_sdp_attr_refclk * aes67_sdp_get_refclk(struct aes67_sdp * sdp, aes6
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
     AES67_ASSERT("pi < sdp->refclks.count", pi < sdp->refclks.count);
-    AES67_ASSERT("valid session level index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_SESSION || pi < sdp->nptp);
+    AES67_ASSERT("valid session level index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_SESSION || pi < sdp->nrefclk);
     AES67_ASSERT("valid stream level index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != AES67_SDP_FLAG_DEFLVL_STREAM || (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count);
-    AES67_ASSERT("valid stream level index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != 0 || (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count + sdp->nptp);
+    AES67_ASSERT("valid stream level index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != 0 || (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count + sdp->nrefclk);
 
 //    struct aes67_sdp_attr_refclk * session_level = NULL;
 
@@ -1729,7 +1729,7 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                 stream->port = port;
                 stream->nports = nports;
                 stream->nencodings = 0;
-                stream->nptp = 0;
+                stream->nrefclk = 0;
                 stream->mode = aes67_sdp_attr_mode_undefined;
                 stream->ptime = 0;
                 stream->ptime_cap.count = 0;
@@ -2252,9 +2252,9 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                             clk->type = aes67_sdp_refclktype_localmac;
 
                             if ( context == AES67_SDP_FLAG_DEFLVL_SESSION ){
-                                sdp->nptp++;
+                                sdp->nrefclk++;
                             } else {
-                                sdp->streams.data[ context & AES67_SDP_FLAG_STREAM_INDEX_MASK ].nptp++;
+                                sdp->streams.data[ context & AES67_SDP_FLAG_STREAM_INDEX_MASK ].nrefclk++;
                             }
 
                             delim += 10;
@@ -2297,9 +2297,9 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                             clk->type = aes67_sdp_refclktype_ptptraceable;
 
                             if ( context == AES67_SDP_FLAG_DEFLVL_SESSION ){
-                                sdp->nptp++;
+                                sdp->nrefclk++;
                             } else {
-                                sdp->streams.data[ context & AES67_SDP_FLAG_STREAM_INDEX_MASK ].nptp++;
+                                sdp->streams.data[ context & AES67_SDP_FLAG_STREAM_INDEX_MASK ].nrefclk++;
                             }
                         }
                         // basic sanity check
@@ -2330,9 +2330,9 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                             clk->data.ptp.domain = 0;
 
                             if ( context == AES67_SDP_FLAG_DEFLVL_SESSION ){
-                                sdp->nptp++;
+                                sdp->nrefclk++;
                             } else {
-                                sdp->streams.data[ context & AES67_SDP_FLAG_STREAM_INDEX_MASK ].nptp++;
+                                sdp->streams.data[ context & AES67_SDP_FLAG_STREAM_INDEX_MASK ].nrefclk++;
                             }
 
                             delim += 9;

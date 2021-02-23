@@ -260,7 +260,7 @@ int main(int argc, char * argv[])
                         printf(" ptime=0");
                     }
 
-                    printf(" nenc=%d nptp=%d", stream->nencodings, aes67_sdp_get_refclk_count(&sdp, i));
+                    printf(" nenc=%d nrefclk=%d", stream->nencodings, aes67_sdp_get_refclk_count(&sdp, i));
 
 #if 0 < AES67_SDP_MAXPTIMECAPS
                     printf( " nptime-cap=%d", stream->ptime_cap.count);

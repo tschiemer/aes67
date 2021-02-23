@@ -19,8 +19,4 @@
 #ifndef AES67_AES67OPTS_H
 #define AES67_AES67OPTS_H
 
-// this implicitly disables timer functionality (ie no initialization needed)
-#define AES67_SAP_MEMORY AES67_MEMORY_POOL
-#define AES67_SAP_MEMORY_MAX_SESSIONS 0
-
 #endif //AES67_AES67OPTS_H_H

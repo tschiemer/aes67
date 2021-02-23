@@ -226,7 +226,7 @@ struct aes67_sdp_stream {
 
     enum aes67_sdp_attr_mode mode;
 
-    u8_t nptp;                      // count of stream level refclks (in separate list)
+    u8_t nrefclk;                      // count of stream level refclks (in separate list)
 
     struct aes67_sdp_attr_mediaclk mediaclock;        // potential session level mediaclock
     struct aes67_sdp_attr_synctime synctime;         //
@@ -305,7 +305,7 @@ struct aes67_sdp {
 
     enum aes67_sdp_attr_mode mode;
 
-    u8_t nptp; // count of session level refclks
+    u8_t nrefclk; // count of session level refclks
 
     u8_t ptp_domain; // session level ptp domain attribute (RAVENNA)
 
@@ -410,7 +410,11 @@ inline struct aes67_sdp_connection * aes67_sdp_add_connection(struct aes67_sdp *
     AES67_ASSERT("sdp != NULL", sdp != NULL);
     AES67_ASSERT("sdp->connections.count < AES67_SDP_MAXCONNECTIONS", sdp->connections.count < AES67_SDP_MAXCONNECTIONS);
 
-    return &sdp->connections.data[sdp->connections.count++];
+    struct aes67_sdp_connection * con = &sdp->connections.data[sdp->connections.count++];
+
+    con->flags = AES67_SDP_FLAG_SET_YES | flags;
+
+    return con;
 }
 
 
@@ -454,6 +458,8 @@ inline struct aes67_sdp_stream * aes67_sdp_add_stream(struct aes67_sdp * sdp, u8
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
     AES67_ASSERT("si < sdp->streams.count", sdp->streams.count < AES67_SDP_MAXSTREAMS);
+
+
 
     if (si != NULL){
         *si = sdp->streams.count;
@@ -503,9 +509,11 @@ inline struct aes67_sdp_attr_encoding * aes67_sdp_add_stream_encoding(struct aes
 
     struct aes67_sdp_attr_encoding * enc = &sdp->encodings.data[ sdp->encodings.count++ ];
 
-    AES67_ASSERT("(enc->flags & AES67_SDP_FLAG_SET_MASK) == AES67_SDP_FLAG_SET_YES", (enc->flags & AES67_SDP_FLAG_SET_MASK) == AES67_SDP_FLAG_SET_YES);
+//    AES67_ASSERT("(enc->flags & AES67_SDP_FLAG_SET_MASK) == AES67_SDP_FLAG_SET_YES", (enc->flags & AES67_SDP_FLAG_SET_MASK) == AES67_SDP_FLAG_SET_YES);
 
     enc->flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | si;
+
+    sdp->streams.data[si].nencodings++;
 
     return enc;
 }
@@ -518,13 +526,13 @@ inline u8_t aes67_sdp_get_refclk_count(struct aes67_sdp * sdp, aes67_sdp_flags f
     AES67_ASSERT("non-session level -> valid stream index", (flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_SESSION || (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < sdp->streams.count);
 
     if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_SESSION ){
-        return sdp->nptp;
+        return sdp->nrefclk;
     }
     if ((flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_STREAM){
-        return sdp->streams.data[(flags & AES67_SDP_FLAG_STREAM_INDEX_MASK)].nptp;
+        return sdp->streams.data[(flags & AES67_SDP_FLAG_STREAM_INDEX_MASK)].nrefclk;
     }
 
-    return sdp->nptp + sdp->streams.data[(flags & AES67_SDP_FLAG_STREAM_INDEX_MASK)].nptp;
+    return sdp->nrefclk + sdp->streams.data[(flags & AES67_SDP_FLAG_STREAM_INDEX_MASK)].nrefclk;
 }
 
 /**
@@ -561,12 +569,12 @@ inline struct aes67_sdp_attr_refclk * aes67_sdp_add_refclk(struct aes67_sdp * sd
 
     if ( (flags & AES67_SDP_FLAG_DEFLVL_MASK) == AES67_SDP_FLAG_DEFLVL_STREAM){
         AES67_ASSERT("invalid index", (flags & AES67_SDP_FLAG_STREAM_INDEX_MASK) < AES67_SDP_MAXSTREAMS);
-        sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].nptp++;
+        sdp->streams.data[flags & AES67_SDP_FLAG_STREAM_INDEX_MASK].nrefclk++;
     }
 
     struct aes67_sdp_attr_refclk * clk = &sdp->refclks.data[ sdp->refclks.count++ ];
 
-    AES67_ASSERT("too many ptp entries", (clk->flags & AES67_SDP_FLAG_SET_MASK) == AES67_SDP_FLAG_SET_YES);
+    AES67_ASSERT("too many ptp entries", (clk->flags & AES67_SDP_FLAG_SET_MASK) != AES67_SDP_FLAG_SET_YES);
 
     clk->flags = AES67_SDP_FLAG_SET_YES | flags;
 

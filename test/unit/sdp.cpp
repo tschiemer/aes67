@@ -350,19 +350,19 @@ TEST(SDP_TestGroup, sdp_get_stream_encodings)
 TEST(SDP_TestGroup, sdp_get_ptps)
 {
     aes67_sdp s1 = {
-            .nptp = 0
+            .nrefclk = 0
     };
 
     CHECK_EQUAL(0, aes67_sdp_get_refclk_count(&s1, AES67_SDP_FLAG_DEFLVL_SESSION));
 
 
     aes67_sdp s2 = {
-            .nptp = 0,
+            .nrefclk = 0,
             .streams = {
                     .count = 1,
                     .data = {
                             {
-                                    .nptp = 1 // well, the ptp itself is not set yet..
+                                    .nrefclk = 1 // well, the ptp itself is not set yet..
                             }
                     }
             }
@@ -373,7 +373,7 @@ TEST(SDP_TestGroup, sdp_get_ptps)
 
 
     aes67_sdp s3 = {
-            .nptp = 2,
+            .nrefclk = 2,
             .refclks = {
                     .count = 5,
                     .data = {
@@ -398,10 +398,10 @@ TEST(SDP_TestGroup, sdp_get_ptps)
                     .count = 2,
                     .data = {
                             {
-                                    .nptp = 1
+                                    .nrefclk = 1
                             },
                             {
-                                    .nptp = 2
+                                    .nrefclk = 2
                             }
                     }
             }
@@ -877,7 +877,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                     }
             },
             .ptp_domain = AES67_SDP_PTPDOMAIN_SET | 2,
-            .nptp = 1,
+            .nrefclk = 1,
             .refclks = {
                     .count = 2,
                     .data = {
@@ -908,7 +908,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     .port = 5000,
                                     .nports = 2,
                                     .mode = aes67_sdp_attr_mode_inactive,
-                                    .nptp = 1,
+                                    .nrefclk = 1,
                                     .mediaclock = {
                                             .set = 1,
                                             .offset = 12345,
@@ -941,7 +941,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                                     .port = 5002,
                                     .nports = 0,
                                     .mode = aes67_sdp_attr_mode_recvonly,
-                                    .nptp = 0,
+                                    .nrefclk = 0,
                                     .mediaclock = {
                                             .set = 1,
                                             .offset = 98765,
@@ -1466,7 +1466,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
 #endif //0 < AES67_SDP_MAXPTIMECAPS
 
     CHECK_EQUAL(AES67_SDP_PTPDOMAIN_SET | 13, sdp.ptp_domain);
-    CHECK_EQUAL(0, sdp.nptp);
+    CHECK_EQUAL(0, sdp.nrefclk);
     CHECK_EQUAL(1, aes67_sdp_get_refclk_count(&sdp, 0));
     struct aes67_sdp_attr_refclk * ptp = aes67_sdp_get_refclk(&sdp, 0, 0);
     CHECK_EQUAL(&sdp.refclks.data[0], ptp);
