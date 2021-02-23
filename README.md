@@ -41,7 +41,7 @@ https://github.com/tschiemer/aes67
     - [ ] ~~sap-server~~ -> general session server
     - [ ] RAV2SAP alternative? (discovery through mDNS, querying through RTSP)
   - SDP
-    - [ ] sdp-parse 
+    - [x] sdp-parse , sdp-gen
   - PTP
     - [ ] ptp-monitor? -> https://www.ptptrackhound.com/
     - [ ] ptp-server?
@@ -218,11 +218,58 @@ socat -u UDP4-RECVFROM:9875,ip-add-membership=224.2.127.254:192.168.1.122,fork -
 ### `sdp-parse`
 
 ```
-Usage: ./sdp-parse [-hd]
-Attempts to parse SDP incoming on STDIN (primarily useful to validate custom SDP files quickly).
+Usage: ./sdp-parse ([-h?] | [-t [-brc]])
+Attempts to parse SDP incoming on STDIN (primarily useful to validate SDP files quickly).
 Options:
 	 -h	 Prints this info
 	 -d	 Prints some debug info to STDERR
+	 -t	 Test if the first (SDP) packet (and only the first) contains at least one valid stream; return 0 if valid, >0 otherwise
+	 -b	 Filter by bitwidth/encoding (8/16/24/32, representing L8, L16, L24, L32 respectively)
+	 -r	 Filter by sampling rate (frequency); ex. 48000
+	 -c	 Filter by number of channels required
+```
+
+### `sdp-gen`
+```
+Usage:
+	 ./sdp-gen [-h?]
+	 ./sdp-gen [options...] <src-host> <dst-ip-port>
+Generator for quick and dirty single-stream SDP generation.
+Arguments:
+	 <src-host>			 IPv4/v6 or hostname of SDP originator host (see --src-ipver to explicitly set ip version)
+	 <target-ip-port>		 IPv4/v6 of sending/receiving host
+Options:
+	 -h, -?				 Prints this info
+	 --src-ipver <ipver>		 Explicitly sets SDP originator IP version (4, default, or 6)
+	 --id <id>			 Session ID (U32, default 1)
+	 --version <version>		 Session version (U32, default 1)
+	 -n, --name <name>		 Name of session (default none)
+	 -i, --info <info>		 Further session info (default none)
+	 --ptp-domain <domain>		 (RAVENNA) PTP domain (u7, default none)
+	 -m, --mode <mode>		 Stream mode, most likely you will use "recv" (default, for recipient to be receiving only, ie you will be sending)
+	 -b <samplebitsize>		 'Bitrate' of encoding, values 8/16/24/32 accepted only (default 24)
+	 -r <rate>			 Samplerate (default 48000)
+	 -c <nchannels>			 Number of channels (default 2)
+	 --ttl <ttl>			 IPv4 multicasting TTL override (default 32)
+	 --ptime <ptime>		 ptime value as millisec float (default 1.0)
+	 --refclk-localmac <mac>
+	 --ptp-traceable		 Default reference clock!
+	 --ptp-clock <ptp-std>:<ptp-eui64>[:<domain>]
+	 --mediaclk-offset <offset>	 Mediaclock offset (default 0)
+```
+With default settings for command `./sdp-gen localhost 224.0.0.12`:
+```
+v=0
+o=- 1 1 IN IP4 localhost
+s=
+c=IN IP4 224.0.0.12/32
+t=0 0
+a=tool:caes67
+m=audio 5004 RTP/AVP 96
+a=rtpmap:96 L24/48000/2
+a=ptime:1
+a=ts-refclk:ptp=traceable
+a=mediaclk:direct=0
 ```
 
 ## References
