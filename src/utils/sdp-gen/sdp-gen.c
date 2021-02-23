@@ -51,9 +51,11 @@ static void help(FILE * fd)
              "\t -c <nchannels>\t\t\t Number of channels (default 2)\n"
              "\t --ttl <ttl>\t\t\t IPv4 multicasting TTL override (default 32)\n"
              "\t --ptime <ptime>\t\t ptime value as millisec float (default 1.0)\n"
-             "\t --refclk-localmac <mac>\n"
+             "\t --refclk-localmac <mac>\t Ethernet MAC (XX-XX-XX-XX-XX)\n"
              "\t --ptp-traceable\t\t Default reference clock!\n"
-             "\t --ptp-clock <ptp-std>:<ptp-eui64>[:<domain>]\n"
+             "\t --ptp-clock <ptp-std>:<ptp-eui64>[:<ptp-domain>]\n"
+             "\t\t <ptp-std> := 1588-2002|1588-2008|1588-2019|802.1AS-2011\n"
+             "\t\t <ptp-eui64> := XX-XX-XX-XX-XX-XX-XX-XX\n"
              "\t --mediaclk-offset <offset>\t Mediaclock offset (default 0)\n"
             , argv0, argv0);
 }

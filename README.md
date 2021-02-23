@@ -232,8 +232,8 @@ Options:
 ### `sdp-gen`
 ```
 Usage:
-	 ./sdp-gen [-h?]
-	 ./sdp-gen [options...] <src-host> <dst-ip-port>
+	 cmake-build-debug/src/utils/sdp-gen/sdp-gen [-h?]
+	 cmake-build-debug/src/utils/sdp-gen/sdp-gen [options...] <src-host> <dst-ip>[:<rtp-port>]
 Generator for quick and dirty single-stream SDP generation.
 Arguments:
 	 <src-host>			 IPv4/v6 or hostname of SDP originator host (see --src-ipver to explicitly set ip version)
@@ -252,9 +252,11 @@ Options:
 	 -c <nchannels>			 Number of channels (default 2)
 	 --ttl <ttl>			 IPv4 multicasting TTL override (default 32)
 	 --ptime <ptime>		 ptime value as millisec float (default 1.0)
-	 --refclk-localmac <mac>
+	 --refclk-localmac <mac>	 Ethernet MAC (XX-XX-XX-XX-XX)
 	 --ptp-traceable		 Default reference clock!
-	 --ptp-clock <ptp-std>:<ptp-eui64>[:<domain>]
+	 --ptp-clock <ptp-std>:<ptp-eui64>[:<ptp-domain>]
+		 <ptp-std> := 1588-2002|1588-2008|1588-2019|802.1AS-2011
+		 <ptp-eui64> := XX-XX-XX-XX-XX-XX-XX-XX
 	 --mediaclk-offset <offset>	 Mediaclock offset (default 0)
 ```
 With default settings for command `./sdp-gen localhost 224.0.0.12`:
