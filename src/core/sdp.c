@@ -2269,6 +2269,8 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
 
                                 clk->data.localmac[i] = h;
                             }
+
+                            seen |= SEEN_REFCLK;
                         }
                         else if (llen == sizeof("a=ts-refclk:ptp=traceable")-1 &&
                                  delim[1] == 'p' &&
@@ -2280,10 +2282,10 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                                  delim[7] == 'a' &&
                                  delim[8] == 'c' &&
                                  delim[9] == 'e' &&
-                                 delim[9] == 'a' &&
-                                 delim[9] == 'b' &&
-                                 delim[9] == 'l' &&
-                                 delim[9] == 'e'
+                                 delim[10] == 'a' &&
+                                 delim[11] == 'b' &&
+                                 delim[12] == 'l' &&
+                                 delim[13] == 'e'
                          ) {
 
                             if (sdp->refclks.count >= AES67_SDP_MAXREFCLKS){
@@ -2301,6 +2303,8 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                             } else {
                                 sdp->streams.data[ context & AES67_SDP_FLAG_STREAM_INDEX_MASK ].nrefclk++;
                             }
+
+                            seen |= SEEN_REFCLK;
                         }
                         // basic sanity check
                         else if (llen < sizeof("a=ts-refclk:ptp=IEEE1588-2002:01-02-03-04-05-06-07-08")-1 ||
