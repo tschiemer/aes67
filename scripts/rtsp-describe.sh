@@ -1,11 +1,11 @@
 #!/bin/bash
 
-if [ $# == 1 ] && [ $1 != "-h" ] && [ $1 != "-?" ]; then
-  if [ ${#1} -le 7 ] || [ ${1:0:7} != "rtsp://" ]; then
+if [ $# == 1 ] && [ "$1" != "-h" ] && [ "$1" != "-?" ]; then
+  if [ ${#1} -le 7 ] || [ "${1:0:7}" != "rtsp://" ]; then
     echo "invalid uri $1"
     exit 1;
   fi
-  URI=$1
+  URI=${1// /%20}
   TMP=${1:7}
   HOSTPORT=${TMP%%/*}
 elif [ $# == 3 ]; then
@@ -13,7 +13,7 @@ elif [ $# == 3 ]; then
     echo "invalid option $2"
     exit 1;
   fi
-  URI="rtsp://$1/by-$2/$3"
+  URI="rtsp://$1/by-$2/${3// /%20}"
   HOSTPORT=$1
 else
   echo "Usage:"
