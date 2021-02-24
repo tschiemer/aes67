@@ -37,14 +37,18 @@ https://github.com/tschiemer/aes67
   
 - Command line / developer utilities
   - SAP
-    - [x] [sap-pack](#sap-pack), [sap-unpack](#sap-unpack)
+    - [x] [sap-pack](#sap-pack)
+    - [x] [sap-unpack](#sap-unpack)
     - [ ] ~~sap-server~~ -> general session server
     - [ ] RAV2SAP alternative? (discovery through mDNS, querying through RTSP)
   - SDP
-    - [x] [sdp-parse](#sdp-parse) , [sdp-gen](#sdp-gen)
+    - [x] [sdp-parse](#sdp-parse)
+    - [x] [sdp-gen](#sdp-gen)
   - PTP
     - [ ] ptp-monitor? -> https://www.ptptrackhound.com/
     - [ ] ptp-server?
+  - RTSP
+    - [rtsp-describe.sh](#rtsp-describe.sh) *[script]*
 
 
 
@@ -273,6 +277,17 @@ m=audio 5004 RTP/AVP 96
 a=rtpmap:96 L24/48000/2
 a=ptime:1
 a=mediaclk:direct=0
+```
+
+### `rtsp-describe.sh`
+
+```
+Usage:
+	 ./rtsp-describe.sh <rtsp-uri>
+	 ./rtsp-describe.sh <host-port> id <id>
+	 ./rtsp-describe.sh <host-port> name <name>
+Performs a quick and dirty rtsp stream describe query to retrieve SDPs.
+The id/name form conform to RAVENNA URIs.
 ```
 
 ## References

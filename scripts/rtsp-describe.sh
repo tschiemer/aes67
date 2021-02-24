@@ -1,6 +1,6 @@
 #!/bin/bash
 
-if [ $# == 1 ]; then
+if [ $# == 1 ] && [ $1 != "-h" ] && [ $1 != "-?" ]; then
   if [ ${#1} -le 7 ] || [ ${1:0:7} != "rtsp://" ]; then
     echo "invalid uri $1"
     exit 1;
@@ -20,7 +20,9 @@ else
   echo -e "\t $0 <rtsp-uri>"
   echo -e "\t $0 <host-port> id <id>"
   echo -e "\t $0 <host-port> name <name>"
+  echo "Performs a quick and dirty rtsp stream describe query to retrieve SDPs."
+  echo "The id/name form conform to RAVENNA URIs."
   exit 0;
 fi
 
-echo -ne "DESCRIBE $URI RTSP/1.0\r\nCSeq: 1\r\n\r\n" | socat - TCP:$HOSTPORT
+echo -ne "DESCRIBE $URI RTSP/1.0\r\nCSeq: 1\r\nAccept: application/sdp\r\n\r\n" | socat - TCP:$HOSTPORT
