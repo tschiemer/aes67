@@ -33,6 +33,13 @@
 #define AES67_AUDIO_ENC_INTERLEAVED 0b00001000
 #define AES67_AUDIO_ENC_SAMPLESIZE  0b00000111
 
+#define AES67_AUDIO_ENC_L8_STR      "L8"
+#define AES67_AUDIO_ENC_L16_STR     "L16"
+#define AES67_AUDIO_ENC_L24_STR     "L24"
+#define AES67_AUDIO_ENC_L32_STR     "L32"
+#define AES67_AUDIO_ENC_AM824_STR   "AM824"
+
+
 /** audio encodings
  * Interleaved/samplesize of encoding is explicitly given in the encoding type
  */
@@ -42,13 +49,15 @@ enum aes67_audio_encoding {
     aes67_audio_encoding_L16        = 0x22 | AES67_AUDIO_ENC_INTERLEAVED,
     aes67_audio_encoding_L24        = 0x33 | AES67_AUDIO_ENC_INTERLEAVED,
     aes67_audio_encoding_L32        = 0x44 | AES67_AUDIO_ENC_INTERLEAVED,
+    aes67_audio_encoding_AM824      = 0x54 | AES67_AUDIO_ENC_INTERLEAVED // AES3 over RTP (ST2110-31)
 } PACK_STRUCT;
 
 #define AES67_AUDIO_ENCODING_ISVALID(x) ( \
     (x) == aes67_audio_encoding_L8 || \
     (x) == aes67_audio_encoding_L16 || \
     (x) == aes67_audio_encoding_L24 || \
-    (x) == aes67_audio_encoding_L32 \
+    (x) == aes67_audio_encoding_L32 || \
+    (x) == aes67_audio_encoding_AM824 \
 )
 
 #define AES67_AUDIO_LX_SAMPLE(data, nchannels, samplesize, channel, sample)     ((void*)&((u8_t*)data)[sample*samplesize*nchannels + channel])

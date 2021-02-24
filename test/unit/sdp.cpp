@@ -975,7 +975,7 @@ TEST(SDP_TestGroup, sdp_tostr)
                             {
                                     .flags = AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0,
                                     .payloadtype = AES67_RTP_AVP_PAYLOADTYPE_DYNAMIC_START + 2,
-                                    .encoding = aes67_audio_encoding_L24,
+                                    .encoding = aes67_audio_encoding_AM824,
                                     .samplerate = 96000,
                                     .nchannels = 2
                             },
@@ -1014,7 +1014,7 @@ TEST(SDP_TestGroup, sdp_tostr)
             "a=inactive\r\n"
             "a=rtpmap:96 L16/48000/2\r\n"
             "a=rtpmap:97 L24/48000/2\r\n"
-            "a=rtpmap:98 L24/96000/2\r\n"
+            "a=rtpmap:98 AM824/96000/2\r\n"
             "a=ptime:1\r\n"
             "a=pcap:1 ptime:0.33\r\n"
             "a=pcap:2 ptime:1\r\n"
@@ -1378,10 +1378,11 @@ TEST(SDP_TestGroup, sdp_fromstr)
                    "t=0 0\r\n"
                    "a=ptp-domain:PTPv2 13\r\n"
                    "a=inactive\r\n"
-                   "m=audio 5000 RTP/AVP 96 97\r\n"
+                   "m=audio 5000 RTP/AVP 96 97 98\r\n"
                    "a=recvonly\r\n"
                    "a=rtpmap:96 L16/48000/2\r\n"
                    "a=rtpmap:97 L32/96000\r\n"
+                   "a=rtpmap:98 AM824/48000\r\n"
                    "a=ptime:1.33\r\n"
                    "a=pcap:2 ptime:1.33\r\n"
                    "a=pcap:3 ptime:4\r\n"
@@ -1427,7 +1428,7 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(5000, stream->port);
     CHECK_EQUAL(2, stream->nports);
 
-    CHECK_EQUAL(2, aes67_sdp_get_stream_encoding_count(&sdp, 0));
+    CHECK_EQUAL(3, aes67_sdp_get_stream_encoding_count(&sdp, 0));
     struct aes67_sdp_attr_encoding * enc = aes67_sdp_get_stream_encoding(&sdp, 0, 0);
     CHECK_EQUAL(&sdp.encodings.data[0], enc);
     CHECK_EQUAL(AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0, enc->flags);
@@ -1435,12 +1436,19 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(aes67_audio_encoding_L16, enc->encoding);
     CHECK_EQUAL(48000, enc->samplerate);
     CHECK_EQUAL(2, enc->nchannels);
+
     enc = aes67_sdp_get_stream_encoding(&sdp, 0, 1);
     CHECK_EQUAL(&sdp.encodings.data[1], enc);
     CHECK_EQUAL(AES67_SDP_FLAG_SET_YES | AES67_SDP_FLAG_DEFLVL_STREAM | 0, enc->flags);
     CHECK_EQUAL(97, enc->payloadtype);
     CHECK_EQUAL(aes67_audio_encoding_L32, enc->encoding);
     CHECK_EQUAL(96000, enc->samplerate);
+    CHECK_EQUAL(1, enc->nchannels);
+
+    enc = aes67_sdp_get_stream_encoding(&sdp, 0, 2);
+    CHECK_EQUAL(98, enc->payloadtype);
+    CHECK_EQUAL(aes67_audio_encoding_AM824, enc->encoding);
+    CHECK_EQUAL(48000, enc->samplerate);
     CHECK_EQUAL(1, enc->nchannels);
 
     CHECK_EQUAL(aes67_sdp_attr_mode_recvonly, stream->mode);

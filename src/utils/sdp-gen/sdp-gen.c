@@ -46,7 +46,7 @@ static void help(FILE * fd)
              "\t -i, --info <info>\t\t Further session info (default none)\n"
              "\t --ptp-domain <domain>\t\t (RAVENNA) PTP domain (u7, default none)\n"
              "\t -m, --mode <mode>\t\t Stream mode, most likely you will use \"recv\" (default, for recipient to be receiving only, ie you will be sending)\n"
-             "\t -b <samplebitsize>\t\t 'Bitrate' of encoding, values 8/16/24/32 accepted only (default 24)\n"
+             "\t -b <bitrate>\t\t\t 'Bitrate' of encoding, values 8/16/24/32/AM824 accepted only (default 24)\n"
              "\t -r <rate>\t\t\t Samplerate (default 48000)\n"
              "\t -c <nchannels>\t\t\t Number of channels (default 2)\n"
              "\t --ttl <ttl>\t\t\t IPv4 multicasting TTL override (default 32)\n"
@@ -202,16 +202,18 @@ int main(int argc, char * argv[])
                 break;
             }
 
-            case 'b':{ // --bitrate
+            case 'b': { // --bitrate
                 int t = atoi(optarg);
-                if (t == 8){
+                if (t == 8) {
                     encoding->encoding = aes67_audio_encoding_L8;
-                } else if (t == 16){
+                } else if (t == 16) {
                     encoding->encoding = aes67_audio_encoding_L16;
-                } else if (t == 24){
+                } else if (t == 24) {
                     encoding->encoding = aes67_audio_encoding_L24;
-                } else if (t == 32){
+                } else if (t == 32) {
                     encoding->encoding = aes67_audio_encoding_L32;
+                } else if (strcmp(AES67_AUDIO_ENC_AM824_STR, optarg) == 0){
+                    encoding->encoding = aes67_audio_encoding_AM824;
                 } else {
                     fprintf(stderr, "invalid --bitrate\n");
                     return EXIT_FAILURE;

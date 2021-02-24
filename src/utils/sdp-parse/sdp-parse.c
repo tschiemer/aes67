@@ -49,7 +49,7 @@ static void help(FILE * fd)
              "\t -h\t Prints this info\n"
              "\t -d\t Prints some debug info to STDERR\n"
              "\t -t\t Test if the first (SDP) packet (and only the first) contains at least one valid stream; return 0 if valid, >0 otherwise\n"
-             "\t -b\t Filter by bitwidth/encoding (8/16/24/32, representing L8, L16, L24, L32 respectively)\n"
+             "\t -b\t Filter by bitwidth/encoding (8/16/24/32/AM824, representing L8, L16, L24, L32, AM824 respectively)\n"
              "\t -r\t Filter by sampling rate (frequency); ex. 48000\n"
              "\t -c\t Filter by number of channels required\n"
              , argv0);
@@ -88,7 +88,9 @@ int main(int argc, char * argv[])
                     opts.encoding = aes67_audio_encoding_L24;
                 } else if (e == 32){
                     opts.encoding = aes67_audio_encoding_L32;
-                } else {
+                } else if (strcmp(AES67_AUDIO_ENC_AM824_STR, optarg) == 0){
+                    opts.encoding = aes67_audio_encoding_AM824;
+                }else {
                     fprintf(stderr, "ERROR: invalid bitwidth option %s\n", optarg);
                     return EXIT_FAILURE;
                 }
@@ -278,7 +280,17 @@ int main(int argc, char * argv[])
 
                         struct aes67_sdp_attr_encoding * enc = aes67_sdp_get_stream_encoding(&sdp, i, e);
 
-                        printf("L%d ", (enc->encoding & AES67_AUDIO_ENC_SAMPLESIZE) * 8);
+                        if (enc->encoding == aes67_audio_encoding_L8){
+                            printf("%s ", AES67_AUDIO_ENC_L8_STR);
+                        } else if (enc->encoding == aes67_audio_encoding_L16){
+                            printf("%s ", AES67_AUDIO_ENC_L16_STR);
+                        } else if (enc->encoding == aes67_audio_encoding_L24){
+                            printf("%s ", AES67_AUDIO_ENC_L24_STR);
+                        } else if (enc->encoding == aes67_audio_encoding_L32){
+                            printf("%s ", AES67_AUDIO_ENC_L32_STR);
+                        } else if (enc->encoding == aes67_audio_encoding_AM824){
+                            printf("%s ", AES67_AUDIO_ENC_AM824_STR);
+                        }
 
                         printf("%d %d\n", enc->samplerate, enc->nchannels);
                     }

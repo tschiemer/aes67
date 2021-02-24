@@ -1026,11 +1026,11 @@ u32_t aes67_sdp_tostr(u8_t *str, u32_t maxlen, struct aes67_sdp *sdp, void *user
 
 
         // each possible encoding for a stream
-        // a=rtpmap:<fmtX> (L16|L24)/<sample-rate>[/<nchannels>]
+        // a=rtpmap:<fmtX> (L8|L16|L24|L32|AM824)/<sample-rate>[/<nchannels>]
         for(u8_t e = 0; e < stream->nencodings; e++){
 
             // just roughly
-            if (maxlen < len + sizeof("a=rtpmap:127 L32/192000/64\r")){
+            if (maxlen < len + sizeof("a=rtpmap:127 AM824/192000/64\r")){
                 return 0;
             }
 
@@ -1052,14 +1052,34 @@ u32_t aes67_sdp_tostr(u8_t *str, u32_t maxlen, struct aes67_sdp *sdp, void *user
 
             AES67_ASSERT("AES67_AUDIO_ENCODING_ISVALID(attrenc->encoding)", AES67_AUDIO_ENCODING_ISVALID(attrenc->encoding));
 
-            if (attrenc->encoding == aes67_audio_encoding_L16){
+            if (attrenc->encoding == aes67_audio_encoding_L8){
+                str[len++] = 'L';
+                str[len++] = '8';
+            }
+            else if (attrenc->encoding == aes67_audio_encoding_L16){
                 str[len++] = 'L';
                 str[len++] = '1';
                 str[len++] = '6';
-            } else { // L24
+            }
+            else if (attrenc->encoding == aes67_audio_encoding_L24){
                 str[len++] = 'L';
                 str[len++] = '2';
                 str[len++] = '4';
+            }
+            else if (attrenc->encoding == aes67_audio_encoding_L32){
+                str[len++] = 'L';
+                str[len++] = '3';
+                str[len++] = '2';
+            }
+            else if (attrenc->encoding == aes67_audio_encoding_AM824){
+                str[len++] = 'A';
+                str[len++] = 'M';
+                str[len++] = '8';
+                str[len++] = '2';
+                str[len++] = '4';
+            }
+            else {
+                return 0;
             }
 
             str[len++] = '/';
@@ -1795,24 +1815,36 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                             delim[2] == '8'){
 
                             enc = aes67_audio_encoding_L8;
+                            delim += sizeof(AES67_AUDIO_ENC_L8_STR);
                         }
                         else if (delim[1] == 'L' &&
                                 delim[2] == '1' &&
                                 delim[3] == '6'){
 
                             enc = aes67_audio_encoding_L16;
+                            delim += sizeof(AES67_AUDIO_ENC_L16_STR);
                         }
                         else if (delim[1] == 'L' &&
                                  delim[2] == '2' &&
                                  delim[3] == '4'){
 
                             enc = aes67_audio_encoding_L24;
+                            delim += sizeof(AES67_AUDIO_ENC_L24_STR);
                         }
                         else if (delim[1] == 'L' &&
                                  delim[2] == '3' &&
                                  delim[3] == '2'){
 
                             enc = aes67_audio_encoding_L32;
+                            delim += sizeof(AES67_AUDIO_ENC_L32_STR);
+                        }
+                        else if (delim[1] == 'A' &&
+                                 delim[2] == 'M' &&
+                                 delim[3] == '8' &&
+                                 delim[4] == '2' &&
+                                 delim[5] == '4') {
+                            enc = aes67_audio_encoding_AM824;
+                            delim += sizeof(AES67_AUDIO_ENC_AM824_STR);
                         }
                         else {
 
@@ -1820,9 +1852,6 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
 
                             continue;
                         }
-
-                        // move pointer past encoding type
-                        delim += enc == aes67_audio_encoding_L8 ? 3 : 4;
 
                         if (&delim[sizeof("/1000")-1] > &line[llen] || delim[0] != '/'){
                             return AES67_SDP_ERROR;

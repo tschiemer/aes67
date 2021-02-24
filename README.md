@@ -134,8 +134,8 @@ RTSP may be considered (in the future) for management of unicast streams aswell 
 AES67 Audio is to be streamed in L16 or L24 encoding; that is, each sample is a two-, three-byte respectively signed integer
 in two's complement representation in network byte order (bigendian),
  samples are interleaved.
-The common I2S & TDM inter-chip audio protocols, AES3, AES10 (MADI), AES50  use identical formats (roughly speaking).
-Thus, other formats are generally not considered herein.
+The common I2S & TDM inter-chip audio protocols  use identical formats (roughly speaking) which shall be the primary encoding focused herein.
+AES3, AES10 (MADI), AES50 are frame-based and use or can use a least-significant-bit to most-significant-bit encoding.
 
 #### Routing
 
@@ -181,7 +181,7 @@ multiple stream sources into one reception buffer (discarding any unwanted audio
 - Narrowed down to options and attributes as required for AES67 streams.
 - Supports relevant session- and/or media-level options (connection, ref-clock, recvonly|sendonly|inactive|sendrecv).
 - Supports multiple ptp reference clocks on both session-/media level (1588-2002/08/19, 802.1AS-2011)
-- Support for audio media with dynamic payload types *only* and L8/L16/L24/L32 encoding media encoding.
+- Support for audio media with dynamic payload types *only* and L8/L16/L24/L32/AM824 (AES3) encoding media encoding.
 - Intended to support encoding and ptime negotiation - capabilities are discarded (fallback to non-negotiated configuration) if capabilities other than ptime related are offered.
 - Provides implementable interface for unhandled media, options and attributes.
   - Media sections if non-audio and unrecognized *predefined* payload types.
@@ -224,7 +224,7 @@ Options:
 	 -h	 Prints this info
 	 -d	 Prints some debug info to STDERR
 	 -t	 Test if the first (SDP) packet (and only the first) contains at least one valid stream; return 0 if valid, >0 otherwise
-	 -b	 Filter by bitwidth/encoding (8/16/24/32, representing L8, L16, L24, L32 respectively)
+	 -b	 Filter by bitwidth/encoding (8/16/24/32/AM824, representing L8, L16, L24, L32, AM824 respectively)
 	 -r	 Filter by sampling rate (frequency); ex. 48000
 	 -c	 Filter by number of channels required
 ```
@@ -247,7 +247,7 @@ Options:
 	 -i, --info <info>		 Further session info (default none)
 	 --ptp-domain <domain>		 (RAVENNA) PTP domain (u7, default none)
 	 -m, --mode <mode>		 Stream mode, most likely you will use "recv" (default, for recipient to be receiving only, ie you will be sending)
-	 -b <samplebitsize>		 'Bitrate' of encoding, values 8/16/24/32 accepted only (default 24)
+	 -b <bitrate>			 'Bitrate' of encoding, values 8/16/24/32/AM824 accepted only (default 24)
 	 -r <rate>			 Samplerate (default 48000)
 	 -c <nchannels>			 Number of channels (default 2)
 	 --ttl <ttl>			 IPv4 multicasting TTL override (default 32)
