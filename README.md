@@ -283,11 +283,13 @@ a=mediaclk:direct=0
 
 ```
 Usage:
-	 ./rtsp-describe.sh <rtsp-uri>
-	 ./rtsp-describe.sh <host-port> id <id>
-	 ./rtsp-describe.sh <host-port> name <name>
+	 ./rtsp-describe.sh [-v] <rtsp-uri>
+	 ./rtsp-describe.sh [-v] <host-port> id <id>
+	 ./rtsp-describe.sh [-v] <host-port> name <name>
+	 -v 	 output RTSP header
 Performs a quick and dirty rtsp stream describe query to retrieve SDPs.
 The id/name form conform to RAVENNA URIs.
+Returns 0 iff RTSP result code is 200 (ie OK)
 ```
 
 ## References
