@@ -112,6 +112,10 @@ ssize_t  aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, 
 
     aes67_rtsp_header(buf, r - contentLength - 2);
 
+    if (contentLength < maxlen){
+        contentLength = maxlen;
+    }
+
     memcpy(sdp, body, contentLength);
 
     return contentLength;
