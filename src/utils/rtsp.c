@@ -39,7 +39,6 @@ ssize_t  aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (sockfd == -1) {
-        printf("socket error\n");
         return -1;
     }
 
@@ -63,7 +62,7 @@ ssize_t  aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, 
     u8_t *p = (uri == NULL) ? (u8_t *) "" : uri;
 
     size_t len = sprintf((char *) buf,
-                         "DESCRIBE rtsp://%s%s RTSP/1.0\r\n"
+                         "DESCRIBE rtsp://%s%s RTSP/2.0\r\n"
                          "CSeq: 1\r\n"
                          "Accept: application/sdp\r\n"
                          "\r\n", host, p);
@@ -87,6 +86,7 @@ ssize_t  aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, 
 
     // get RTSP status code
     s32_t res = atoi((char *) &buf[9]);
+
     if (res != AES67_RTSP_STATUS_OK) {
         return -res;
     }
@@ -105,6 +105,7 @@ ssize_t  aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, 
     // body not found
     if (body >= &buf[r]) {
         aes67_rtsp_header(buf, r);
+
         return -1;
     }
 
@@ -112,7 +113,7 @@ ssize_t  aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, 
 
     aes67_rtsp_header(buf, r - contentLength - 2);
 
-    if (contentLength < maxlen){
+    if (contentLength > maxlen){
         contentLength = maxlen;
     }
 

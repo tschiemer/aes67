@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <errno.h>
 
 static char * argv0;
 
@@ -56,13 +57,14 @@ void aes67_rtsp_header(u8_t * buf, ssize_t len)
 }
 
 static int lookup(u8_t * rtsp){
-    u8_t sdp[1500];
+    u8_t sdp[3000];
     ssize_t sdplen = aes67_rtsp_describe_url(rtsp, sdp, sizeof(sdp));
 
     if (sdplen <= 0){
         return EXIT_FAILURE;
     }
 
+    sdp[sdplen] = '\0';
     write(STDOUT_FILENO, sdp, sdplen);
 
     return EXIT_SUCCESS;
@@ -95,10 +97,26 @@ int main(int argc, char * argv[])
         return lookup((u8_t*)argv[optind]);
     }
 
-//    ssize_t len;
-//    char line[256];
-//    getline()
-    //TODO
+    while (!feof(stdin)) {
+        size_t n = 0;
+        char *line = NULL;
+        ssize_t len = getline(&line, &n, stdin);
+
+        //trim
+        while (len > 0 && (line[len-1] == '\r' || line[len-1] == '\n')) {
+            line[--len] = '\0';
+        }
+
+        if (len > 0) {
+
+            if (lookup((u8_t *) line) && opts.print_rtsp){
+                fprintf(stderr, "Error\n");
+            }
+        }
+
+        free(line);
+    }
+
 
     return EXIT_SUCCESS;
 }
