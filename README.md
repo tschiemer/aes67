@@ -282,13 +282,15 @@ a=mediaclk:direct=0
 ### `rtsp-describe`
 
 ```
-Usage: ./rtsp-describe [-d] [<rtsp-url>]
+Usage: ./rtsp-describe [-r] [<rtsp-url>]
 Attempts to retrieve SDP header from given RTSP URL(s) (rtsp://<host>[:<port>][<resource>])
 and prints to STDOUT. If no <rtsp-url> is given assumes there will be one rtsp-url per line
 on STDIN.
 Options:
 	 -h,-?	 Prints this info
 	 -r	 Prints RTSP header info to STDERR
+Example:
+./rtsp-describe -r rtsp://192.168.2.138:9090/by-name/here-be-kittens-ravenna_1
 ```
 Note that there is also a quick and dirty script for this, although it is less reliable.
 

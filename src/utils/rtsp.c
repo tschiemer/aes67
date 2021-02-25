@@ -62,7 +62,7 @@ ssize_t  aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, 
     u8_t *p = (uri == NULL) ? (u8_t *) "" : uri;
 
     size_t len = sprintf((char *) buf,
-                         "DESCRIBE rtsp://%s%s RTSP/2.0\r\n"
+                         "DESCRIBE rtsp://%s%s RTSP/1.0\r\n"
                          "CSeq: 1\r\n"
                          "Accept: application/sdp\r\n"
                          "\r\n", host, p);

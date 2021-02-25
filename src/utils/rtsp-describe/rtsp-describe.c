@@ -33,13 +33,15 @@ static struct {
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s [-d] [<rtsp-url>]\n"
+             "Usage: %s [-r] [<rtsp-url>]\n"
              "Attempts to retrieve SDP header from given RTSP URL(s) (rtsp://<host>[:<port>][<resource>])\n"
              "and prints to STDOUT. If no <rtsp-url> is given assumes there will be one rtsp-url per line\n"
              "on STDIN.\n"
              "Options:\n"
              "\t -h,-?\t Prints this info\n"
              "\t -r\t Prints RTSP header info to STDERR\n"
+             "Example:\n"
+             "./rtsp-describe -r rtsp://192.168.2.138:9090/by-name/here-be-kittens-ravenna_1\n"
             , argv0);
 }
 
@@ -89,8 +91,10 @@ int main(int argc, char * argv[])
 
             case 'h':
             case '?':
-            default: /* '?' */
                 help(stdout);
+                return EXIT_SUCCESS;
+
+            default: /* '?' */
                 exit(EXIT_FAILURE);
         }
     }
