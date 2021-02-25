@@ -11,4 +11,7 @@ add_subdirectory(sap-unpack)
 add_subdirectory(sdp-parse)
 add_subdirectory(sdp-gen)
 
+add_subdirectory(rtsp-describe)
+add_subdirectory(rav-lookup)
+
 

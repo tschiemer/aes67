@@ -8,7 +8,6 @@ project(aes67)
 set(AES67_PORT "macos")
 
 set(AES67_WITH_SAP TRUE)
-set(AES67_WITH_SIP TRUE)
 
 
 set(AES67_DIR ${CMAKE_CURRENT_SOURCE_DIR})
@@ -33,7 +32,10 @@ set(AES67_INCLUDES
         ${AES67_DIR}/src/include/aes67/host/time.h
         ${AES67_DIR}/src/include/aes67/host/timer.h
 
-#        src/include/aes67/host/sock.h
+        ${AES67_DIR}/src/include/aes67/utils/rtsp.h
+#        ${AES67_DIR}/src/include/aes67/utils/mdns.h
+
+        #        src/include/aes67/host/sock.h
         )
 
 set(AES67_SOURCE_FILES
@@ -44,16 +46,14 @@ set(AES67_SOURCE_FILES
         ${AES67_DIR}/src/core/sdp.c
         ${AES67_DIR}/src/core/rtp.c
 
+        ${AES67_DIR}/src/utils/rtsp.c
+#        ${AES67_DIR}/src/utils/mdns-dnssd.c
+
         )
 
 if(AES67_WITH_SAP)
     list(APPEND AES67_INCLUDES ${AES67_DIR}/src/include/aes67/sap.h)
     list(APPEND AES67_SOURCE_FILES  ${AES67_DIR}/src/core/sap.c)
-endif()
-
-if(AES67_WITH_SIP)
-#    list(APPEND AES67_INCLUDES src/include/aes67/sip.h)
-#    list(APPEND AES67_SOURCE_FILES  src/core/sip.c)
 endif()
 
 
