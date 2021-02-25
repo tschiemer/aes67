@@ -48,7 +48,7 @@ https://github.com/tschiemer/aes67
     - [ ] ptp-monitor? -> https://www.ptptrackhound.com/
     - [ ] ptp-server?
   - RTSP
-    - [rtsp-describe.sh](#rtsp-describe.sh) *[script]*
+    - [rtsp-describe](#rtsp-describe)
 
 
 
@@ -279,18 +279,18 @@ a=ptime:1
 a=mediaclk:direct=0
 ```
 
-### `rtsp-describe.sh`
+### `rtsp-describe`
 
 ```
-Usage:
-	 ./rtsp-describe.sh [-v] <rtsp-uri>
-	 ./rtsp-describe.sh [-v] <host-port> id <id>
-	 ./rtsp-describe.sh [-v] <host-port> name <name>
-	 -v 	 output RTSP header
-Performs a quick and dirty rtsp stream describe query to retrieve SDPs.
-The id/name form conform to RAVENNA URIs.
-Returns 0 iff RTSP result code is 200 (ie OK)
+Usage: ./rtsp-describe [-d] [<rtsp-url>]
+Attempts to retrieve SDP header from given RTSP URL(s) (rtsp://<host>[:<port>][<resource>])
+and prints to STDOUT. If no <rtsp-url> is given assumes there will be one rtsp-url per line
+on STDIN.
+Options:
+	 -h,-?	 Prints this info
+	 -r	 Prints RTSP header info to STDERR
 ```
+Note that there is also a quick and dirty script for this, although it is less reliable.
 
 ## References
 

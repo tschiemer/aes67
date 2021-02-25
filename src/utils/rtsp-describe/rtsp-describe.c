@@ -33,11 +33,13 @@ static struct {
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s [-d] [<rtsp-URL>]\n"
-             "Attempts to retrieve SDP header from given RTSP URL (rtsp://<host>[:<port>][<resource>]) and prints to STDOUT\n"
+             "Usage: %s [-d] [<rtsp-url>]\n"
+             "Attempts to retrieve SDP header from given RTSP URL(s) (rtsp://<host>[:<port>][<resource>])\n"
+             "and prints to STDOUT. If no <rtsp-url> is given assumes there will be one rtsp-url per line\n"
+             "on STDIN.\n"
              "Options:\n"
              "\t -h,-?\t Prints this info\n"
-             "\t -d\t Prints RTSP header info to STDERR\n"
+             "\t -r\t Prints RTSP header info to STDERR\n"
             , argv0);
 }
 
@@ -79,9 +81,9 @@ int main(int argc, char * argv[])
     int opt;
 
 
-    while ((opt = getopt(argc, argv, "h?dtb:r:c:")) != -1) {
+    while ((opt = getopt(argc, argv, "h?r")) != -1) {
         switch (opt) {
-            case 'd':
+            case 'r':
                 opts.print_rtsp = 1;
                 break;
 
@@ -97,26 +99,34 @@ int main(int argc, char * argv[])
         return lookup((u8_t*)argv[optind]);
     }
 
-    while (!feof(stdin)) {
-        size_t n = 0;
-        char *line = NULL;
-        ssize_t len = getline(&line, &n, stdin);
 
-        //trim
-        while (len > 0 && (line[len-1] == '\r' || line[len-1] == '\n')) {
-            line[--len] = '\0';
-        }
+    ssize_t len = 0;
+    u8_t line[256];
+    while (read(STDIN_FILENO, &line[len], 1) == 1) {
 
-        if (len > 0) {
+        if (line[len] == '\r' || line[len] == '\n'){
+            line[len] = '\0';
 
-            if (lookup((u8_t *) line) && opts.print_rtsp){
-                fprintf(stderr, "Error\n");
+            if (len > 0){
+                lookup(line);
+                len = 0;
             }
+
+        } else {
+            len++;
         }
 
-        free(line);
+        // buffer limit safety check
+        if (len >= sizeof(line)){
+            len = 0;
+        }
     }
 
+    // in case EOF but something in buffer just try that aswell
+    if (len > 0){
+        line[len] = '\0';
+        lookup(line);
+    }
 
     return EXIT_SUCCESS;
 }
