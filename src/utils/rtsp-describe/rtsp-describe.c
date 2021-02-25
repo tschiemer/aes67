@@ -25,23 +25,80 @@
 
 static char * argv0;
 
+static struct {
+    u8_t print_rtsp;
+} opts;
+
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s\n"
+             "Usage: %s [-d] [<rtsp-URL>]\n"
+             "Attempts to retrieve SDP header from given RTSP URL (rtsp://<host>[:<port>][<resource>]) and prints to STDOUT\n"
+             "Options:\n"
+             "\t -h,-?\t Prints this info\n"
+             "\t -d\t Prints RTSP header info to STDERR\n"
             , argv0);
 }
 
+void aes67_rtsp_header(u8_t * buf, ssize_t len)
+{
+    if (!opts.print_rtsp){
+        return;
+    }
+
+    u8_t failed = len < 0;
+
+    if (failed){
+        len *= -1;
+    }
+
+    write(STDERR_FILENO, buf, len);
+}
+
+static int lookup(u8_t * rtsp){
+    u8_t sdp[1500];
+    ssize_t sdplen = aes67_rtsp_describe_url(rtsp, sdp, sizeof(sdp));
+
+    if (sdplen <= 0){
+        return EXIT_FAILURE;
+    }
+
+    write(STDOUT_FILENO, sdp, sdplen);
+
+    return EXIT_SUCCESS;
+}
 
 int main(int argc, char * argv[])
 {
     argv0 = argv[0];
 
-    u8_t sdp[1500];
+    opts.print_rtsp = 0;
 
-    u8_t rtsp[] = "rtsp://192.168.2.199/by-foo";
+    int opt;
 
-    aes67_rtsp_describe_url(rtsp, sdp, sizeof(sdp));
+
+    while ((opt = getopt(argc, argv, "h?dtb:r:c:")) != -1) {
+        switch (opt) {
+            case 'd':
+                opts.print_rtsp = 1;
+                break;
+
+            case 'h':
+            case '?':
+            default: /* '?' */
+                help(stdout);
+                exit(EXIT_FAILURE);
+        }
+    }
+
+    if ( optind + 1 == argc ){
+        return lookup((u8_t*)argv[optind]);
+    }
+
+//    ssize_t len;
+//    char line[256];
+//    getline()
+    //TODO
 
     return EXIT_SUCCESS;
 }

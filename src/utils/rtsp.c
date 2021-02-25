@@ -27,30 +27,31 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <search.h>
-//#include <netdb.h>
-//extern int h_errno;
 
-s32_t aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, u8_t * uri, u8_t * sdp, size_t maxlen)
+WEAK_FUN void aes67_rtsp_header(u8_t * buf, ssize_t len)
 {
+    // do nothing
+}
+
+ssize_t  aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, u8_t * uri, u8_t * sdp, size_t maxlen) {
     int sockfd = -1;
 
-    sockfd = socket(AF_INET, SOCK_STREAM , 0);
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
-    if (sockfd == -1){
+    if (sockfd == -1) {
         printf("socket error\n");
-        return 0;
+        return -1;
     }
 
 
     struct sockaddr_in server;
-    server.sin_addr.s_addr = *(u32_t*)ip;
+    server.sin_addr.s_addr = *(u32_t *) ip;
     server.sin_family = AF_INET;
-    server.sin_port = htons( port );
+    server.sin_port = htons(port);
 
-    if (connect(sockfd , (struct sockaddr *)&server , sizeof(server)) < 0)
-    {
+    if (connect(sockfd, (struct sockaddr *) &server, sizeof(server)) < 0) {
         close(sockfd);
-        return 1;
+        return -1;
     }
 
     u8_t buf[1500];
@@ -59,35 +60,65 @@ s32_t aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, u8_
     size_t hlen = aes67_net_ip2str(host, ipver, ip, port);
     host[hlen] = '\0';
 
-    u8_t * p = (uri == NULL) ? (u8_t*)"" : uri;
+    u8_t *p = (uri == NULL) ? (u8_t *) "" : uri;
 
-    size_t len = sprintf((char*)buf,
+    size_t len = sprintf((char *) buf,
                          "DESCRIBE rtsp://%s%s RTSP/1.0\r\n"
                          "CSeq: 1\r\n"
                          "Accept: application/sdp\r\n"
-                         "\r\n"
-                         , host, p);
+                         "\r\n", host, p);
 
-    if (write(sockfd, buf, len) == -1){
+    if (write(sockfd, buf, len) == -1) {
         close(sockfd);
         return -1;
     }
 
     ssize_t r = read(sockfd, buf, sizeof(buf));
-    if (r == -1){
+    if (r == -1) {
         close(sockfd);
         return -1;
     }
-    buf[r] = '\0';
-
-    printf("foobar %s", buf);
-
     close(sockfd);
 
-    return len;
+    // basic protocol check
+    if (r < 20 || memcmp(buf, "RTSP/", 5) != 0) {
+        return -1;
+    }
+
+    // get RTSP status code
+    s32_t res = atoi((char *) &buf[9]);
+    if (res != AES67_RTSP_STATUS_OK) {
+        return -res;
+    }
+
+    //locate body
+    u8_t *body = buf;
+    for (int i = 0; i < r; i++, body++) {
+        if (body[0] == '\r' && body[1] == '\n' && body[2] == '\r' && body[3] == '\n') {
+            break;
+        }
+    }
+
+    // move to actual body start
+    body += 4;
+
+    // body not found
+    if (body >= &buf[r]) {
+        aes67_rtsp_header(buf, r);
+        return -1;
+    }
+
+    size_t contentLength = r - (body - buf);
+
+    aes67_rtsp_header(buf, r - contentLength - 2);
+
+    memcpy(sdp, body, contentLength);
+
+    return contentLength;
 }
 
-s32_t aes67_rtsp_describe_url(u8_t * url, u8_t * sdp, size_t maxlen)
+
+ssize_t aes67_rtsp_describe_url(u8_t * url, u8_t * sdp, size_t maxlen)
 {
     AES67_ASSERT("url != NULL", url != NULL);
     AES67_ASSERT("sdp != NULL", sdp != NULL);
@@ -130,7 +161,6 @@ s32_t aes67_rtsp_describe_url(u8_t * url, u8_t * sdp, size_t maxlen)
             ip.port = aes67_atoi(delim, uri - delim, 10, &readlen);
             if (readlen == 0){
                 // no valid port read
-                printf("f\n");
                 return -1;
             }
         }
@@ -144,7 +174,6 @@ s32_t aes67_rtsp_describe_url(u8_t * url, u8_t * sdp, size_t maxlen)
         }
 
         if (he == NULL){
-            printf("asdf\n");
             return -1;
         }
 
