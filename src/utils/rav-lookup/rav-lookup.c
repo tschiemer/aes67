@@ -35,17 +35,19 @@ static struct {
     bool receivers;
     bool senders;
     bool raw;
+    bool verbose;
 } opts;
 
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s [-h?] | [-s|--sessions] [-d|--devices] [--receivers] [--senders] [--raw]\n"
+             "Usage: %s [-h?] | [-v] [-s|--sessions] [-d|--devices] [--receivers] [--senders] [--raw]\n"
              "Outputs any found session, receivers or senders as found per mDNS requests to STDOUT.\n"
              "One result per line: <fullname> <host> <port> <txtlen> TODO TXT\n"
              "If neither type is explicitly requested, looks for sessions only.\n"
              "Options:\n"
              "\t -h,-?\t\t Outputs this info\n"
+             "\t -v\t\t Some verbose output to STDOUT\n"
              "\t -s,--sessions\t Browse for sessions\n"
              "\t --receivers\t Browse for receiving devices\n"
              "\t --senders\t Browse for sending devices\n"
@@ -62,6 +64,10 @@ void session_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result 
 {
 //    printf("%d %s %s:%hu\n", result, fullname, hosttarget, port);
     if (result == aes67_mdns_result_ok){
+        if (opts.verbose){
+            fprintf(stderr, "DISCOVERED %s %s %hu\n", fullname, hosttarget, port);
+            fflush(stderr);
+        }
         if (opts.raw){
             printf("%s %s %hu ", fullname, hosttarget, port);
             for (int i = 0; i < txtlen-1; i++){
@@ -106,10 +112,15 @@ void session_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result 
             printf("rtsp://%s:%hu/by-name/%s\n", host, port, name);
         }
     }
+    fflush(stdout);
 }
 void receiver_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const u8_t * fullname, const u8_t * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context)
 {
     if (result == aes67_mdns_result_ok){
+        if (opts.verbose){
+            fprintf(stderr, "DISCOVERED %s %s %hu\n", fullname, hosttarget, port);
+            fflush(stderr);
+        }
         if (opts.raw){
             printf("%s %s %hu ", fullname, hosttarget, port);
             for (int i = 0; i < txtlen-1; i++){
@@ -133,10 +144,15 @@ void receiver_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result
             printf("http://%s:%hu\n", host, port);
         }
     }
+    fflush(stdout);
 }
 void sender_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const u8_t * fullname, const u8_t * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context)
 {
     if (result == aes67_mdns_result_ok){
+        if (opts.verbose){
+            fprintf(stderr, "DISCOVERED %s %s %hu\n", fullname, hosttarget, port);
+            fflush(stderr);
+        }
         if (opts.raw){
             printf("%s %s %hu ", fullname, hosttarget, port);
             for (int i = 0; i < txtlen-1; i++){
@@ -161,6 +177,9 @@ void sender_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result r
             printf("rtsp://%s:%hu\n", host, port);
         }
     }
+    fflush(stdout);
+
+
 }
 
 int main(int argc, char * argv[])
@@ -171,6 +190,7 @@ int main(int argc, char * argv[])
     opts.receivers = false;
     opts.senders = false;
     opts.raw = false;
+    opts.verbose = false;
 
 
     while (1) {
@@ -186,7 +206,7 @@ int main(int argc, char * argv[])
                 {0,         0,                 0,  0 }
         };
 
-        c = getopt_long(argc, argv, "?hsdr",
+        c = getopt_long(argc, argv, "?hsdrv",
                         long_options, &option_index);
         if (c == -1)
             break;
@@ -200,6 +220,10 @@ int main(int argc, char * argv[])
             case 'd':
                 opts.receivers = true;
                 opts.senders = true;
+                break;
+
+            case 'v':
+                opts.verbose = true;
                 break;
 
             case 2:

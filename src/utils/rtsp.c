@@ -33,7 +33,7 @@ WEAK_FUN void aes67_rtsp_header(u8_t * buf, ssize_t len)
     // do nothing
 }
 
-ssize_t  aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, u8_t * uri, u8_t * sdp, size_t maxlen) {
+ssize_t  aes67_rtsp_describe(const u8_t * ip, const enum aes67_net_ipver ipver, const u16_t port, const u8_t * uri, u8_t * sdp, size_t maxlen) {
     int sockfd = -1;
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -56,10 +56,10 @@ ssize_t  aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, 
     u8_t buf[1500];
 
     u8_t host[64];
-    size_t hlen = aes67_net_ip2str(host, ipver, ip, port);
+    size_t hlen = aes67_net_ip2str(host, (enum aes67_net_ipver)ipver, (u8_t*)ip, (u16_t)port);
     host[hlen] = '\0';
 
-    u8_t *p = (uri == NULL) ? (u8_t *) "" : uri;
+    u8_t *p = (uri == NULL) ? (u8_t *) "" : (u8_t*)uri;
 
     size_t len = sprintf((char *) buf,
                          "DESCRIBE rtsp://%s%s RTSP/1.0\r\n"
@@ -123,7 +123,7 @@ ssize_t  aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, 
 }
 
 
-ssize_t aes67_rtsp_describe_url(u8_t * url, u8_t * sdp, size_t maxlen)
+ssize_t aes67_rtsp_describe_url(const u8_t * url, u8_t * sdp, size_t maxlen)
 {
     AES67_ASSERT("url != NULL", url != NULL);
     AES67_ASSERT("sdp != NULL", sdp != NULL);
@@ -137,7 +137,7 @@ ssize_t aes67_rtsp_describe_url(u8_t * url, u8_t * sdp, size_t maxlen)
     url += sizeof(AES67_RTSP_SCHEME "://")-1;
     len -= sizeof(AES67_RTSP_SCHEME "://")-1;
 
-    u8_t * uri = url;
+    u8_t * uri = (u8_t*)url;
 
     for(int i = 0; i < len && *uri != '/'; i++, uri++){
         // looking for start of remaining resource path
@@ -149,7 +149,7 @@ ssize_t aes67_rtsp_describe_url(u8_t * url, u8_t * sdp, size_t maxlen)
     struct aes67_net_addr ip;
 
     // if not an <ip>:<port> is given we're dealing with <host>:<port>
-    if (aes67_net_str2addr(&ip, url, hostlen) == false){
+    if (aes67_net_str2addr(&ip, (u8_t*)url, hostlen) == false){
 
         // locate port delimiter (hoping for an ipv4....)
         // TODO ipv6 (?)
@@ -174,6 +174,9 @@ ssize_t aes67_rtsp_describe_url(u8_t * url, u8_t * sdp, size_t maxlen)
 
         struct hostent * he = gethostbyname((char*)url);
 
+        if (delim != NULL){
+            *--delim = ':';
+        }
         if (urilen > 0){
             uri[0] = '/';
         }

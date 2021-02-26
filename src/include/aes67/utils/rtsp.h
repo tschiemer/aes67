@@ -41,8 +41,8 @@ extern "C" {
 
 void aes67_rtsp_header(u8_t * buf, ssize_t len);
 
-ssize_t aes67_rtsp_describe(u8_t * ip, enum aes67_net_ipver ipver, u16_t port, u8_t * uri, u8_t * sdp, size_t maxlen);
-ssize_t aes67_rtsp_describe_url(u8_t * url, u8_t * sdp, size_t maxlen);
+ssize_t aes67_rtsp_describe(const u8_t * ip, const enum aes67_net_ipver ipver, const u16_t port, const u8_t * uri, u8_t * sdp, size_t maxlen);
+ssize_t aes67_rtsp_describe_url(const u8_t * url, u8_t * sdp, size_t maxlen);
 
 #ifdef __cplusplus
 extern "C" {

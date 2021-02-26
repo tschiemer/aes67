@@ -23,23 +23,26 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <stdbool.h>
 
 static char * argv0;
 
 static struct {
-    u8_t print_rtsp;
+    bool print_rtsp;
+    bool verbose;
 } opts;
 
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s [-r] [<rtsp-url>]\n"
+             "Usage: %s [-vr] [<rtsp-url>]\n"
              "Attempts to retrieve SDP header from given RTSP URL(s) (rtsp://<host>[:<port>][<resource>])\n"
              "and prints to STDOUT. If no <rtsp-url> is given assumes there will be one rtsp-url per line\n"
              "on STDIN.\n"
              "Options:\n"
              "\t -h,-?\t Prints this info\n"
              "\t -r\t Prints RTSP header info to STDERR\n"
+             "\t -v\t Print some status info to STDERR\n"
              "Example:\n"
              "./rtsp-describe -r rtsp://192.168.2.138:9090/by-name/here-be-kittens-ravenna_1\n"
             , argv0);
@@ -60,16 +63,24 @@ void aes67_rtsp_header(u8_t * buf, ssize_t len)
     write(STDERR_FILENO, buf, len);
 }
 
-static int lookup(u8_t * rtsp){
+static int lookup(u8_t * rtsp)
+{
     u8_t sdp[3000];
     ssize_t sdplen = aes67_rtsp_describe_url(rtsp, sdp, sizeof(sdp));
+
+    if (opts.verbose){
+        fprintf(stderr, "RTSP-DESCRIBE %s %s\n", sdp > 0 ? "OK" : "FAIL", rtsp);
+        fflush(stderr);
+    }
 
     if (sdplen <= 0){
         return EXIT_FAILURE;
     }
 
-    sdp[sdplen] = '\0';
+    sdp[sdplen] = '\n\0';
     write(STDOUT_FILENO, sdp, sdplen);
+
+    fflush(stdout);
 
     return EXIT_SUCCESS;
 }
@@ -83,10 +94,14 @@ int main(int argc, char * argv[])
     int opt;
 
 
-    while ((opt = getopt(argc, argv, "h?r")) != -1) {
+    while ((opt = getopt(argc, argv, "h?rv")) != -1) {
         switch (opt) {
             case 'r':
-                opts.print_rtsp = 1;
+                opts.print_rtsp = true;
+                break;
+
+            case 'v':
+                opts.verbose = true;
                 break;
 
             case 'h':
@@ -106,13 +121,18 @@ int main(int argc, char * argv[])
 
     ssize_t len = 0;
     u8_t line[256];
-    while (read(STDIN_FILENO, &line[len], 1) == 1) {
+    ssize_t c;
+    while ( (c = read(STDIN_FILENO, &line[len], 1)) != -1) {
 
+        if (c == 0){
+            continue;
+        }
         if (line[len] == '\r' || line[len] == '\n'){
             line[len] = '\0';
 
             if (len > 0){
                 lookup(line);
+//                usleep(1000);
                 len = 0;
             }
 

@@ -37,6 +37,7 @@ extern "C" {
 #endif
 
 enum aes67_net_ipver {
+    aes67_net_ipver_undefined = 0,
     aes67_net_ipver_4    = 4,
     aes67_net_ipver_6    = 6
 } PACK_STRUCT;
