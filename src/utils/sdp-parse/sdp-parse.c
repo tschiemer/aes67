@@ -193,7 +193,7 @@ int main(int argc, char * argv[])
             } // no test
 
 
-            if (r == AES67_SDP_OK){
+            if (r == AES67_SDP_OK|| r == AES67_SDP_INCOMPLETE){
 
                 sdp.originator.username.data[sdp.originator.username.length] = '\0';
                 sdp.originator.address.data[sdp.originator.address.length] = '\0';
@@ -354,7 +354,7 @@ int main(int argc, char * argv[])
                 r = aes67_sdp_origin_fromstr(&origin, rbuf, r-1);
 
 
-                if (r == AES67_SDP_OK){
+                if (r == AES67_SDP_OK || r == AES67_SDP_INCOMPLETE){
 
                     origin.username.data[origin.username.length] = '\0';
                     origin.address.data[origin.address.length] = '\0';
@@ -368,7 +368,7 @@ int main(int argc, char * argv[])
 
             if (opts.print_debug){
 
-                if (r != AES67_SDP_OK){
+                if (r != AES67_SDP_OK && r != AES67_SDP_INCOMPLETE){
                     switch(r){
                         case AES67_SDP_ERROR:
                             fprintf(stderr, "ERROR generic\n");
@@ -380,10 +380,6 @@ int main(int argc, char * argv[])
 
                         case AES67_SDP_NOMEMORY:
                             fprintf(stderr, "ERROR not enough memory\n");
-                            break;
-
-                        case AES67_SDP_INCOMPLETE:
-                            fprintf(stderr, "ERROR incomplete parsing\n");
                             break;
 
                         default:
