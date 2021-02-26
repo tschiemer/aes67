@@ -183,6 +183,7 @@ ssize_t aes67_rtsp_describe_url(u8_t * url, u8_t * sdp, size_t maxlen)
         }
 
         *(u32_t*)ip.addr = ((struct in_addr **)he->h_addr_list)[0]->s_addr;
+        ip.ipver = aes67_net_ipver_4;
 
     }
 
