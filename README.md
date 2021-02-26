@@ -49,6 +49,8 @@ https://github.com/tschiemer/aes67
     - [ ] ptp-server?
   - RTSP
     - [rtsp-describe](#rtsp-describe)
+  - RAVENNA
+    - [rav-lookup](#rav-lookup)
 
 
 
@@ -280,7 +282,6 @@ a=mediaclk:direct=0
 ```
 
 ### `rtsp-describe`
-
 ```
 Usage: ./rtsp-describe [-r] [<rtsp-url>]
 Attempts to retrieve SDP header from given RTSP URL(s) (rtsp://<host>[:<port>][<resource>])
@@ -293,6 +294,19 @@ Example:
 ./rtsp-describe -r rtsp://192.168.2.138:9090/by-name/here-be-kittens-ravenna_1
 ```
 Note that there is also a quick and dirty script for this, although it is less reliable.
+
+### `rav-lookup`
+```
+Usage: ./rav-lookup [-h?] | [--sessions] [--receivers] [--senders] [--raw]
+Outputs any found session, receivers or senders as found per mDNS requests to STDOUT.
+One result per line: <fullname> <host> <port> <txtlen> TODO TXT
+If neither type is explicitly requested, looks for sessions only.
+Options:
+	 -h,-?		 Outputs this info
+	 --sessions	 Browse for sessions
+	 --receivers	 Browse for receiving devices
+	 --sender	 Browse for sending devices
+```
 
 ## References
 

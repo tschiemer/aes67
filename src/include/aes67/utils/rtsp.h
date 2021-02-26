@@ -1,6 +1,6 @@
 /**
  * @file rtsp.h
- * Real-Time Streaming Protocol (RTSP)
+ * Simple utility functions for Real-Time Streaming Protocol (RTSP)
  *
  * References:
  * Real-Time Streaming Protocol Version 2.0 https://tools.ietf.org/html/rfc7826

@@ -33,7 +33,7 @@ set(AES67_INCLUDES
         ${AES67_DIR}/src/include/aes67/host/timer.h
 
         ${AES67_DIR}/src/include/aes67/utils/rtsp.h
-#        ${AES67_DIR}/src/include/aes67/utils/mdns.h
+        ${AES67_DIR}/src/include/aes67/utils/mdns.h
 
         #        src/include/aes67/host/sock.h
         )
@@ -47,7 +47,7 @@ set(AES67_SOURCE_FILES
         ${AES67_DIR}/src/core/rtp.c
 
         ${AES67_DIR}/src/utils/rtsp.c
-#        ${AES67_DIR}/src/utils/mdns-dnssd.c
+        ${AES67_DIR}/src/utils/mdns-dnssd.c
 
         )
 

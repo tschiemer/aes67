@@ -39,12 +39,13 @@
  * There is an additional subservice for named sessions, ex. "_ravenna_session._sub._rtsp._tcp"
  *
  *
- * There exist particular addressing schemes for generic and named sessions:
- * - "rtsp://<host-port>/by-id/<id>
- * - "rtsp://<host-port>/by-name/<session-name>
- * - "ravenna:<vendor-node-id>:/by-id/<id>
- * - "ravenna:<vendor-node-id>:/by-name/<session-name>
- * - "ravenna_session:<session-name>
+ * There exist particular addressing schemes for device and (named) sessions:
+ * - http://<host-port>/by-id/<id>
+ * - rtsp://<host-port>/by-id/<id>
+ * - rtsp://<host-port>/by-name/<session-name>
+ * - ravenna:<vendor-node-id>:/by-id/<id>
+ * - ravenna:<vendor-node-id>:/by-name/<session-name>
+ * - ravenna_session:<session-name>
  */
 
 #ifndef AES67_RAV_H
@@ -54,14 +55,15 @@
 extern "C" {
 #endif
 
-#define AES67_RAV_URI_PROTO_GENERIC         "ravenna"
-#define AES67_RAV_URI_PROTO_NAMEDSESSION    "ravenna_session"
+#define AES67_RAV_URI_SCHEME_DEVICE         "ravenna"
+#define AES67_RAV_URI_SCHEME_SESSION        "ravenna_session"
 
-#define AES67_RAV_MDNS_SUBSRV_GENERIC       "_" AES67_RAV_URI_PROTO "._sub."
-#define AES67_RAV_MDNS_SUBSRV_NAMEDSESSION  "_" AES67_RAV_URI_PROTO_NAMEDSESSION "._sub."
+#define AES67_RAV_MDNS_TYPE_SENDER          "_rtsp._tcp"
+#define AES67_RAV_MDNS_TYPE_RECEIVER        "_http._tcp"
 
-//#define AES67_RAV_MDNS_RTSP "_ravenna._sub._rtsp._tcp"
-//#define AES67_RAV_MDNS_HTTP "_ravenna._sub._http._tcp"
+#define AES67_RAV_MDNS_SUBTYPE_DEVICE       "_ravenna"
+#define AES67_RAV_MDNS_SUBTYPE_SESSION      "_ravenna_session"
+
 
 
 #ifdef __cplusplus
