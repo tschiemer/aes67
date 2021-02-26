@@ -26,6 +26,7 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <fcntl.h>
+#include <ctype.h>
 
 static char * argv0;
 
@@ -61,8 +62,14 @@ void session_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result 
 //    printf("%d %s %s:%hu\n", result, fullname, hosttarget, port);
     if (result == aes67_mdns_result_ok){
         if (opts.raw){
-            printf("%s %s %hu %hu TODO TXT", fullname, hosttarget, port, txtlen);
-            //TODO print TXT
+            printf("%s %s %hu ", fullname, hosttarget, port);
+            for (int i = 0; i < txtlen-1; i++){
+                if (isprint(txt[i])){
+                    printf("%c", txt[i]);
+                } else {
+                    printf(" ");
+                }
+            }
             printf("\n");
         } else {
 
@@ -103,8 +110,14 @@ void receiver_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result
 {
     if (result == aes67_mdns_result_ok){
         if (opts.raw){
-            printf("%s %s %hu %hu TODO TXT", fullname, hosttarget, port, txtlen);
-            //TODO print TXT
+            printf("%s %s %hu ", fullname, hosttarget, port);
+            for (int i = 0; i < txtlen-1; i++){
+                if (isprint(txt[i])){
+                    printf("%c", txt[i]);
+                } else {
+                    printf(" ");
+                }
+            }
             printf("\n");
         } else {
             char host[256];
@@ -124,8 +137,14 @@ void sender_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result r
 {
     if (result == aes67_mdns_result_ok){
         if (opts.raw){
-            printf("%s %s %hu %hu TODO TXT", fullname, hosttarget, port, txtlen);
-            //TODO print TXT
+            printf("%s %s %hu ", fullname, hosttarget, port);
+            for (int i = 0; i < txtlen-1; i++){
+                if (isprint(txt[i])){
+                    printf("%c", txt[i]);
+                } else {
+                    printf(" ");
+                }
+            }
             printf("\n");
         } else {
 
