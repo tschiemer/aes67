@@ -81,6 +81,18 @@ void session_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result 
             assert(namelen < sizeof(name));
 
             memcpy(name, fullname, namelen);
+
+            // space in name are given as \032, let's turn this into URL friendly %20
+            for (int i = 0; i < namelen - 4; i++){
+                if (name[i] == '\\' && name[i+1] == '0' && name[i+2] == '3' && name[i+3] == '2'){
+                    name[i] = '%';
+                    name[i+1] = '2';
+                    name[i+2] = '0';
+                    memmove(&name[i+3], &name[i+4], namelen - i - 4);
+                    namelen --;
+                }
+            }
+
             name[namelen] = '\0';
 
             printf("rtsp://%s:%hu/by-name/%s\n", host, port, name);
@@ -104,7 +116,7 @@ void receiver_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result
             host[hostlen] = '\0';
 
 
-            printf("rtsp://%s:%hu\n", host, port);
+            printf("http://%s:%hu\n", host, port);
         }
     }
 }
@@ -126,7 +138,7 @@ void sender_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result r
             host[hostlen] = '\0';
 
 
-            printf("http://%s:%hu\n", host, port);
+            printf("rtsp://%s:%hu\n", host, port);
         }
     }
 }
