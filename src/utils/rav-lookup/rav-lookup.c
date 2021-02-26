@@ -40,15 +40,16 @@ static struct {
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s [-h?] | [--sessions] [--receivers] [--senders] [--raw]\n"
+             "Usage: %s [-h?] | [-s|--sessions] [-d|--devices] [--receivers] [--senders] [--raw]\n"
              "Outputs any found session, receivers or senders as found per mDNS requests to STDOUT.\n"
              "One result per line: <fullname> <host> <port> <txtlen> TODO TXT\n"
              "If neither type is explicitly requested, looks for sessions only.\n"
              "Options:\n"
              "\t -h,-?\t\t Outputs this info\n"
-             "\t --sessions\t Browse for sessions\n"
+             "\t -s,--sessions\t Browse for sessions\n"
              "\t --receivers\t Browse for receiving devices\n"
-             "\t --sender\t Browse for sending devices\n"
+             "\t --senders\t Browse for sending devices\n"
+             "\t -d,--devices\t Browse for senders and receivers (shortcut for --receivers --senders)\n"
             , argv0);
 }
 
@@ -177,22 +178,28 @@ int main(int argc, char * argv[])
 
         int option_index = 0;
         static struct option long_options[] = {
-                {"sessions",  no_argument,       0,  1 },
+                {"sessions",  no_argument,       0,  's' },
                 {"receivers",  no_argument,       0,  2 },
                 {"senders",  no_argument,       0,  3 },
+                {"devices",  no_argument,       0,  'd' },
                 {"raw",  no_argument,       0,  'r' },
                 {0,         0,                 0,  0 }
         };
 
-        c = getopt_long(argc, argv, "?hu",
+        c = getopt_long(argc, argv, "?hsdr",
                         long_options, &option_index);
         if (c == -1)
             break;
 
         switch (c) {
 
-            case 1:
+            case 's':
                 opts.sessions = true;
+                break;
+
+            case 'd':
+                opts.receivers = true;
+                opts.senders = true;
                 break;
 
             case 2:

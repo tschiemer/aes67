@@ -297,15 +297,16 @@ Note that there is also a quick and dirty script for this, although it is less r
 
 ### `rav-lookup`
 ```
-Usage: ./rav-lookup [-h?] | [--sessions] [--receivers] [--senders] [--raw]
+Usage: ./rav-lookup [-h?] | [-s|--sessions] [-d|--devices] [--receivers] [--senders] [--raw]
 Outputs any found session, receivers or senders as found per mDNS requests to STDOUT.
 One result per line: <fullname> <host> <port> <txtlen> TODO TXT
 If neither type is explicitly requested, looks for sessions only.
 Options:
 	 -h,-?		 Outputs this info
-	 --sessions	 Browse for sessions
+	 -s,--sessions	 Browse for sessions
 	 --receivers	 Browse for receiving devices
-	 --sender	 Browse for sending devices
+	 --senders	 Browse for sending devices
+	 -d,--devices	 Browse for senders and receivers (shortcut for --receivers --senders)
 ```
 
 ## References
