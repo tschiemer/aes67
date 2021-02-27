@@ -39,18 +39,26 @@ https://github.com/tschiemer/aes67
   - SAP
     - [x] [sap-pack](#sap-pack)
     - [x] [sap-unpack](#sap-unpack)
-    - [ ] ~~sap-server~~ -> general session server
     - [ ] [RAV2SAP](#rav2sap) alternative?
+    - [ ] ~~sap-server~~ -> a general session server extensible for other discovery protocols would make more sense
   - SDP
     - [x] [sdp-parse](#sdp-parse)
     - [x] [sdp-gen](#sdp-gen)
+  - RTSP
+    - [x] [rtsp-describe](#rtsp-describe)
+  - RAVENNA
+    - [x] [rav-lookup](#rav-lookup)
+    - [ ] rav-register? easily register a specific mDNS service/device 
   - PTP
     - [ ] ptp-monitor? -> https://www.ptptrackhound.com/
     - [ ] ptp-server?
-  - RTSP
-    - [rtsp-describe](#rtsp-describe)
-  - RAVENNA
-    - [rav-lookup](#rav-lookup)
+  - RTP/RTCP
+    - [ ] rtp-send
+    - [ ] rtp-recv
+  - Support
+    - mDNS (abstraction for service *discovery* and registration(?))
+      - [ ] dns-sd
+      - [ ] ahavi
 
 
 
