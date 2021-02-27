@@ -77,7 +77,7 @@ static int lookup(u8_t * rtsp)
         return EXIT_FAILURE;
     }
 
-    sdp[sdplen] = '\n\0';
+//    sdp[sdplen] = '\0';
     write(STDOUT_FILENO, sdp, sdplen);
 
     fflush(stdout);
