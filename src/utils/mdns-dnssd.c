@@ -16,6 +16,14 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/**
+ * TODOs
+ *
+ * - use a single shared connection? -> kDNSServiceFlagsShareConnection
+ *    -> use for two-step lookup (only)?
+ * - what happens when a device explicitly invalidates its records?
+ */
+
 #include "aes67/utils/mdns.h"
 
 #include <dns_sd.h>
