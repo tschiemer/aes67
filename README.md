@@ -39,7 +39,6 @@ https://github.com/tschiemer/aes67
   - SAP
     - [x] [sap-pack](#sap-pack)
     - [x] [sap-unpack](#sap-unpack)
-    - [ ] [RAV2SAP](#rav2sap) alternative?
     - [ ] ~~sap-server~~ -> a general session server extensible for other discovery protocols would make more sense
   - SDP
     - [x] [sdp-parse](#sdp-parse)
@@ -47,6 +46,7 @@ https://github.com/tschiemer/aes67
   - RTSP
     - [x] [rtsp-describe](#rtsp-describe)
   - RAVENNA
+    - [ ] [RAV2SAP](#rav2sap) alternative?
     - [x] [rav-lookup](#rav-lookup)
     - [ ] rav-register? easily register a specific mDNS service/device 
   - PTP
