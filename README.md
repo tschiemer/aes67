@@ -40,7 +40,7 @@ https://github.com/tschiemer/aes67
     - [x] [sap-pack](#sap-pack)
     - [x] [sap-unpack](#sap-unpack)
     - [ ] ~~sap-server~~ -> general session server
-    - [ ] RAV2SAP alternative? (discovery through mDNS, querying through RTSP)
+    - [ ] [RAV2SAP](#rav2sap) alternative?
   - SDP
     - [x] [sdp-parse](#sdp-parse)
     - [x] [sdp-gen](#sdp-gen)
@@ -200,12 +200,26 @@ Primarily test/developer utilities that allow for convenient testing (or simple 
 
 ### `sap-pack`
 ```
-Usage: ./sap-pack (announce|delete) <msg-hash> <origin-ip> [<payloadtype>] <sdp-file>
-Writes SAPv2 packet to STDOUT.
+Usage: ./sap-pack [-h|-?] | [-a|-d] [--hash <hash>] [-o <origin-ip>] [-p <payloadtype> | --v1] [<file> ...]
+Writes SAP packet to STDOUT.
+If a <file> is given assumes it is a single payload file.
+If no <file> is given tries to read from STDIN (if SDP payload is assumed looks for SDP start, ie "v=0").
+Options:
+	 -h,-?		 Prints this info.
+	 -a		 Announcement type message (default)
+	 -d		 Delete type message (note: expects but an originator line)
+	 --hash <hash>	 Force this hash id (if not given tries to extract from SDP file, session id)
+	 -o <origin-ip>	 Force this originating IP (if not given tries to extract from SDP file, originating addr)
+	 -p <payloadtype>	 Use this particular (MIME) payload type (if not given uses 'application/sdp')
+	 --v1		 Use a SAPv1 packet format (implies SDP payload, allows a zero-hash, requires IPv4 origin)
+	 --xf		 Attempt to parse SDP payload, on fail fallback to given hash and origin-ip
+	 -v		 Print some basic info to STDERR
 Examples:
-./sap-pack announce 123 10.0.0.2 test.sdp | socat -u - UDP4-DATAGRAM:224.2.127.254:9875
-watch -t 300 "./sap-pack announce 123 10.0.0.2 test.sdp | socat -u -v - UDP4-DATAGRAM:224.2.127.254:9875"
+./sap-pack test.sdp | socat -u - UDP4-DATAGRAM:224.2.127.254:9875
+watch -t 300 "./sap-pack  test.sdp | socat -u -v - UDP4-DATAGRAM:224.2.127.254:9875"
 ```
+Note that you can improvise a SAP server that just broadcasts SDPs regularly :)
+
 ### `sap-unpack`
 ```
 Usage: ./sap-unpack [-h?ad]
@@ -308,6 +322,25 @@ Options:
 	 --senders	 Browse for sending devices
 	 -d,--devices	 Browse for senders and receivers (shortcut for --receivers --senders)
 ```
+
+### rav2sap
+
+The original [RAV2SAP](https://www.ravenna-network.com/aes67/rav2sap/) essentially is intended to translate RAVENNA-style mDNS-based
+discovery into SAP-based discovery (but also allowing for a managed point of manual SDP management).
+
+It is somewhat straightforward as in:
+
+1. listen to mDNS services
+2. get SDP of discovered streams
+3. and pass to SAP
+
+To improvise something to the same effect you can also make use of utilities given herein:
+
+```bash 
+rav-lookup -v | rtsp-describe -v | sap-pack -v | socat -u - UDP4-DATAGRAM:224.2.127.254:9875
+```
+
+Note: the `-v` option just helps to trace what's happening.
 
 ## References
 
