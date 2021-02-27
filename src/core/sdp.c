@@ -2432,6 +2432,33 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
                                         if (delim  >= &line[llen]){
                                             return AES67_SDP_ERROR;
                                         }
+                                        // according to RFC XY the domain is indicated through "domain-nmbr=0"
+                                        // but it seems oftentimes the string-part is left out (we have to check for both)
+
+                                        u8_t * eq = aes67_memchr(delim, '=', &line[llen] - delim);
+                                        if (eq != NULL &&
+                                            eq - delim == sizeof("domain-nmbr")-1 &&
+                                            delim[0] == 'd' &&
+                                            delim[1] == 'o' &&
+                                            delim[2] == 'm' &&
+                                            delim[3] == 'a' &&
+                                            delim[4] == 'i' &&
+                                            delim[5] == 'n' &&
+                                            delim[6] == '-' &&
+                                            delim[7] == 'n' &&
+                                            delim[8] == 'm' &&
+                                            delim[9] == 'b' &&
+                                            delim[10] == 'r'){
+
+                                            // just shift pointer accordingly
+                                            delim += sizeof("domain-nmbr");
+
+                                            // sanity check
+                                            if (delim  >= &line[llen]){
+                                                return AES67_SDP_ERROR;
+                                            }
+                                        }
+
                                         u16_t readlen = 0;
                                         s32_t t = aes67_atoi(delim, &line[llen] - delim, 10, &readlen);
                                         if (readlen == 0 || t > 127){
