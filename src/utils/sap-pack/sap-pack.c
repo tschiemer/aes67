@@ -22,14 +22,22 @@
 #include <getopt.h>
 #include <stdio.h>
 
+enum extract_mode {
+    explicit_with_sdp_fallback,
+    sdp_with_explicit_fallback
+};
+
 static struct {
     uint8_t status;
     s32_t hash;
     struct aes67_net_addr origin;
     uint8_t * payloadtype;
-    bool is_sdp;
     bool verbose;
+    bool v1;
+    enum extract_mode extractMode;
 } opts;
+
+static bool is_sdp;
 
 static const char sdp_mimetype[] = AES67_SDP_MIMETYPE;
 
@@ -38,18 +46,19 @@ static char * argv0;
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s [-h|-?] | [-a|-d] [--hash <hash>] [-o <origin-ip>] [-p <payloadtype> | -n] [<file>]\n"
-             "Writes SAPv2 packet to STDOUT.\n"
-             "If a <file> is given assumes it is a single SDP file.\n"
-             "If no <file> is given tries to read from STDIN (does not look for SDP start, goes by timing (remember to flush buffers nicely).\n"
+             "Usage: %s [-h|-?] | [-a|-d] [--hash <hash>] [-o <origin-ip>] [-p <payloadtype> | --v1] [<file> ...]\n"
+             "Writes SAP packet to STDOUT.\n"
+             "If a <file> is given assumes it is a single payload file.\n"
+             "If no <file> is given tries to read from STDIN (if SDP payload is assumed looks for SDP start, ie \"v=0\").\n"
              "Options:\n"
              "\t -h,-?\t\t Prints this info.\n"
-             "\t -a\t\t Announcement message (default)\n"
-             "\t -d\t\t Delelete message (note: expects but an originator line)\n"
-             "\t --hash <hash>\t Use this has id (otherwise tries to extract from SDP file, session id)\n"
-             "\t -o <origin-ip>\t Use this originating IP (if not given tries to extract from SDP file, originating addr)\n"
+             "\t -a\t\t Announcement type message (default)\n"
+             "\t -d\t\t Delete type message (note: expects but an originator line)\n"
+             "\t --hash <hash>\t Force this hash id (if not given tries to extract from SDP file, session id)\n"
+             "\t -o <origin-ip>\t Force this originating IP (if not given tries to extract from SDP file, originating addr)\n"
              "\t -p <payloadtype>\t Use this particular (MIME) payload type (if not given uses 'application/sdp')\n"
-             "\t -n\t\t Do NOT use any payload type at all\n"
+             "\t --v1\t\t Use a SAPv1 packet format (implies SDP payload, allows a zero-hash, requires IPv4 origin)\n"
+             "\t --xf\t\t Attempt to parse SDP payload, on fail fallback to given hash and origin-ip\n"
              "\t -v\t\t Print some basic info to STDERR\n"
              "Examples:\n"
              "./sap-pack test.sdp | socat -u - UDP4-DATAGRAM:224.2.127.254:9875\n"
@@ -89,39 +98,76 @@ static int generate_packet(u8_t * payload, size_t plen, size_t typelen)
 
     size_t totallen = plen+typelen;
 
-    bool is_sdp = opts.is_sdp || (typelen && strcmp((char*)payload, AES67_SDP_MIMETYPE));
-
     struct aes67_sdp sdp;
+    bool parsed_sdp = false;
+
     if (is_sdp){
         int r = aes67_sdp_fromstr(&sdp, &payload[typelen], plen, NULL);
-        if (r != AES67_SDP_OK && r != AES67_SDP_INCOMPLETE){
-            fprintf(stderr, "SAP-PACK sdp parse error %d\n", r);
-            return EXIT_FAILURE;
+        if (r == AES67_SDP_OK || r == AES67_SDP_INCOMPLETE){
+            parsed_sdp = true;
+        } else {
+            parsed_sdp = false;
+//            fprintf(stderr, "SAP-PACK sdp parse error %d\n", r);
         }
     }
 
     u16_t hash;
 
-    if (opts.hash != -1){
-        hash = opts.hash;
-    } else {
-        hash = atoi((char*)sdp.originator.session_id.data);
+    if (opts.extractMode == sdp_with_explicit_fallback){
+        if (parsed_sdp){
+            hash = atoi((char*)sdp.originator.session_id.data);
+        } else if (opts.hash != -1){
+            hash = opts.hash;
+        } else {
+            fprintf(stderr, "SAP-PACK sdp parse failed, no hash fallback given\n");
+            return EXIT_FAILURE;
+        }
     }
-
-    struct aes67_net_addr ip;
-
-    if (opts.origin.ipver != aes67_net_ipver_undefined){
-        aes67_net_addrcp(&ip, &opts.origin);
-    } else {
-
-        if (aes67_net_str2addr(&ip, (u8_t*)sdp.originator.address.data, sdp.originator.address.length) == false){
-            fprintf(stderr, "SAP-PACK addr fail\n");
+    else if (opts.extractMode == explicit_with_sdp_fallback){
+        if (opts.hash != -1){
+            hash = opts.hash;
+        } else if (parsed_sdp){
+            hash = atoi((char*)sdp.originator.session_id.data);
+        } else {
+            fprintf(stderr, "SAP-PACK no hash given, sdp parse fallback failed\n");
             return EXIT_FAILURE;
         }
     }
 
+
+    struct aes67_net_addr ip;
+
+    if (opts.extractMode == sdp_with_explicit_fallback){
+        if (aes67_net_str2addr(&ip, (u8_t*)sdp.originator.address.data, sdp.originator.address.length)){
+            // success!
+        }
+        else if (opts.origin.ipver != aes67_net_ipver_undefined){
+            aes67_net_addrcp(&ip, &opts.origin);
+        } else {
+            fprintf(stderr, "SAP-PACK sdp parse failed, no origin-ip fallback given\n");
+            return EXIT_FAILURE;
+        }
+    }
+    else if (opts.extractMode == explicit_with_sdp_fallback){
+        if (opts.origin.ipver != aes67_net_ipver_undefined){
+            aes67_net_addrcp(&ip, &opts.origin);
+        } else if (aes67_net_str2addr(&ip, (u8_t*)sdp.originator.address.data, sdp.originator.address.length)){
+            // success!
+        } else {
+            fprintf(stderr, "SAP-PACK no origin given, sdp parse fallback failed\n");
+            return EXIT_FAILURE;
+        }
+    }
+
+    // sanity check
+    if (opts.v1 && ip.ipver != aes67_net_ipver_4){
+        fprintf(stderr, "SAP-PACK v1 requires ipv4\n");
+        return EXIT_FAILURE;
+    }
+
+
     if (opts.verbose){
-        u8_t ipstr[64];
+        u8_t ipstr[128];
         size_t l = aes67_net_addr2str(ipstr, &ip);
         ipstr[l] = '\0';
         fprintf(stderr, "SAP-PACK %s %hu %s\n", opts.status == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE ? "announce" : "delete", hash, ipstr);
@@ -133,6 +179,7 @@ static int generate_packet(u8_t * payload, size_t plen, size_t typelen)
                                          payload, totallen, NULL);
 
     if (len == 0){
+        // should only happen if the max packet size was too small.
         fprintf(stderr, "ERROR failed to generate packet\n");
         return EXIT_FAILURE;
     }
@@ -151,7 +198,10 @@ int main(int argc, char * argv[])
     opts.hash = -1;
     opts.payloadtype = (u8_t *)sdp_mimetype;
     opts.verbose = false;
-    opts.is_sdp = false;
+    opts.v1 = false;
+    opts.extractMode = explicit_with_sdp_fallback;
+
+    is_sdp = true;
 
     while (1) {
         int c;
@@ -163,8 +213,8 @@ int main(int argc, char * argv[])
                 {"delete",  no_argument,       0,  'd' },
                 {"origin",  no_argument,       0,  'o' },
                 {"payloadtype",  no_argument,       0,  'p' },
-                {"no-payloadtype",  no_argument,       0,  'n' },
-                {"sdp",  no_argument,       0,  's' },
+                {"v1", no_argument, 0, 2},
+                {"xf", no_argument, 0, 3},
                 {0,         0,                 0,  0 }
         };
 
@@ -176,10 +226,14 @@ int main(int argc, char * argv[])
         switch (c) {
             case 1:
                 opts.hash = atoi(optarg);
-                if (opts.hash == 0){
-                    fprintf(stderr, "ERROR invalid hash %d", opts.hash);
-                    return EXIT_FAILURE;
-                }
+                break;
+
+            case 2:
+                opts.v1 = true;
+                break;
+
+            case 3:
+                opts.extractMode = sdp_with_explicit_fallback;
                 break;
 
             case 'a':
@@ -192,14 +246,7 @@ int main(int argc, char * argv[])
 
             case 'p':
                 opts.payloadtype = (u8_t*)optarg;
-                break;
-
-            case 'n':
-                opts.payloadtype = NULL;
-                break;
-
-            case 's':
-                opts.is_sdp = true;
+                is_sdp = strcmp(optarg, sdp_mimetype) == 0;
                 break;
 
             case 'o':
@@ -224,23 +271,28 @@ int main(int argc, char * argv[])
         }
     }
 
-    if ( optind + 1 < argc ){ // 1 < argc &&
-        fprintf(stderr, "wrong argument count\n");
+
+    if (opts.v1 == false && opts.hash == 0){
+        fprintf(stderr, "ERROR zero hash only allowed for SAPv1\n");
         return EXIT_FAILURE;
     }
 
     u8_t inbuf[1500];
 
-    size_t typelen = opts.payloadtype == NULL ? 0 : strlen((char*)opts.payloadtype);
+    size_t typelen = (opts.v1 || opts.payloadtype == NULL) ? 0 : strlen((char*)opts.payloadtype);
 
     if (typelen > 0){
         strcpy((char*)inbuf, (char*)opts.payloadtype);
     }
 
 
-    if (optind + 1 == argc){
-        size_t plen = readfile(argv[optind], &inbuf[typelen], sizeof(inbuf) - typelen - 1 );
-        generate_packet(inbuf, plen, typelen);
+    if (optind < argc){
+        for (int i = optind; i < argc; i++){
+            size_t plen = readfile(argv[optind], &inbuf[typelen], sizeof(inbuf) - typelen - 1 );
+            if (generate_packet(inbuf, plen, typelen)){
+                return EXIT_FAILURE; // really exit on error?
+            }
+        }
         return EXIT_SUCCESS;
     }
 
@@ -258,11 +310,40 @@ int main(int argc, char * argv[])
 
     ssize_t r;
 
-    while( (r = read(STDIN_FILENO, payload, maxlen)) ){
+    u8_t ch;
+    size_t len = 0;
 
-        if (r > 0) {
-            generate_packet(inbuf, r, typelen);
+    // get char by char, try to locate "v=0"
+    while( (r = read(STDIN_FILENO, &ch, 1)) ){
+
+        // timeout
+        if (r == -1){
+            if (len > 0){
+                generate_packet(inbuf, len, typelen);
+            }
         }
+        if (r > 0) {
+
+            if (len >= maxlen){
+                fprintf(stderr, "SAP-PACK inbuffer overflow, discarding data\n");
+
+                len = 0;
+            }
+
+            payload[len++] = ch;
+
+            if (len > 8 && memcmp(&payload[len-4], "\nv=0", 4) == 0){
+                payload[len-3] = '\0'; // not needed, but makes it nicer in debug
+                generate_packet(inbuf, len - 3, typelen);
+                memcpy(payload, "v=0", 3);
+                len = 3;
+            }
+        }
+    }
+
+    // in case STDIN was closed see if there might be something to be processed still
+    if (len > 0){
+        generate_packet(inbuf, len, typelen);
     }
 
     return 0;
