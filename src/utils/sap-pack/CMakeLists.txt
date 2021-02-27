@@ -4,7 +4,6 @@ set (CMAKE_CONFIGURATION_TYPES "Debug;Release")
 
 project(sap-pack)
 
-
 add_executable(sap-pack
         sap-pack.c
         aes67opts.h
@@ -18,5 +17,6 @@ target_include_directories(sap-pack
         ${AES67_PORT_INCLUDE_DIRS}
         )
 target_link_libraries(sap-pack "${AES67_PORT_LIB}")
+
 
 

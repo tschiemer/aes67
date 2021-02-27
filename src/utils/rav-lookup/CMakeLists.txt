@@ -7,6 +7,8 @@ project(rav-lookup)
 add_executable(rav-lookup
         rav-lookup.c
         aes67opts.h
+        ${AES67_DIR}/src/include/aes67/utils/mdns.h
+        ${AES67_DIR}/src/utils/mdns-${AES67_MDNS}.c
         ${AES67_INCLUDES}
         ${AES67_SOURCE_FILES}
         )
