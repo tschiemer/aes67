@@ -612,7 +612,13 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
         if ( (typelen == sizeof(AES67_SDP_MIMETYPE) - 1) && 0 == aes67_memcmp(AES67_SDP_MIMETYPE, type, sizeof(AES67_SDP_MIMETYPE)) ) {
             type = NULL;
             typelen = 0;
+        } else {
+#if AES67_SAP_FILTER_SDP == 1
+            // as we're not dealing with an sdp payload, discard
+            return;
+#endif
         }
+
 
         // move position past NULL-byte of type
         pos++;
@@ -649,7 +655,7 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
 
             aes67_time_now(&session->last_announcement);
 
-#if AES67_SAP_HASH_CHECK == 1
+#if AES67_SAP_FILTER_XOR8 == 1
             u8_t xor8 = aes67_xor8(msg, msglen);
 
             if (event == aes67_sap_event_new){

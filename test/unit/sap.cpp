@@ -302,7 +302,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
     sap_event_reset();
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
-#if AES67_SAP_HASH_CHECK == 1
+#if AES67_SAP_FILTER_XOR8 == 1
     CHECK_FALSE(sap_event.isset);
 #else // AES67_SAP_HASH_CHECK == 0
     CHECK_TRUE(sap_event.isset);
@@ -412,7 +412,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     // re-announce the same packet (ie same msg hash id + originating source)
     sap_event_reset();
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
-#if AES67_SAP_HASH_CHECK == 1
+#if AES67_SAP_FILTER_XOR8 == 1
     CHECK_FALSE(sap_event.isset);
 #else // AES67_SAP_HASH_CHECK == 1
     CHECK_TRUE(sap_event.isset);
@@ -635,7 +635,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     sap_event_reset();
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
-#if AES67_SAP_HASH_CHECK == 1
+#if AES67_SAP_FILTER_XOR8 == 1
     CHECK_FALSE(sap_event.isset);
 #else // AES67_SAP_HASH_CHECK == 0
     CHECK_TRUE(sap_event.isset);

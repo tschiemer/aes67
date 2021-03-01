@@ -68,8 +68,19 @@
 #define AES67_SAP_COMPRESS_ENABLED 0
 #endif
 
-#ifndef AES67_SAP_HASH_CHECK
-#define AES67_SAP_HASH_CHECK 1
+#ifndef AES67_SAP_FILTER_SDP
+/**
+ * Handle/pass on only SDP payloads
+ */
+#define AES67_SAP_FILTER_SDP 1
+#endif
+
+#ifndef AES67_SAP_FILTER_XOR8
+/**
+ * If enabled, complete message will be xor8'ed and (upon renewal) compared -> identical messages will not be passed on.
+ * A simple mechanism to reduce event callbacks, but for SDP files, in principle the originator ("o=..") should be checked.
+ */
+#define AES67_SAP_HASH_CHECK 0
 #endif
 
 

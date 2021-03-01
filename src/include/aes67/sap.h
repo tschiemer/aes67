@@ -166,7 +166,7 @@ struct aes67_sap_session {
     enum aes67_sap_auth_result authenticated;
 #endif
 
-#if AES67_SAP_HASH_CHECK == 1
+#if AES67_SAP_FILTER_XOR8 == 1
 
 #endif
 
