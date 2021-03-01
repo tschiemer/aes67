@@ -1013,6 +1013,11 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     };
 
     std::memset(data, 0, sizeof(data));
+
+    sap_event_reset();
+
+    CHECK_EQUAL(false, sap_event.isset);
+
     len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p1.status, p1.msg_id_hash, &p1.ip, &sdp, gl_user_data);
 
     CHECK_EQUAL(len, sap.announcement_size);
@@ -1034,6 +1039,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
 
     aes67_sap_service_announcement_check(&sap, gl_user_data);
 
+    CHECK_EQUAL(false, sap_event.isset);
     CHECK_EQUAL(aes67_timer_state_set, aes67_sap_service_announcement_timer_state(&sap));
 
 
@@ -1046,6 +1052,12 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     aes67_sap_service_announcement_check(&sap, gl_user_data);
 
     CHECK_EQUAL(aes67_timer_state_unset,aes67_sap_service_announcement_timer_state(&sap));
+
+    CHECK_EQUAL(true, sap_event.isset);
+    CHECK_EQUAL(aes67_sap_event_announcement_request, sap_event.event);
+    CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
+    CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver);
+    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, AES67_NET_IPVER_SIZE(p1.ip.ipver));
 
 
     aes67_sap_service_deinit(&sap);

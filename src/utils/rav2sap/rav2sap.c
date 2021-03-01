@@ -57,6 +57,10 @@ static void help(FILE * fd)
             , argv0);
 }
 
+// to see syslog in terminal (not in console app)
+// log stream --info --debug --predicate "process == 'rav2sap'"
+// see https://unix.stackexchange.com/questions/545047/how-to-write-to-var-log-system-log-on-a-mac
+
 // Thanks to Pascal Werkl https://stackoverflow.com/a/17955149/1982142
 static void skeleton_daemon()
 {
