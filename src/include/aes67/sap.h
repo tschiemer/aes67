@@ -138,7 +138,8 @@ enum aes67_sap_event {
     (__e__) == aes67_sap_event_new || \
     (__e__) == aes67_sap_event_refreshed || \
     (__e__) == aes67_sap_event_deleted || \
-    (__e__) == aes67_sap_event_timeout \
+    (__e__) == aes67_sap_event_timeout  || \
+    (__e__) == aes67_sap_event_announcement_request \
 )
 
 // internal status bits
@@ -292,6 +293,8 @@ inline enum aes67_timer_state aes67_sap_service_timeout_timer_state(struct aes67
 {
     return aes67_timer_getstate(&sap->timeout_timer);
 }
+
+void aes67_sap_service_announcement_check(struct aes67_sap_service *sap, void *user_data);
 
 /**
  * Sets timeout timer to when first/next session will timeout.

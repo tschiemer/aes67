@@ -45,6 +45,10 @@ static void aes67_sap_service_unregister(struct aes67_sap_service * sap, struct 
 #endif
 
 
+#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
+static u32_t get_timeout_sec(struct aes67_sap_service *sap, u16_t stat, u32_t timeout_after_sec);
+#endif
+
 
 
 void aes67_sap_service_init(struct aes67_sap_service *sap)
@@ -256,45 +260,11 @@ u32_t aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_
 
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
-
-void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
+u32_t get_timeout_sec(struct aes67_sap_service *sap, u16_t stat, u32_t timeout_after_sec)
 {
-    AES67_ASSERT("sap != NULL", sap != NULL);
-
-    // if the timer is set, do not set again.
-    if (aes67_timer_getstate(&sap->announcement_timer) != aes67_timer_state_unset) {
-        return;
-    }
-
-    aes67_sap_service_update_times(sap);
-
-    // actually set timer
-    aes67_timer_set(&sap->announcement_timer, 1000 * sap->announcement_sec);
-}
-
-
-void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
-{
-    AES67_ASSERT("sap != NULL", sap != NULL);
-
-    // if the timer is set, do not set again.
-    if (aes67_timer_getstate(&sap->timeout_timer) != aes67_timer_state_unset) {
-        return;
-    }
-
-    // do NOT set timer if there are not sessions registered in the first place
-    if (sap->no_of_ads == 0) {
-        return;
-    }
-
-    aes67_sap_service_update_times(sap);
-
     aes67_time_t now;
 
     aes67_time_now(&now);
-
-    // max(3600, 10 * ad_interval)
-    u32_t timeout_after = 1000 * sap->timeout_sec;
 
     // get age of oldest announcement
     u32_t oldest = 0;
@@ -304,7 +274,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
     for(u16_t i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
 
         // only check session not coming from this service
-        if ( (sap->sessions[i].stat & AES67_SAP_SESSION_STAT_SET) && (sap->sessions[i].stat & AES67_SAP_SESSION_STAT_SRC_IS_SELF) != AES67_SAP_SESSION_STAT_SRC_IS_SELF){
+        if ( (sap->sessions[i].stat & AES67_SAP_SESSION_STAT_SET) && (sap->sessions[i].stat & AES67_SAP_SESSION_STAT_SRC_IS_SELF) == stat){
 
             u32_t age = aes67_time_diffmsec(&now, &sap->sessions[i].last_announcement);
 
@@ -313,10 +283,10 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 
                 // in case there is at least one that has timed out already,
                 // set timer and stop further processing
-                if (oldest > timeout_after){
-                    aes67_timer_set(&sap->timeout_timer, AES67_TIMER_NOW);
+                if (oldest > timeout_after_sec){
+//                    aes67_timer_set(&sap->timeout_timer, AES67_TIMER_NOW);
 
-                    return;
+                    return AES67_TIMER_NOW;
                 }
             }
         }
@@ -338,10 +308,10 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 
                 // in case there is at least one that has timed out already,
                 // set timer and stop further processing
-                if (oldest > timeout_after){
-                    aes67_timer_set(&sap->timeout_timer, AES67_TIMER_NOW);
+                if (oldest > timeout_after_sec){
+//                    aes67_timer_set(&sap->timeout_timer, AES67_TIMER_NOW);
 
-                    return;
+                    return AES67_TIMER_NOW;
                 }
             }
         }
@@ -349,7 +319,114 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 
 #endif
 
-    aes67_timer_set(&sap->timeout_timer, (timeout_after - oldest + 1) * 1000);
+    return (timeout_after_sec - oldest + 1);
+}
+
+
+void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
+{
+    AES67_ASSERT("sap != NULL", sap != NULL);
+
+    // if the timer is set, do not set again.
+    if (aes67_timer_getstate(&sap->announcement_timer) != aes67_timer_state_unset) {
+        return;
+    }
+
+    // do NOT set timer if there are not sessions registered in the first place
+    if (sap->no_of_ads == 0) {
+        return;
+    }
+
+    aes67_sap_service_update_times(sap);
+
+    u32_t timeout_after_sec = sap->announcement_sec;
+
+    timeout_after_sec = get_timeout_sec(sap, !AES67_SAP_SESSION_STAT_SRC_IS_SELF, timeout_after_sec);
+
+    // actually set timer
+    aes67_timer_set(&sap->announcement_timer, 1000 * timeout_after_sec);
+}
+
+
+void aes67_sap_service_announcement_check(struct aes67_sap_service *sap, void *user_data)
+{
+    AES67_ASSERT("sap != NULL", sap != NULL);
+
+    aes67_time_t now;
+
+    aes67_time_now(&now);
+
+    // max(3600, 10 * ad_interval)
+    u32_t timeout_after = sap->announcement_sec;
+
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
+
+    for(u16_t i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
+
+        // only check session not coming from this service
+        if ( (sap->sessions[i].stat & AES67_SAP_SESSION_STAT_SET) && (sap->sessions[i].stat & AES67_SAP_SESSION_STAT_SRC_IS_SELF) == AES67_SAP_SESSION_STAT_SRC_IS_SELF){
+
+            u32_t age = aes67_time_diffmsec(&sap->sessions[i].last_announcement, &now);
+
+            if (timeout_after < age){
+
+                aes67_sap_service_event(sap, aes67_sap_event_announcement_request, sap->sessions[i].hash,
+                                        sap->sessions[i].src.ipver, sap->sessions[i].src.addr, NULL, 0, NULL, 0,
+                                        user_data);
+            }
+        }
+    }
+
+#else // AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+
+    struct aes67_sap_session * current = sap->first_session;
+
+    for(;current != NULL; current = current->next) {
+
+        // only check session not coming from this service
+        if ((current->stat & AES67_SAP_SESSION_STAT_SET) && (current->stat & AES67_SAP_SESSION_STAT_SRC_IS_SELF) == AES67_SAP_SESSION_STAT_SRC_IS_SELF){
+
+            u32_t age = aes67_time_diffmsec(&current->last_announcement, &now);
+
+            if (timeout_after < age){
+
+                aes67_sap_service_event(sap, aes67_sap_event_announcement_request, current->hash, current->src.ipver, current->src.addr, NULL, 0, NULL, 0, user_data);
+
+            }
+        }
+    }
+
+#endif
+
+    // make sure to reset/unset timer state
+    if (aes67_timer_getstate(&sap->announcement_timer) == aes67_timer_state_expired) {
+        aes67_timer_unset(&sap->announcement_timer);
+    }
+}
+
+
+void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
+{
+    AES67_ASSERT("sap != NULL", sap != NULL);
+
+    // if the timer is set, do not set again.
+    if (aes67_timer_getstate(&sap->timeout_timer) != aes67_timer_state_unset) {
+        return;
+    }
+
+    // do NOT set timer if there are not sessions registered in the first place
+    if (sap->no_of_ads == 0) {
+        return;
+    }
+
+    aes67_sap_service_update_times(sap);
+
+    // max(3600, 10 * ad_interval)
+    u32_t timeout_after_sec = 1000 * sap->timeout_sec;
+
+    timeout_after_sec = get_timeout_sec(sap, !AES67_SAP_SESSION_STAT_SRC_IS_SELF, timeout_after_sec);
+
+    aes67_timer_set(&sap->timeout_timer, 1000*timeout_after_sec);
 }
 
 void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service *sap, void *user_data)
@@ -778,9 +855,6 @@ u16_t aes67_sap_service_msg_sdp(struct aes67_sap_service *sap, u8_t *msg, u16_t 
 
 void aes67_sap_service_process(struct aes67_sap_service *sap, void * user_data)
 {
-    aes67_sap_service_update_times(sap);
-
-
     enum aes67_timer_state timerState;
 
     timerState = aes67_sap_service_timeout_timer_state(sap);
@@ -797,7 +871,6 @@ void aes67_sap_service_process(struct aes67_sap_service *sap, void * user_data)
     if (timerState == aes67_timer_state_unset){
         aes67_sap_service_set_announcement_timer(sap);
     } else if (timerState == aes67_timer_state_expired){
-//        aes67_sap_service_announcement_request(sap, user_data);
-//        aes67_timer_unset(&sap->announcement_timer);
+        aes67_sap_service_announcement_check(sap, user_data);
     }
 }

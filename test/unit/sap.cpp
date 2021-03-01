@@ -965,21 +965,31 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     CHECK_EQUAL(0, sap.announcement_sec);
     CHECK_FALSE(aes67_sap_service_announcement_timer_state(&sap));
 
-    // this should trigger the timer to be called as soon as possible.
+
+    // as there is no prior announcement, timer will not be set
     aes67_sap_service_set_announcement_timer(&sap);
 
-    CHECK_EQUAL(aes67_timer_state_set, aes67_timer_getstate(&sap.announcement_timer));
-    CHECK_EQUAL(AES67_TIMER_NOW , timer_gettimeout(&sap.announcement_timer));
+    CHECK_EQUAL(aes67_timer_state_unset, aes67_timer_getstate(&sap.announcement_timer));
 
-    // ASYNC expire timer
-    timer_expire(&sap.announcement_timer);
-
-    CHECK_TRUE(aes67_sap_service_announcement_timer_state(&sap));
-
-    // clear timer -> now we would sent a timer
-    aes67_timer_unset(&sap.announcement_timer);
-
-    CHECK_FALSE(aes67_sap_service_announcement_timer_state(&sap));
+//    u8_t msg[256];
+//
+//    aes67_sap_service_msg(&sap, msg, sizeof(msg), AES67_SAP_STATUS_MSGTYPE_ANNOUNCE, 4, aes67_net_ipver_4, (u8_t*)"\x01\x02\x03\x04", (u8_t*)"asdf", 5, NULL);
+//
+//    // this should trigger the timer to be called as soon as possible.
+//    aes67_sap_service_set_announcement_timer(&sap);
+//
+//    CHECK_EQUAL(aes67_timer_state_set, aes67_timer_getstate(&sap.announcement_timer));
+//    CHECK_EQUAL(AES67_TIMER_NOW , timer_gettimeout(&sap.announcement_timer));
+//
+//    // ASYNC expire timer
+//    timer_expire(&sap.announcement_timer);
+//
+//    CHECK_TRUE(aes67_sap_service_announcement_timer_state(&sap));
+//
+//    // clear timer -> now we would sent a timer
+//    aes67_timer_unset(&sap.announcement_timer);
+//
+//    CHECK_FALSE(aes67_sap_service_announcement_timer_state(&sap));
 
 
     struct aes67_sdp sdp = {
@@ -1022,7 +1032,21 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     CHECK_EQUAL(aes67_timer_state_set, aes67_timer_getstate(&sap.announcement_timer));
     CHECK_COMPARE(0 , <, timer_gettimeout(&sap.announcement_timer));
 
+    aes67_sap_service_announcement_check(&sap, gl_user_data);
+
     CHECK_EQUAL(aes67_timer_state_set, aes67_sap_service_announcement_timer_state(&sap));
+
+
+    time_add_now_ms(1000*sap.announcement_sec);
+
+    timer_expire(&sap.announcement_timer);
+
+    CHECK_EQUAL(aes67_timer_state_expired,aes67_sap_service_announcement_timer_state(&sap));
+
+    aes67_sap_service_announcement_check(&sap, gl_user_data);
+
+    CHECK_EQUAL(aes67_timer_state_unset,aes67_sap_service_announcement_timer_state(&sap));
+
 
     aes67_sap_service_deinit(&sap);
 }
