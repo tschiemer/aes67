@@ -683,7 +683,8 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service *sap, u8_t *msg, u16_t maxl
         return 0;
     }
 
-    AES67_ASSERT("auth_len isset", msg[AES67_SAP_AUTH_LEN] > 0);
+    // if the auth_len can be zero, the auth_add can selectively add authentication data
+//    AES67_ASSERT("auth_len isset", msg[AES67_SAP_AUTH_LEN] > 0);
 
     // add authentication data len to total message length
     len += 4 * msg[AES67_SAP_AUTH_LEN];
