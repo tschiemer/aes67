@@ -252,26 +252,39 @@ inline void aes67_sap_service_update_times(struct aes67_sap_service * sap)
 }
 
 /**
+ * Get announcement timer state
+ *
+ * (Comfort) function does not have to be used, but rather can if timer handler does not already handle everything.
+ *
+ * @param sap
+ * @return true iff announcement may/should occur now
+ */
+inline enum aes67_timer_state aes67_sap_service_announcement_timer_state(struct aes67_sap_service * sap)
+{
+    return sap->announcement_timer.state;
+}
+
+
+/**
  * Sets and enables announcement timer to trigger when next announcement can/should be sent.
  *
  * @param sap
  */
 void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap);
 
+
 /**
- * Query service wether an announcement can or should be done now.
+ * Get timeout timer state
  *
- * Assumes the announcement timer was triggered.
  * (Comfort) function does not have to be used, but rather can if timer handler does not already handle everything.
  *
  * @param sap
- * @return true iff announcement may/should occur now
+ * @return true iff the timeout timer expired
  */
-inline uint8_t aes67_sap_service_announcement_timer_expired(struct aes67_sap_service * sap)
+inline enum aes67_timer_state aes67_sap_service_timeout_timer_state(struct aes67_sap_service * sap)
 {
-    return sap->announcement_timer.state == aes67_timer_state_expired;
+    return sap->timeout_timer.state;
 }
-
 
 /**
  * Sets timeout timer to when first/next session will timeout.
@@ -283,19 +296,6 @@ inline uint8_t aes67_sap_service_announcement_timer_expired(struct aes67_sap_ser
  * @param sap
  */
 void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap);
-
-/**
- * Query wether at least one registered session has (or should have) timed out.
- *
- * (Comfort) function does not have to be used, but rather can if timer handler does not already handle everything.
- *
- * @param sap
- * @return true iff the timeout timer expired
- */
-inline uint8_t aes67_sap_service_timeout_timer_expired(struct aes67_sap_service * sap)
-{
-    return sap->timeout_timer.state == aes67_timer_state_expired;
-}
 
 /**
  * Deletes timed out sessions

@@ -960,9 +960,9 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     aes67_sap_service_init(&sap);
     expected_user_data = gl_user_data;
 
-    CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
+    CHECK_FALSE(aes67_sap_service_announcement_timer_state(&sap));
     CHECK_EQUAL(0, sap.announcement_sec);
-    CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
+    CHECK_FALSE(aes67_sap_service_announcement_timer_state(&sap));
 
     // this should trigger the timer to be called as soon as possible.
     aes67_sap_service_set_announcement_timer(&sap);
@@ -973,12 +973,12 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     // ASYNC expire timer
     timer_expire(&sap.announcement_timer);
 
-    CHECK_TRUE(aes67_sap_service_announcement_timer_expired(&sap));
+    CHECK_TRUE(aes67_sap_service_announcement_timer_state(&sap));
 
     // clear timer -> now we would sent a timer
     aes67_timer_unset(&sap.announcement_timer);
 
-    CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
+    CHECK_FALSE(aes67_sap_service_announcement_timer_state(&sap));
 
 
     struct aes67_sdp sdp = {
@@ -1006,7 +1006,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
 
     CHECK_EQUAL(len, sap.announcement_size);
 
-    CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
+    CHECK_FALSE(aes67_sap_service_announcement_timer_state(&sap));
 
     // the module assumes a packet is sent after creating it
     // thus the announcement time has changed (when times have been updates)
@@ -1021,8 +1021,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     CHECK_EQUAL(aes67_timer_state_set, aes67_timer_getstate(&sap.announcement_timer));
     CHECK_COMPARE(0 , <, timer_gettimeout(&sap.announcement_timer));
 
-    CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
-
+    CHECK_EQUAL(aes67_timer_state_set, aes67_sap_service_announcement_timer_state(&sap));
 
     aes67_sap_service_deinit(&sap);
 }
@@ -1044,7 +1043,7 @@ TEST(SAP_TestGroup, sap_timeouts)
 
 
     CHECK_COMPARE(0, <, sap.timeout_sec);
-    CHECK_FALSE(aes67_sap_service_timeout_timer_expired(&sap));
+    CHECK_EQUAL(aes67_timer_state_unset, aes67_sap_service_timeout_timer_state(&sap));
 
 
     uint8_t data[256];
@@ -1107,18 +1106,18 @@ TEST(SAP_TestGroup, sap_timeouts)
 //    CHECK_COMPARE(0, <, aes67_time_diffmsec(&sap_event.session_data.last_announcement, &t2a));
 
 
-    CHECK_FALSE(aes67_sap_service_timeout_timer_expired(&sap));
+    CHECK_EQUAL(aes67_timer_state_unset, aes67_sap_service_timeout_timer_state(&sap));
 
     aes67_sap_service_set_timeout_timer(&sap);
 
     // this should not fail (depends on timer implementation)
-    CHECK_FALSE(aes67_sap_service_timeout_timer_expired(&sap));
+    CHECK_EQUAL(aes67_timer_state_set, aes67_sap_service_timeout_timer_state(&sap));
 
     // try to clean up timeouts (timeout should not have happened yet)
     sap_event_reset();
     aes67_sap_service_timeouts_cleanup(&sap, gl_user_data);
 
-    CHECK_FALSE(aes67_sap_service_timeout_timer_expired(&sap));
+    CHECK_EQUAL(aes67_timer_state_set, aes67_sap_service_timeout_timer_state(&sap));
     CHECK_FALSE(sap_event.isset);
     CHECK_EQUAL(2, sap.no_of_ads);
 
@@ -1126,7 +1125,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     time_add_now_ms(1000*sap.timeout_sec);
     timer_expire(&sap.timeout_timer);
 
-    CHECK_TRUE(aes67_sap_service_timeout_timer_expired(&sap));
+    CHECK_EQUAL(aes67_timer_state_expired,aes67_sap_service_timeout_timer_state(&sap));
 
     sap_event_reset();
     aes67_sap_service_timeouts_cleanup(&sap, gl_user_data);
