@@ -248,23 +248,12 @@ struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap
  *
  * @param no_of_ads
  * @param announcement_size
- * @param timeout_sec
- * @return next_announcement_sec
+ * @param announce_sec          (nullable)
+ * @param timeout_sec           (nullable)
+ * @return
  */
-u32_t aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_t *timeout_sec);
+void aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_t *announce_sec, u32_t *timeout_sec);
 
-
-/**
- * Updates times used for timers
- *
- * (is called by set_announcement/timeout_timer)
- *
- * @param sap
- */
-inline void aes67_sap_service_update_times(struct aes67_sap_service * sap)
-{
-    sap->announcement_sec = aes67_sap_compute_times_sec(sap->no_of_ads, sap->announcement_size, &sap->timeout_sec);
-}
 
 /**
  * Get announcement timer state

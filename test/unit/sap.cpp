@@ -50,7 +50,7 @@ static u16_t packet2mem(uint8_t data[], sap_packet_t & packet);
 
 u16_t packet2mem(uint8_t data[], sap_packet_t & packet)
 {
-    data[AES67_SAP_STATUS] = packet.status;
+    data[AES67_SAP_STATUS] = (packet.status & ~AES67_SAP_STATUS_ADDRTYPE_MASK);
     data[AES67_SAP_AUTH_LEN] = packet.auth_len;
     data[AES67_SAP_MSG_ID_HASH] = (packet.msg_id_hash >> 8) & 0xff;
     data[AES67_SAP_MSG_ID_HASH+1] = packet.msg_id_hash & 0xff;
@@ -58,17 +58,20 @@ u16_t packet2mem(uint8_t data[], sap_packet_t & packet)
     u16_t len = AES67_SAP_ORIGIN_SRC;
 
     if ( packet.ip.ipver == aes67_net_ipver_4 ){
-        std::memcpy(&data[AES67_SAP_ORIGIN_SRC], packet.ip.addr, 4);
-        len += 4;
-        data[AES67_SAP_STATUS] = (data[AES67_SAP_STATUS] & ~AES67_SAP_STATUS_ADDRTYPE_MASK) | AES67_SAP_STATUS_ADDRTYPE_IPv4;
+        data[AES67_SAP_STATUS] |= AES67_SAP_STATUS_ADDRTYPE_IPv4;
     } else {
-        std::memcpy(&data[AES67_SAP_ORIGIN_SRC], packet.ip.addr, 16);
-        len += 16;
-        data[AES67_SAP_STATUS] = (data[AES67_SAP_STATUS] & ~AES67_SAP_STATUS_ADDRTYPE_MASK) | AES67_SAP_STATUS_ADDRTYPE_IPv6;
+        data[AES67_SAP_STATUS] |= AES67_SAP_STATUS_ADDRTYPE_IPv6;
+    }
+    std::memcpy(&data[AES67_SAP_ORIGIN_SRC], packet.ip.addr, AES67_NET_IPVER_SIZE(packet.ip.ipver));
+    len += AES67_NET_IPVER_SIZE(packet.ip.ipver);
+
+
+    if (packet.auth_len > 0) {
+        std::memcpy(&data[len], packet.authdata, packet.auth_len);
+        len += 4 * packet.auth_len;
     }
 
     if (packet.typelen > 0){
-
         std::memcpy(&data[len], packet.type, packet.typelen);
         len += packet.typelen;
     }
@@ -1037,9 +1040,6 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     // the module assumes a packet is sent after creating it
     // thus the announcement time has changed (when times have been updates)
 
-    aes67_sap_service_update_times(&sap);
-
-    CHECK_COMPARE(0, <, sap.announcement_sec);
 
     // this should trigger the timer to be called as soon as possible.
     aes67_sap_service_set_announcement_timer(&sap);

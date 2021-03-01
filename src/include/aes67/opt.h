@@ -68,6 +68,13 @@
 #define AES67_SAP_COMPRESS_ENABLED 0
 #endif
 
+#ifndef AES67_SAP_FILTER_ZEROHASH
+/**
+ * In SAPv2 acception messages with a hash value of zero is not required. SAPv1 allowed for zero-hashes.
+ */
+#define AES67_SAP_FILTER_ZEROHASH 1
+#endif
+
 #ifndef AES67_SAP_FILTER_SDP
 /**
  * Handle/pass on only SDP payloads

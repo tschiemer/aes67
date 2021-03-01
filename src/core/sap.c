@@ -225,22 +225,21 @@ void aes67_sap_service_unregister(struct aes67_sap_service * sap, struct aes67_s
 #endif //AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
 
 
-u32_t aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_t *timeout_sec)
+void aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_t *announce_sec, u32_t *timeout_sec)
 {
     // announcement size likely is 0 if no announcement has been sent yet.
-    if (announcement_size == 0) {
+    if (announcement_size == 0 || no_of_ads == 0) {
+
+        if (announce_sec != NULL) {
+            *announce_sec = 0;
+        }
 
         if (timeout_sec != NULL) {
             // max(3600, 10 * ad_interval)
             *timeout_sec = (u32_t)3600;
         }
 
-        return 0;
-    }
-
-    // min 1
-    if (no_of_ads == 0){
-        no_of_ads = 1;
+        return;
     }
 
     s32_t i = (8 * announcement_size * no_of_ads) / AES67_SAP_BANDWITH;
@@ -251,12 +250,14 @@ u32_t aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_
 
     u32_t next_tx = interval_sec + offset_sec;
 
+    if (announce_sec != NULL) {
+        *announce_sec = next_tx;
+    }
+
     if (timeout_sec != NULL) {
         // max(3600, 10 * ad_interval)
         *timeout_sec = (u32_t)(10 * (interval_sec > 360 ? interval_sec : 360));
     }
-
-    return next_tx;
 }
 
 
@@ -334,11 +335,11 @@ void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
     }
 
     // do NOT set timer if there are not sessions registered in the first place
-    if (sap->no_of_ads == 0) {
+    if (sap->no_of_ads == 0 || sap->announcement_size == 0) {
         return;
     }
 
-    aes67_sap_service_update_times(sap);
+    aes67_sap_compute_times_sec(sap->no_of_ads, sap->announcement_size, &sap->announcement_sec, NULL);
 
     u32_t timeout_after_sec = sap->announcement_sec;
 
@@ -420,7 +421,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
         return;
     }
 
-    aes67_sap_service_update_times(sap);
+    aes67_sap_compute_times_sec(sap->no_of_ads, sap->announcement_size, NULL, &sap->timeout_sec);
 
     // max(3600, 10 * ad_interval)
     u32_t timeout_after_sec = 1000 * sap->timeout_sec;
@@ -515,11 +516,12 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
 
     u16_t hash = aes67_ntohs( *(u16_t*)&msg[AES67_SAP_MSG_ID_HASH] );
 
+#if AES67_SAP_FILTER_ZEROHASH == 1
     // we may silently discard the SAP message if the message hash value is 0
-    // (which is the value we use for empty hashes)
     if (hash == 0){
         return;
     }
+#endif
 
     // TODO encrypted messages are not handled at this point in time.
     // the RFC actually recommends not to use encryption
@@ -528,10 +530,9 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
     }
 
     enum aes67_net_ipver ipver = ((msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_ADDRTYPE_MASK) == AES67_SAP_STATUS_ADDRTYPE_IPv4) ? aes67_net_ipver_4 : aes67_net_ipver_6;
-//    u8_t ip_len = ipver == aes67_net_ipver_4 ? 4 : 16;
 
     // position of payload
-    u16_t pos = 4 + AES67_NET_IPVER_SIZE(ipver) + 4 * msg[AES67_SAP_AUTH_LEN];
+    u16_t pos = AES67_SAP_ORIGIN_SRC + AES67_NET_IPVER_SIZE(ipver) + 4 * msg[AES67_SAP_AUTH_LEN];
 
     // make sure there is enough data there that we're going to check
     if (msglen < pos + 3){
