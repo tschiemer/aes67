@@ -22,14 +22,6 @@
 #include "aes67/debug.h"
 
 
-/**
- * See wether given session has ben registered prior and return related pointer.
- */
-#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
-static struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
-#else
-#define aes67_sap_service_find(sap, hash, ipver, ip) NULL
-#endif
 
 /**
  * Add a specific session to the session table.
@@ -110,7 +102,7 @@ struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
     for(u16_t i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
-        if (sap->sessions[i].hash == hash && sap->sessions[i].src.ipver == ipver && 0 == aes67_memcmp(sap->sessions[i].src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16))){
+        if (sap->sessions[i].hash == hash && sap->sessions[i].src.ipver == ipver && 0 == aes67_memcmp(sap->sessions[i].src.addr, ip, AES67_NET_IPVER_SIZE(ipver))){
             return &sap->sessions[i];
         }
     }
@@ -118,7 +110,7 @@ struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap
     struct aes67_sap_session * current = sap->first_session;
 
     while(current != NULL){
-        if (current->hash == hash && current->src.ipver == ipver && 0 == aes67_memcmp(current->src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16))){
+        if (current->hash == hash && current->src.ipver == ipver && 0 == aes67_memcmp(current->src.addr, ip, AES67_NET_IPVER_SIZE(ipver))){
             return current;
         }
         current = current->next;
@@ -141,7 +133,7 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
         if (sap->sessions[i].hash == 0){
             sap->sessions[i].hash = hash;
             sap->sessions[i].src.ipver = ipver;
-            aes67_memcpy(sap->sessions[i].src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16));
+            aes67_memcpy(sap->sessions[i].src.addr, ip, AES67_NET_IPVER_SIZE(ipver));
 
             // never let overflow
             if (sap->no_of_ads < AES67_SAP_MEMORY_MAX_SESSIONS){
@@ -382,7 +374,7 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service *sap, void *use
 
         if (timeout_after < age){
 
-            aes67_sap_service_event(sap, aes67_sap_event_timeout, current, NULL, 0, NULL, 0, user_data);
+            aes67_sap_service_event(sap, aes67_sap_event_timeout, current->hash, current->src.ipver, current->src.addr, NULL, 0, NULL, 0, user_data);
 
             aes67_sap_service_unregister(sap, current);
         }
@@ -431,10 +423,10 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
     }
 
     enum aes67_net_ipver ipver = ((msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_ADDRTYPE_MASK) == AES67_SAP_STATUS_ADDRTYPE_IPv4) ? aes67_net_ipver_4 : aes67_net_ipver_6;
-    u8_t ip_len = ipver == aes67_net_ipver_4 ? 4 : 16;
+//    u8_t ip_len = ipver == aes67_net_ipver_4 ? 4 : 16;
 
     // position of payload
-    u16_t pos = 4 + ip_len + 4 * msg[AES67_SAP_AUTH_LEN];
+    u16_t pos = 4 + AES67_NET_IPVER_SIZE(ipver) + 4 * msg[AES67_SAP_AUTH_LEN];
 
     // make sure there is enough data there that we're going to check
     if (msglen < pos + 3){
@@ -615,8 +607,6 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service *sap, u8_t *msg, u16_t maxl
         user_data = sap;
     }
 
-    u8_t is_ipv4 = (ipver == aes67_net_ipver_4);
-
     msg[AES67_SAP_STATUS] = AES67_SAP_STATUS_VERSION_2;
 
 #if AES67_SAP_COMPRESS_ENABLED == 1
@@ -625,14 +615,14 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service *sap, u8_t *msg, u16_t maxl
     msg[AES67_SAP_STATUS] |= (opt & AES67_SAP_STATUS_MSGTYPE_MASK);
 #endif
 
-    msg[AES67_SAP_STATUS] |= is_ipv4 ? AES67_SAP_STATUS_ADDRTYPE_IPv4 : AES67_SAP_STATUS_ADDRTYPE_IPv6;
+    msg[AES67_SAP_STATUS] |= (ipver == aes67_net_ipver_4) ? AES67_SAP_STATUS_ADDRTYPE_IPv4 : AES67_SAP_STATUS_ADDRTYPE_IPv6;
 
 
     *(u16_t*)&msg[AES67_SAP_MSG_ID_HASH] = aes67_htons(hash);
 
-    aes67_memcpy(&msg[AES67_SAP_ORIGIN_SRC], ip, (is_ipv4 ? 4 : 16));
+    aes67_memcpy(&msg[AES67_SAP_ORIGIN_SRC], ip, AES67_NET_IPVER_SIZE(ipver));
 
-    u16_t headerlen = AES67_SAP_ORIGIN_SRC + (is_ipv4 ? 4 : 16);
+    u16_t headerlen = AES67_SAP_ORIGIN_SRC + AES67_NET_IPVER_SIZE(ipver);
     u16_t len = headerlen;
 
     // safe move payload
@@ -706,7 +696,7 @@ u16_t aes67_sap_service_msg_sdp(struct aes67_sap_service *sap, u8_t *msg, u16_t 
     // so we just write all the payload exactly there, thus the actual packet writer will not have to move anything and
     // in particular no additional memory is required ;)
 
-    u16_t offset = (AES67_SAP_ORIGIN_SRC + sizeof(AES67_SDP_MIMETYPE)) + (ip->ipver == aes67_net_ipver_4 ? 4 : 16);
+    u16_t offset = (AES67_SAP_ORIGIN_SRC + sizeof(AES67_SDP_MIMETYPE)) + AES67_NET_IPVER_SIZE(ip->ipver);
 
     AES67_ASSERT("offset < maxlen", offset < maxlen);
 

@@ -36,10 +36,11 @@ extern "C" {
 #define AES67_NET_ADDR_SIZE 4
 #endif
 
+// the value equals the size in bytes
 enum aes67_net_ipver {
     aes67_net_ipver_undefined = 0,
     aes67_net_ipver_4    = 4,
-    aes67_net_ipver_6    = 6
+    aes67_net_ipver_6    = 16
 } PACK_STRUCT;
 
 #define AES67_NET_IPVER_ISVALID( __ip__ ) ( \
@@ -47,7 +48,7 @@ enum aes67_net_ipver {
     (__ip__) == aes67_net_ipver_6 \
     )
 
-#define AES67_NET_IPVER_SIZE( __ipver__) ((__ipver__) == aes67_net_ipver_4 ? 4 : 16)
+#define AES67_NET_IPVER_SIZE( __ipver__) ((u8_t)(__ipver__))
 
 struct aes67_net_addr {
     enum aes67_net_ipver ipver;

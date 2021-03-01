@@ -112,7 +112,7 @@ aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event even
 
     sap_event.hash = hash;
     sap_event.src.ipver = ipver;
-    std::memcpy(sap_event.src.addr, ip, ipver == aes67_net_ipver_4 ? 4 : 16);
+    std::memcpy(sap_event.src.addr, ip, AES67_NET_IPVER_SIZE(ipver));
 
     sap_event.payloadtype = payloadtype;
     sap_event.payloadtypelen = payloadtypelen;
@@ -294,7 +294,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
 #endif
     CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver );
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
+    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, (AES67_NET_IPVER_SIZE(p1.ip.ipver)));
 #endif
 
     // re-announce the same packet (ie same msg hash id + originating source)
@@ -349,7 +349,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
 #endif
     CHECK_EQUAL(p2.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p2.ip.ipver, sap_event.src.ipver );
-    MEMCMP_EQUAL(p2.ip.addr, sap_event.src.addr, (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
+    MEMCMP_EQUAL(p2.ip.addr, sap_event.src.addr, (AES67_NET_IPVER_SIZE(p2.ip.ipver)));
 #endif
 
     aes67_sap_service_deinit(&sap);
@@ -401,7 +401,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
 #endif
     CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver );
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
+    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, (AES67_NET_IPVER_SIZE(p1.ip.ipver)));
 #endif
 
 
@@ -456,7 +456,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
 #endif
     CHECK_EQUAL(p2.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p2.ip.ipver, sap_event.src.ipver );
-    MEMCMP_EQUAL(p2.ip.addr, sap_event.src.addr, (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
+    MEMCMP_EQUAL(p2.ip.addr, sap_event.src.addr, (AES67_NET_IPVER_SIZE(p2.ip.ipver)));
 #endif
 
 
@@ -621,7 +621,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
 #endif
     CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver );
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16));
+    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, (AES67_NET_IPVER_SIZE(p1.ip.ipver)));
 #endif
 
     // resubmit (-> refresh event)
@@ -853,7 +853,7 @@ TEST(SAP_TestGroup, sap_msg)
 
     assert(len > 0);
 
-    CHECK_EQUAL(AES67_SAP_ORIGIN_SRC + (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN] + sizeof(AES67_SDP_MIMETYPE) + sdp_len, len);
+    CHECK_EQUAL(AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p1.ip.ipver)) + 4*data[AES67_SAP_AUTH_LEN] + sizeof(AES67_SDP_MIMETYPE) + sdp_len, len);
     CHECK_EQUAL(AES67_SAP_STATUS_VERSION_2, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_VERSION_MASK);
     CHECK_EQUAL(AES67_SAP_STATUS_MSGTYPE_ANNOUNCE, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK);
     CHECK_EQUAL(AES67_SAP_STATUS_ADDRTYPE_IPv4, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_ADDRTYPE_MASK);
@@ -864,12 +864,12 @@ TEST(SAP_TestGroup, sap_msg)
     CHECK_EQUAL(0, data[AES67_SAP_AUTH_LEN]);
 #else
     CHECK_TRUE(0 < data[AES67_SAP_AUTH_LEN]);
-    MEMCMP_EQUAL(auth_data, &data[AES67_SAP_ORIGIN_SRC + (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16)], 4*data[AES67_SAP_AUTH_LEN]);
+    MEMCMP_EQUAL(auth_data, &data[AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p1.ip.ipver))], 4*data[AES67_SAP_AUTH_LEN]);
 #endif
     CHECK_EQUAL(p1.msg_id_hash, ntohs(*(uint16_t*)&data[AES67_SAP_MSG_ID_HASH]));
-    MEMCMP_EQUAL(p1.ip.addr, &data[AES67_SAP_ORIGIN_SRC], p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
+    MEMCMP_EQUAL(p1.ip.addr, &data[AES67_SAP_ORIGIN_SRC], AES67_NET_IPVER_SIZE(p1.ip.ipver));
 
-    int pos = AES67_SAP_ORIGIN_SRC + (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN];
+    int pos = AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p1.ip.ipver)) + 4*data[AES67_SAP_AUTH_LEN];
     STRCMP_EQUAL(AES67_SDP_MIMETYPE, (const char *)&data[pos]);
 
     MEMCMP_EQUAL(&data[pos + sizeof(AES67_SDP_MIMETYPE)], sdp_data, sdp_len);
@@ -891,7 +891,7 @@ TEST(SAP_TestGroup, sap_msg)
 
     assert(len > 0);
 
-    CHECK_EQUAL(AES67_SAP_ORIGIN_SRC + (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN] + sizeof(AES67_SDP_MIMETYPE) + sdp_len, len);
+    CHECK_EQUAL(AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p2.ip.ipver)) + 4*data[AES67_SAP_AUTH_LEN] + sizeof(AES67_SDP_MIMETYPE) + sdp_len, len);
     CHECK_EQUAL(AES67_SAP_STATUS_VERSION_2, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_VERSION_MASK);
     CHECK_EQUAL(AES67_SAP_STATUS_MSGTYPE_ANNOUNCE, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK);
     CHECK_EQUAL(AES67_SAP_STATUS_ADDRTYPE_IPv6, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_ADDRTYPE_MASK);
@@ -902,12 +902,12 @@ TEST(SAP_TestGroup, sap_msg)
     CHECK_EQUAL(0, data[AES67_SAP_AUTH_LEN]);
 #else
     CHECK_TRUE(0 < data[AES67_SAP_AUTH_LEN]);
-    MEMCMP_EQUAL(auth_data, &data[AES67_SAP_ORIGIN_SRC + (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16)], 4*data[AES67_SAP_AUTH_LEN]);
+    MEMCMP_EQUAL(auth_data, &data[AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p2.ip.ipver))], 4*data[AES67_SAP_AUTH_LEN]);
 #endif
     CHECK_EQUAL(p2.msg_id_hash, ntohs(*(uint16_t*)&data[AES67_SAP_MSG_ID_HASH]));
-    MEMCMP_EQUAL(p2.ip.addr, &data[AES67_SAP_ORIGIN_SRC], p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
+    MEMCMP_EQUAL(p2.ip.addr, &data[AES67_SAP_ORIGIN_SRC], AES67_NET_IPVER_SIZE(p2.ip.ipver));
 
-    pos = AES67_SAP_ORIGIN_SRC + (p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN];
+    pos = AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p2.ip.ipver)) + 4*data[AES67_SAP_AUTH_LEN];
     STRCMP_EQUAL(AES67_SDP_MIMETYPE, (const char *)&data[pos]);
 
     MEMCMP_EQUAL(&data[pos + sizeof(AES67_SDP_MIMETYPE)], sdp_data, sdp_len);
@@ -927,7 +927,7 @@ TEST(SAP_TestGroup, sap_msg)
 
     assert(len > 0);
 
-    CHECK_EQUAL(AES67_SAP_ORIGIN_SRC + (p3.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN] + sizeof(AES67_SDP_MIMETYPE) + origin_len, len);
+    CHECK_EQUAL(AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p3.ip.ipver)) + 4*data[AES67_SAP_AUTH_LEN] + sizeof(AES67_SDP_MIMETYPE) + origin_len, len);
     CHECK_EQUAL(AES67_SAP_STATUS_VERSION_2, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_VERSION_MASK);
     CHECK_EQUAL(AES67_SAP_STATUS_MSGTYPE_DELETE, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK);
     CHECK_EQUAL(AES67_SAP_STATUS_ADDRTYPE_IPv4, data[AES67_SAP_STATUS] & AES67_SAP_STATUS_ADDRTYPE_MASK);
@@ -938,12 +938,12 @@ TEST(SAP_TestGroup, sap_msg)
     CHECK_EQUAL(0, data[AES67_SAP_AUTH_LEN]);
 #else
     CHECK_TRUE(0 < data[AES67_SAP_AUTH_LEN]);
-    MEMCMP_EQUAL(auth_data, &data[AES67_SAP_ORIGIN_SRC + (p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16)], 4*data[AES67_SAP_AUTH_LEN]);
+    MEMCMP_EQUAL(auth_data, &data[AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p1.ip.ipver))], 4*data[AES67_SAP_AUTH_LEN]);
 #endif
     CHECK_EQUAL(p3.msg_id_hash, ntohs(*(uint16_t*)&data[AES67_SAP_MSG_ID_HASH]));
-    MEMCMP_EQUAL(p3.ip.addr, &data[AES67_SAP_ORIGIN_SRC], p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
+    MEMCMP_EQUAL(p3.ip.addr, &data[AES67_SAP_ORIGIN_SRC], AES67_NET_IPVER_SIZE(p1.ip.ipver));
 
-    pos = AES67_SAP_ORIGIN_SRC + (p3.ip.ipver == aes67_net_ipver_4 ? 4 : 16) + 4*data[AES67_SAP_AUTH_LEN];
+    pos = AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p3.ip.ipver)) + 4*data[AES67_SAP_AUTH_LEN];
     STRCMP_EQUAL(AES67_SDP_MIMETYPE, (const char *)&data[pos]);
 
     MEMCMP_EQUAL(&data[pos + sizeof(AES67_SDP_MIMETYPE)], origin_data, origin_len);
@@ -1170,7 +1170,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_EQUAL(aes67_sap_event_timeout, sap_event.event);
     CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver);
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, p1.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
+    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, AES67_NET_IPVER_SIZE(p1.ip.ipver));
 
 
     // step another half a timeout into the future
@@ -1185,7 +1185,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_EQUAL(aes67_sap_event_timeout, sap_event.event);
     CHECK_EQUAL(p2.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p2.ip.ipver, sap_event.src.ipver);
-    MEMCMP_EQUAL(p2.ip.addr, sap_event.src.addr, p2.ip.ipver == aes67_net_ipver_4 ? 4 : 16);
+    MEMCMP_EQUAL(p2.ip.addr, sap_event.src.addr, AES67_NET_IPVER_SIZE(p2.ip.ipver));
 
 
     aes67_sap_service_deinit(&sap);

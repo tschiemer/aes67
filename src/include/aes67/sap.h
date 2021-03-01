@@ -220,6 +220,15 @@ void aes67_sap_service_deinit(struct aes67_sap_service * sap);
 
 
 /**
+ * See wether given session has ben registered prior and return related pointer.
+ */
+#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
+struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
+#else
+#define aes67_sap_service_find(sap, hash, ipver, ip) NULL
+#endif
+
+/**
  * Computes announcement and timeout time (in sec)
  *
  * @param no_of_ads
