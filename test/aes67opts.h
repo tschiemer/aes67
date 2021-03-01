@@ -27,4 +27,9 @@
     aes67_time_t started; \
     u32_t timeout_ms;
 
+//#define AES67_SAP_AUTH_ENABLED 1
+//#define AES67_SAP_AUTH_SELF 1
+//#define AES67_SAP_DECOMPRESS_AVAILABLE 1
+//#define AES67_SAP_COMPRESS_ENABLED 1
+
 #endif //AES67_AES67OPTS_H_H

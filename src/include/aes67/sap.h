@@ -130,7 +130,8 @@ enum aes67_sap_event {
     aes67_sap_event_new,
     aes67_sap_event_refreshed,
     aes67_sap_event_deleted,
-    aes67_sap_event_timeout
+    aes67_sap_event_timeout,
+    aes67_sap_event_announcement_request
 };
 
 #define AES67_SAP_EVENT_IS_VALID(__e__) ( \
@@ -140,10 +141,17 @@ enum aes67_sap_event {
     (__e__) == aes67_sap_event_timeout \
 )
 
+// internal status bits
+#define AES67_SAP_SESSION_STAT_CLEAR        0
+
+#define AES67_SAP_SESSION_STAT_SET          1
+#define AES67_SAP_SESSION_STAT_SRC_IS_SELF  2
+
 /**
  * Structure of internal session data
  */
 struct aes67_sap_session {
+    u16_t stat; // for internal use
     u16_t hash;
     struct aes67_net_addr src;
     aes67_time_t last_announcement;
@@ -153,11 +161,11 @@ struct aes67_sap_session {
     enum aes67_sap_auth_result authenticated;
 #endif
 
-    void * data; // optional user data
-
 #if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
     struct aes67_sap_session * next;
 #endif
+
+//    void * data; // optional user data
 };
 
 
@@ -188,8 +196,6 @@ struct aes67_sap_service {
      * Timer functionality for approximating the next time a session times out
      */
     struct aes67_timer timeout_timer;
-
-//    void * user_data;
 
     /**
      * Counter of active packets
@@ -261,10 +267,11 @@ inline void aes67_sap_service_update_times(struct aes67_sap_service * sap)
  */
 inline enum aes67_timer_state aes67_sap_service_announcement_timer_state(struct aes67_sap_service * sap)
 {
-    return sap->announcement_timer.state;
+    return aes67_timer_getstate(&sap->announcement_timer);
 }
 
 
+#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
 /**
  * Sets and enables announcement timer to trigger when next announcement can/should be sent.
  *
@@ -283,7 +290,7 @@ void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap);
  */
 inline enum aes67_timer_state aes67_sap_service_timeout_timer_state(struct aes67_sap_service * sap)
 {
-    return sap->timeout_timer.state;
+    return aes67_timer_getstate(&sap->timeout_timer);
 }
 
 /**
@@ -305,6 +312,11 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap);
  * @param sap
  */
 void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service *sap, void *user_data);
+
+
+void aes67_sap_service_process(struct aes67_sap_service *sap, void * user_data);
+#endif // AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
+
 
 /**
  * Handles incoming SAP message and triggers event callback accordingly.
@@ -373,6 +385,8 @@ aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event even
                         enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype, u16_t payloadtypelen,
                         u8_t *payload, u16_t payloadlen, void *user_data);
 
+
+
 #if AES67_SAP_AUTH_ENABLED == 1
 
 /**
@@ -392,7 +406,7 @@ aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event even
  * @param user_data         As set in aes67_sap_service_init(..)
  * @return                  Wether the message contains valid authentication data (or does not contain validation data)
  */
-extern enum aes67_sap_auth_result aes67_sap_service_auth_validate(u8_t * msg, u16_t msglen, void * user_data);
+extern enum aes67_sap_auth_result aes67_sap_service_auth_validate(struct aes67_sap_service *sap, u8_t *msg, u16_t msglen, void *user_data);
 
 #endif //AES67_SAP_AUTH_ENABLED == 1
 
@@ -413,7 +427,7 @@ extern enum aes67_sap_auth_result aes67_sap_service_auth_validate(u8_t * msg, u1
  * @param user_data     As set in aes67_sap_service_init(..)
  * @return  0 on success, error otherwise
  */
-extern u8_t aes67_sap_service_auth_add(u8_t * msg, u16_t msglen, u16_t maxlen, void * user_data);
+extern u8_t aes67_sap_service_auth_add(struct aes67_sap_service *sap, u8_t *msg, u16_t msglen, u16_t maxlen, void *user_data);
 
 #endif //AES67_SAP_AUTH_SELF == 1
 
@@ -462,7 +476,6 @@ extern void aes67_sap_zlib_decompress_free(u8_t * payload);
 extern u16_t aes67_sap_zlib_compress(u8_t * payload, u16_t payloadlen, u16_t maxlen, void * user_data);
 
 #endif //AES67_SAP_COMPRESS_ENABLED == 1
-
 
 
 #ifdef __cplusplus

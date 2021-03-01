@@ -46,7 +46,7 @@ enum aes67_timer_state {
 #else //AES67_TIMER_DECLARATION_INC == 0
 
 struct aes67_timer {
-    enum aes67_timer_state state;
+    volatile enum aes67_timer_state state;
 
 #ifdef AES67_TIMER_DECLARATION
     AES67_TIMER_DECLARATION
