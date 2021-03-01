@@ -68,6 +68,10 @@
 #define AES67_SAP_COMPRESS_ENABLED 0
 #endif
 
+#ifndef AES67_SAP_HASH_CHECK
+#define AES67_SAP_HASH_CHECK 1
+#endif
+
 
 /******* Session Description Protocol (SDP) ********/
 

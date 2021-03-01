@@ -6,7 +6,7 @@ project(aes67-utils)
 
 add_subdirectory(sap-pack)
 add_subdirectory(sap-unpack)
-#add_subdirectory(sap-server)
+add_subdirectory(sap-server)
 
 add_subdirectory(sdp-parse)
 add_subdirectory(sdp-gen)

@@ -127,8 +127,9 @@ enum aes67_sap_auth_result {
  * @see aes67_sap_service_event(..)
  */
 enum aes67_sap_event {
+    aes67_sap_event_undefined = 0,
     aes67_sap_event_new,
-    aes67_sap_event_refreshed,
+    aes67_sap_event_updated,
     aes67_sap_event_deleted,
     aes67_sap_event_timeout,
     aes67_sap_event_announcement_request
@@ -136,7 +137,7 @@ enum aes67_sap_event {
 
 #define AES67_SAP_EVENT_IS_VALID(__e__) ( \
     (__e__) == aes67_sap_event_new || \
-    (__e__) == aes67_sap_event_refreshed || \
+    (__e__) == aes67_sap_event_updated || \
     (__e__) == aes67_sap_event_deleted || \
     (__e__) == aes67_sap_event_timeout  || \
     (__e__) == aes67_sap_event_announcement_request \
@@ -145,14 +146,17 @@ enum aes67_sap_event {
 // internal status bits
 #define AES67_SAP_SESSION_STAT_CLEAR        0
 
-#define AES67_SAP_SESSION_STAT_SET          1
-#define AES67_SAP_SESSION_STAT_SRC_IS_SELF  2
+#define AES67_SAP_SESSION_STAT_SET          0x1000
+#define AES67_SAP_SESSION_STAT_SRC_IS_SELF  0x2000
+
+#define AES67_SAP_SESSION_STAT_XOR8_HASH    0x00ff
 
 /**
  * Structure of internal session data
  */
 struct aes67_sap_session {
     u16_t stat; // for internal use
+
     u16_t hash;
     struct aes67_net_addr src;
     aes67_time_t last_announcement;
@@ -160,6 +164,10 @@ struct aes67_sap_session {
 #if AES67_SAP_AUTH_ENABLED == 1
     // these are not quite thought through yet, but show an the idea
     enum aes67_sap_auth_result authenticated;
+#endif
+
+#if AES67_SAP_HASH_CHECK == 1
+
 #endif
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC

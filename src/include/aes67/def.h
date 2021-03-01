@@ -154,6 +154,12 @@ u8_t aes67_hextobin(u8_t * str, u32_t nbytes, u8_t * bytes);
 u16_t aes67_itoa(s32_t value, u8_t * str, s32_t base);
 s32_t aes67_atoi(u8_t * str, size_t len, s32_t base, u16_t * readlen);
 
+u8_t aes67_xor8(u8_t * buf, size_t count);
+
+#ifndef aes67_crc32
+u32_t aes67_crc32(u8_t * buf, size_t count);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

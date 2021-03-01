@@ -20,6 +20,7 @@
 
 #include "aes67/sdp.h"
 #include "aes67/debug.h"
+#include "aes67/def.h"
 
 
 
@@ -621,7 +622,7 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
     u8_t * payload = &data[pos];
     u16_t payloadlen = datalen - pos;
 
-    enum aes67_sap_event event;
+    enum aes67_sap_event event = aes67_sap_event_undefined;
 
     // update internal session table according to
     if ( (msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE ){
@@ -634,7 +635,7 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
 
         } else {
 
-            event = aes67_sap_event_refreshed;
+            event = aes67_sap_event_updated;
         }
 
         // safety guard
@@ -647,6 +648,19 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
 #endif
 
             aes67_time_now(&session->last_announcement);
+
+#if AES67_SAP_HASH_CHECK == 1
+            u8_t xor8 = aes67_xor8(msg, msglen);
+
+            if (event == aes67_sap_event_new){
+                session->stat |= xor8;
+            } else { // updated
+                // if nothing has changed, abort
+                if ( (session->stat & AES67_SAP_SESSION_STAT_XOR8_HASH) == xor8){
+                    return;
+                }
+            }
+#endif
         }
 
     } else {

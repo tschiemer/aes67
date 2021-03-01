@@ -302,8 +302,10 @@ TEST(SAP_TestGroup, sap_handle_v2)
     sap_event_reset();
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
+#if AES67_SAP_HASH_CHECK == 1
+    CHECK_FALSE(sap_event.isset);
+#else // AES67_SAP_HASH_CHECK == 0
     CHECK_TRUE(sap_event.isset);
-
 
     CHECK_EQUAL(0, sap_event.payloadtypelen);
     CHECK_EQUAL(NULL, sap_event.payloadtype);
@@ -315,8 +317,9 @@ TEST(SAP_TestGroup, sap_handle_v2)
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
 #else
     CHECK_EQUAL(1, sap.no_of_ads);
-    CHECK_EQUAL(aes67_sap_event_refreshed, sap_event.event); // different event
+    CHECK_EQUAL(aes67_sap_event_updated, sap_event.event); // different event
 #endif
+#endif// AES67_SAP_HASH_CHECK == 0
 
     // delete session_data
     sap_packet_t p2 = {
@@ -409,7 +412,9 @@ TEST(SAP_TestGroup, sap_handle_v1)
     // re-announce the same packet (ie same msg hash id + originating source)
     sap_event_reset();
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
-
+#if AES67_SAP_HASH_CHECK == 1
+    CHECK_FALSE(sap_event.isset);
+#else // AES67_SAP_HASH_CHECK == 1
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(0, sap_event.payloadtypelen);
     CHECK_EQUAL(NULL, sap_event.payloadtype);
@@ -421,8 +426,9 @@ TEST(SAP_TestGroup, sap_handle_v1)
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
 #else
     CHECK_EQUAL(1, sap.no_of_ads);
-    CHECK_EQUAL(aes67_sap_event_refreshed, sap_event.event); // different event
+    CHECK_EQUAL(aes67_sap_event_updated, sap_event.event); // different event
 #endif
+#endif // AES67_SAP_HASH_CHECK == 1
 
     // delete session_data with "o=" payload start
     sap_packet_t p2 = {
@@ -629,14 +635,18 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     sap_event_reset();
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
+#if AES67_SAP_HASH_CHECK == 1
+    CHECK_FALSE(sap_event.isset);
+#else // AES67_SAP_HASH_CHECK == 0
     CHECK_TRUE(sap_event.isset);
 #if AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
 #else
     CHECK_EQUAL( 1, sap.no_of_ads);
-    CHECK_EQUAL(aes67_sap_event_refreshed, sap_event.event);
+    CHECK_EQUAL(aes67_sap_event_updated, sap_event.event);
 #endif
+#endif// AES67_SAP_HASH_CHECK == 0
 
 
     aes67_sap_service_deinit(&sap);

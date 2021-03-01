@@ -239,4 +239,46 @@ s32_t aes67_atoi(u8_t * str, size_t len, s32_t base, u16_t * readlen)
 //}
 //#endif
 
+u8_t aes67_xor8(u8_t * buf, size_t count)
+{
+    u8_t xor8 = 0;
+    while(count--){
+        xor8 += *buf++;
+    }
+    return (xor8 ^ 0xff) + 1;
+}
+
+#ifndef aes67_crc32
+// https://stackoverflow.com/questions/21001659/crc32-algorithm-implementation-in-c-without-a-look-up-table-and-with-a-public-li
+
+/* This is the basic CRC-32 calculation with some optimization but no
+table lookup. The the byte reversal is avoided by shifting the crc reg
+right instead of left and by using a reversed 32-bit word to represent
+the polynomial.
+   When compiled to Cyclops with GCC, this function executes in 8 + 72n
+instructions, where n is the number of bytes in the input message. It
+should be doable in 4 + 61n instructions.
+   If the inner loop is strung out (approx. 5*8 = 40 instructions),
+it would take about 6 + 46n instructions. */
+
+u32_t aes67_crc32(u8_t * buf, size_t count)
+{
+    int i, j;
+    unsigned int byte, crc, mask;
+
+    i = 0;
+    crc = 0xFFFFFFFF;
+    while (count--) {
+        byte = buf[i];            // Get next byte.
+        crc = crc ^ byte;
+        for (j = 7; j >= 0; j--) {    // Do eight times.
+            mask = -(crc & 1);
+            crc = (crc >> 1) ^ (0xEDB88320 & mask);
+        }
+        i = i + 1;
+    }
+    return ~crc;
+}
+#endif
+
 #endif /* BYTE_ORDER == LITTLE_ENDIAN */
