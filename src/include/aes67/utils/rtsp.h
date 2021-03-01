@@ -30,14 +30,15 @@
 #include "aes67/arch.h"
 #include "aes67/net.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define AES67_RTSP_DEFAULT_PORT     554
 #define AES67_RTSP_SCHEME           "rtsp"
 
 #define AES67_RTSP_STATUS_OK        200
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 void aes67_rtsp_header(u8_t * buf, ssize_t len);
 
