@@ -47,6 +47,8 @@ enum aes67_net_ipver {
     (__ip__) == aes67_net_ipver_6 \
     )
 
+#define AES67_NET_IPVER_SIZE( __ipver__) ((__ipver__) == aes67_net_ipver_4 ? 4 : 16)
+
 struct aes67_net_addr {
     enum aes67_net_ipver ipver;
     u16_t port;

@@ -189,7 +189,7 @@ struct aes67_sap_service {
      */
     struct aes67_timer timeout_timer;
 
-    void * user_data;
+//    void * user_data;
 
     /**
      * Counter of active packets
@@ -209,7 +209,7 @@ struct aes67_sap_service {
  *
  * @param sap
  */
-void aes67_sap_service_init(struct aes67_sap_service * sap, void * user_data);
+void aes67_sap_service_init(struct aes67_sap_service *sap);
 
 /**
  * Deinitalizes service data
@@ -295,7 +295,7 @@ inline uint8_t aes67_sap_service_timeout_timer_expired(struct aes67_sap_service 
  *
  * @param sap
  */
-void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap);
+void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service *sap, void *user_data);
 
 /**
  * Handles incoming SAP message and triggers event callback accordingly.
@@ -360,8 +360,9 @@ u16_t aes67_sap_service_msg_sdp(struct aes67_sap_service *sap, u8_t *msg, u16_t 
  * @param user_data         As set in aes67_sap_service_init(..)
  */
 extern void
-aes67_sap_service_event(enum aes67_sap_event event, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype,
-                        u16_t payloadtypelen, u8_t *payload, u16_t payloadlen, void *user_data);
+aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event event, u16_t hash,
+                        enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype, u16_t payloadtypelen,
+                        u8_t *payload, u16_t payloadlen, void *user_data);
 
 #if AES67_SAP_AUTH_ENABLED == 1
 

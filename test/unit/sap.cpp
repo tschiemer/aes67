@@ -98,8 +98,9 @@ inline void sap_event_reset()
 }
 
 void
-aes67_sap_service_event(enum aes67_sap_event event, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype,
-                        u16_t payloadtypelen, u8_t *payload, u16_t payloadlen, void *user_data)
+aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event event, u16_t hash,
+                        enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype, u16_t payloadtypelen,
+                        u8_t *payload, u16_t payloadlen, void *user_data)
 {
     CHECK_TRUE(AES67_SAP_EVENT_IS_VALID(event));
 //    CHECK_TRUE(session_data != nullptr); // this is actually not always the case (if we've run out of memory)
@@ -255,7 +256,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
     // make sure the auth
     AUTH_OK();
 
-    aes67_sap_service_init(&sap, gl_user_data);
+    aes67_sap_service_init(&sap);
     expected_user_data = gl_user_data;
 
     // announce valid packet
@@ -364,7 +365,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     // make sure the auth
     AUTH_OK();
 
-    aes67_sap_service_init(&sap, gl_user_data);
+    aes67_sap_service_init(&sap);
     expected_user_data = gl_user_data;
 
     // announce valid packet
@@ -522,7 +523,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     // make sure the auth
     AUTH_OK();
 
-    aes67_sap_service_init(&sap, gl_user_data);
+    aes67_sap_service_init(&sap);
     expected_user_data = gl_user_data;
 
     // announce valid packet
@@ -651,7 +652,7 @@ TEST(SAP_TestGroup, sap_handle_compressed)
     // make sure the auth
     AUTH_OK();
 
-    aes67_sap_service_init(&sap, gl_user_data);
+    aes67_sap_service_init(&sap);
     expected_user_data = gl_user_data;
 
     sap_packet_t p1 = {
@@ -689,7 +690,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
 {
     struct aes67_sap_service sap;
 
-    aes67_sap_service_init(&sap, gl_user_data);
+    aes67_sap_service_init(&sap);
     expected_user_data = gl_user_data;
 
     uint8_t data[256];
@@ -812,7 +813,7 @@ TEST(SAP_TestGroup, sap_msg)
 {
     struct aes67_sap_service sap;
 
-    aes67_sap_service_init(&sap, gl_user_data);
+    aes67_sap_service_init(&sap);
     expected_user_data = gl_user_data;
 
     struct aes67_sdp sdp = {
@@ -956,7 +957,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
 {
     struct aes67_sap_service sap;
 
-    aes67_sap_service_init(&sap, gl_user_data);
+    aes67_sap_service_init(&sap);
     expected_user_data = gl_user_data;
 
     CHECK_FALSE(aes67_sap_service_announcement_timer_expired(&sap));
@@ -1035,7 +1036,7 @@ TEST(SAP_TestGroup, sap_timeouts)
 #else
     struct aes67_sap_service sap;
 
-    aes67_sap_service_init(&sap, gl_user_data);
+    aes67_sap_service_init(&sap);
     expected_user_data = gl_user_data;
 
     // make sure to authenticate all messages
@@ -1115,7 +1116,7 @@ TEST(SAP_TestGroup, sap_timeouts)
 
     // try to clean up timeouts (timeout should not have happened yet)
     sap_event_reset();
-    aes67_sap_service_timeouts_cleanup(&sap);
+    aes67_sap_service_timeouts_cleanup(&sap, gl_user_data);
 
     CHECK_FALSE(aes67_sap_service_timeout_timer_expired(&sap));
     CHECK_FALSE(sap_event.isset);
@@ -1128,7 +1129,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_TRUE(aes67_sap_service_timeout_timer_expired(&sap));
 
     sap_event_reset();
-    aes67_sap_service_timeouts_cleanup(&sap);
+    aes67_sap_service_timeouts_cleanup(&sap, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL( 0, sap.no_of_ads);
@@ -1152,7 +1153,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_EQUAL(2, sap.no_of_ads);
 
     sap_event_reset();
-    aes67_sap_service_timeouts_cleanup(&sap);
+    aes67_sap_service_timeouts_cleanup(&sap, gl_user_data);
 
     CHECK_FALSE(sap_event.isset);
     CHECK_EQUAL(2, sap.no_of_ads);
@@ -1162,7 +1163,7 @@ TEST(SAP_TestGroup, sap_timeouts)
 
     // and
     sap_event_reset();
-    aes67_sap_service_timeouts_cleanup(&sap);
+    aes67_sap_service_timeouts_cleanup(&sap, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(1, sap.no_of_ads);
@@ -1177,7 +1178,7 @@ TEST(SAP_TestGroup, sap_timeouts)
 
     // and
     sap_event_reset();
-    aes67_sap_service_timeouts_cleanup(&sap);
+    aes67_sap_service_timeouts_cleanup(&sap, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
     CHECK_EQUAL(0, sap.no_of_ads);

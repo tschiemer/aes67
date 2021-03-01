@@ -55,11 +55,11 @@ static void aes67_sap_service_unregister(struct aes67_sap_service * sap, struct 
 
 
 
-void aes67_sap_service_init(struct aes67_sap_service * sap, void * user_data)
+void aes67_sap_service_init(struct aes67_sap_service *sap)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
 
-    sap->user_data = user_data;
+//    sap->user_data = user_data;
 
     sap->announcement_sec = 0;
     sap->announcement_size = 0;
@@ -172,11 +172,11 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
 
     session->hash = hash;
     session->src.ipver = ipver;
-    aes67_memcpy(session->src.addr, ip, (ipver == aes67_net_ipver_4 ? 4 : 16));
+    aes67_memcpy(session->src.addr, ip, AES67_NET_IPVER_SIZE(ipver));
     session->next = NULL;
 
     // never let overflow
-    if (sap->no_of_ads < UINT16_MAX - 1){
+    if (sap->no_of_ads < UINT16_MAX){
         sap->no_of_ads++;
     }
 
@@ -342,7 +342,7 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
     aes67_timer_set(&sap->timeout_timer, (timeout_after - oldest + 1) * 1000);
 }
 
-void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
+void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service *sap, void *user_data)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
 
@@ -363,7 +363,9 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
 
             if (timeout_after < age){
 
-                aes67_sap_service_event(aes67_sap_event_timeout, sap->sessions[i].hash, sap->sessions[i].src.ipver, sap->sessions[i].src.addr, NULL, 0, NULL, 0, sap->user_data);
+                aes67_sap_service_event(sap, aes67_sap_event_timeout, sap->sessions[i].hash,
+                                        sap->sessions[i].src.ipver, sap->sessions[i].src.addr, NULL, 0, NULL, 0,
+                                        user_data);
 
                 aes67_sap_service_unregister(sap, &sap->sessions[i]);
             }
@@ -380,7 +382,7 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service * sap)
 
         if (timeout_after < age){
 
-            aes67_sap_service_event(aes67_sap_event_timeout, current, NULL, 0, NULL, 0, sap->user_data);
+            aes67_sap_service_event(sap, aes67_sap_event_timeout, current, NULL, 0, NULL, 0, user_data);
 
             aes67_sap_service_unregister(sap, current);
         }
@@ -401,10 +403,6 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
     // make sure basic header is there
     if (msglen < 4){
         return;
-    }
-
-    if (user_data == NULL){
-        user_data = sap;
     }
 
     // discard SAPv0 packets
@@ -562,7 +560,8 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
 
     // publish event
     // NOTE if we've run out of memory when adding new sessions, session will be NULL!
-    aes67_sap_service_event(event, hash, ipver, &msg[AES67_SAP_ORIGIN_SRC], type, typelen, payload, payloadlen, user_data);
+    aes67_sap_service_event(sap, event, hash, ipver, &msg[AES67_SAP_ORIGIN_SRC], type, typelen, payload, payloadlen,
+                            user_data);
 
     // when deleting a session, do so after publishing the event to make the session data available for the callback
     if ( (msg[AES67_SAP_STATUS] & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_DELETE ){
@@ -592,8 +591,9 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
 }
 
 WEAK_FUN void
-aes67_sap_service_event(enum aes67_sap_event event, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype,
-                        u16_t payloadtypelen, u8_t *payload, u16_t payloadlen, void *user_data)
+aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event event, u16_t hash,
+                        enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype, u16_t payloadtypelen,
+                        u8_t *payload, u16_t payloadlen, void *user_data)
 {
 
 }
