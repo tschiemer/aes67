@@ -43,15 +43,16 @@ static void help(FILE * fd)
     fprintf( fd,
              "Usage: %s [-h?] | [-v] [-s|--sessions] [-d|--devices] [--receivers] [--senders] [--raw]\n"
              "Outputs any found session, receivers or senders as found per mDNS requests to STDOUT.\n"
-             "One result per line: <fullname> <host> <port> <txtlen> TODO TXT\n"
+             "One result per line: <fullname> <host> <port> [<txt>]\n"
              "If neither type is explicitly requested, looks for sessions only.\n"
              "Options:\n"
              "\t -h,-?\t\t Outputs this info\n"
-             "\t -v\t\t Some verbose output to STDOUT\n"
+             "\t -v\t\t Some status output to STDERR\n"
              "\t -s,--sessions\t Browse for sessions\n"
              "\t --receivers\t Browse for receiving devices\n"
              "\t --senders\t Browse for sending devices\n"
              "\t -d,--devices\t Browse for senders and receivers (shortcut for --receivers --senders)\n"
+             "\t -r, --raw\t Output raw mDNS results\n"
             , argv0);
 }
 
