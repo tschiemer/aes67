@@ -489,6 +489,29 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service *sap, void *use
         aes67_timer_unset(&sap->timeout_timer);
     }
 }
+
+
+void aes67_sap_service_process(struct aes67_sap_service *sap, void * user_data)
+{
+    enum aes67_timer_state timerState;
+
+    timerState = aes67_sap_service_timeout_timer_state(sap);
+
+    if (timerState == aes67_timer_state_unset) {
+        aes67_sap_service_set_timeout_timer(sap);
+    } else if (timerState == aes67_timer_state_expired) {
+        aes67_sap_service_timeouts_cleanup(sap, user_data);
+    }
+
+
+    timerState = aes67_sap_service_announcement_timer_state(sap);
+
+    if (timerState == aes67_timer_state_unset){
+        aes67_sap_service_set_announcement_timer(sap);
+    } else if (timerState == aes67_timer_state_expired){
+        aes67_sap_service_announcement_check(sap, user_data);
+    }
+}
 #endif //#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
 
 
@@ -872,26 +895,4 @@ u16_t aes67_sap_service_msg_sdp(struct aes67_sap_service *sap, u8_t *msg, u16_t 
     payloadlen += sizeof(AES67_SDP_MIMETYPE);
 
     return aes67_sap_service_msg(sap, msg, maxlen, opt, hash, ip->ipver, ip->addr, &msg[offset], payloadlen, user_data);
-}
-
-void aes67_sap_service_process(struct aes67_sap_service *sap, void * user_data)
-{
-    enum aes67_timer_state timerState;
-
-    timerState = aes67_sap_service_timeout_timer_state(sap);
-
-    if (timerState == aes67_timer_state_unset) {
-        aes67_sap_service_set_timeout_timer(sap);
-    } else if (timerState == aes67_timer_state_expired) {
-        aes67_sap_service_timeouts_cleanup(sap, user_data);
-    }
-
-
-    timerState = aes67_sap_service_announcement_timer_state(sap);
-
-    if (timerState == aes67_timer_state_unset){
-        aes67_sap_service_set_announcement_timer(sap);
-    } else if (timerState == aes67_timer_state_expired){
-        aes67_sap_service_announcement_check(sap, user_data);
-    }
 }
