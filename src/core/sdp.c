@@ -1274,16 +1274,27 @@ u32_t aes67_sdp_origin_fromstr(struct aes67_sdp_originator * origin, u8_t * str,
     AES67_ASSERT("str != NULL", str != NULL);
 
     // trim potentially trailing CRNL
-    while(len > 10 && (str[len-1] == CR || str[len-1] == NL)){
-        len--;
-    }
+//    while(len > 10 && (str[len-1] == CR || str[len-1] == NL)){
+//        len--;
+//    }
 
     if (len < sizeof("o=- 1 1 IN IP4 a")-1 || str[0] != 'o' || str[1] != '='){
         return AES67_SDP_ERROR;
     }
 
     u8_t * pos = &str[2];
-    u8_t * delim = NULL;
+
+    // detect line ending (just for comfort doing it here)
+    u8_t * delim = aes67_memchr(pos, '\n', len - 2);
+    if (delim != NULL){
+        delim--;
+        if (*delim == '\r'){
+            delim--;
+        }
+        len = delim - str + 1;
+    } else if (str[len-1] == CR){
+        len--;
+    }
 
     // username
     if (pos[0] == '-'){
