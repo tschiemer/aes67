@@ -26,7 +26,7 @@ https://github.com/tschiemer/aes67
     - [x] ~~authentication support?~~ -> interface for external implementation
   - [x] SDP
   - [ ] SIP ? (for unicast management according to standard, but most systems use multicast only..)
-  - [ ] RSTP ? (meaningful for system with Ravenna-based components if no RAV2SAP)
+  - [ ] RTSP ? (meaningful for system with Ravenna-based components if no RAV2SAP)
   - [ ] [AES70/OCA](https://github.com/tschiemer/ocac) *work in progress*
     - [x] [mDNS / DNS-SD](https://github.com/tschiemer/minimr)
 
