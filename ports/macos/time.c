@@ -32,7 +32,11 @@ void aes67_time_init_system(void)
 
 void aes67_time_deinit_system(void)
 {
-    mach_port_deallocate(mach_task_self(), clock_service);
+    if (clock_service){
+        // generates SIGILL...
+        mach_port_deallocate(mach_task_self(), clock_service);
+        clock_service = 0;
+    }
 }
 
 void aes67_time_now(aes67_time_t *timestamp)

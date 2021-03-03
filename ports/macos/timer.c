@@ -52,7 +52,11 @@ void aes67_timer_init(struct aes67_timer *timer)
 
 void aes67_timer_deinit(struct aes67_timer *timer)
 {
-    dispatch_release(timer->dispatchSource);
+    if (timer->dispatchSource){
+        // generates SIGILL...
+//        dispatch_release(timer->dispatchSource);
+        timer->dispatchSource = NULL;
+    }
 }
 
 void aes67_timer_set(struct aes67_timer *timer, u32_t millisec)
