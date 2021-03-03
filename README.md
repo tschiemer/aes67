@@ -240,7 +240,7 @@ Options:
 	 -d	 Print basic dbg info to STDERR
 	 -h,-?	 Prints this help.
 Examples:
-socat -u UDP4-RECVFROM:9875,ip-add-membership=224.2.127.254:192.168.1.122,fork - | ./sap-unpack -a
+socat -u UDP4-RECVFROM:9875,ip-add-membership=224.2.127.254:192.168.1.122,reuseport,reuseaddr,fork - | ./sap-unpack -a
 ```
 
 ### `sdp-parse`
