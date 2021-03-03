@@ -16,8 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AES67_UTILS_SAP_SERVER_H
-#define AES67_UTILS_SAP_SERVER_H
+#ifndef AES67_UTILS_SAPSRV_H
+#define AES67_UTILS_SAPSRV_H
 
 #include <aes67/sap.h>
 #include "aes67/arch.h"
@@ -37,29 +37,34 @@
 extern "C" {
 #endif
 
-typedef void * aes67_sapserver_t;
-typedef void * aes67_sapserver_session_t;
+typedef void * aes67_sapsrv_t;
+typedef void * aes67_sapsrv_session_t;
+
+//enum aes67_sapsrv_event {
+//    aes67_sapsrv_event_discovered,
+//    aes67_sapsrv_event_updated,
+//    aes67_sapsrv_event_deleted,
+//    aes67_sapsrv_event_timeout
+//};
+
+typedef void (*aes67_sapsrv_event_handler)(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sap_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
 
 
-typedef void (*aes67_sapserver_event_handler)(aes67_sapserver_t sapserver, enum aes67_sap_event event, u8_t * type, u16_t typelen, u8_t * payload, u16_t payloadlen, void * user_data);
+aes67_sapsrv_t aes67_sapsrv_start(const struct aes67_net_addr *listen_addr, const struct aes67_net_addr *iface_addr, aes67_sapsrv_event_handler event_handler, void *user_data);
+void aes67_sapsrv_stop(aes67_sapsrv_t sapserver);
 
+int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state);
 
-#if AES67_SAP_MEMORY != AES67_MEMORY_DYNAMIC
-void * aes67_sap_session_malloc(size_t size);
-void * aes67_sap_session_free(void * session);
-#endif
+void aes67_sapsrv_process(aes67_sapsrv_t sapserver);
 
-aes67_sapserver_t aes67_sapserver_start(const struct aes67_net_addr *listen_addr, const struct aes67_net_addr *iface_addr, aes67_sapserver_event_handler event_handler, void *user_data);
-void aes67_sapserver_stop(aes67_sapserver_t sapserver);
+aes67_sapsrv_session_t aes67_sapsrv_session_add(aes67_sapsrv_t sapserver, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t * ip, const u8_t * payload, const u16_t payloadlen);
+void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session, const u8_t * payload, const u16_t payloadlen);
+void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session);
 
-void aes67_sapserver_process(aes67_sapserver_t sapserver);
-
-aes67_sapserver_session_t aes67_sapserver_session_add(aes67_sapserver_t sapserver, const u8_t * type, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t * ip, const u16_t typelen, const u8_t * payload, const u16_t payloadlen);
-void aes67_sapserver_session_update(aes67_sapserver_t sapserver, aes67_sapserver_session_t session, const u8_t * payload, const u16_t payloadlen);
-void aes67_sapserver_session_remove(aes67_sapserver_t sapserver, aes67_sapserver_session_t session);
+aes67_sapsrv_session_t aes67_sapsrv_session_by_origin(aes67_sapsrv_t sapserver, const struct aes67_sdp_originator * origin);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif //AES67_UTILS_SAP_SERVER_H
+#endif //AES67_UTILS_SAPSRV_H
