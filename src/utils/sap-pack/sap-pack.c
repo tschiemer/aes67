@@ -90,7 +90,30 @@ static size_t readfile(char * fname, u8_t * buf, size_t maxlen)
     return len;
 }
 
+static bool get_originator(u8_t * payload, size_t len, struct aes67_sdp_originator * origin)
+{
+    if (len < sizeof("v=0\r\no=- 1 1 IN IP4 1")){
+        return false;
+    }
 
+    // try to detect originator start
+    u8_t * o;
+    if (payload[0] == 'v' && payload[1] == '=' && payload[2] == '0'){
+        if (payload[3] == '\n'){
+            o = &payload[4];
+        } else if (payload[4] == '\n'){
+            o = &payload[5];
+        } else {
+            return false;
+        }
+    } else if (payload[0] == 'o' && payload[1] == '='){
+        o = payload;
+    } else {
+        return false;
+    }
+
+    return AES67_SDP_OK == aes67_sdp_origin_fromstr(origin, o, &payload[len] - o);
+}
 
 static int generate_packet(u8_t * payload, size_t plen, size_t typelen)
 {
@@ -98,24 +121,18 @@ static int generate_packet(u8_t * payload, size_t plen, size_t typelen)
 
     size_t totallen = plen+typelen;
 
-    struct aes67_sdp sdp;
+    struct aes67_sdp_originator origin;
     bool parsed_sdp = false;
 
     if (is_sdp){
-        int r = aes67_sdp_fromstr(&sdp, &payload[typelen], plen, NULL);
-        if (r == AES67_SDP_OK || r == AES67_SDP_INCOMPLETE){
-            parsed_sdp = true;
-        } else {
-            parsed_sdp = false;
-//            fprintf(stderr, "SAP-PACK sdp parse error %d\n", r);
-        }
+        parsed_sdp = get_originator(&payload[typelen], plen, &origin);
     }
 
     u16_t hash;
 
     if (opts.extractMode == sdp_with_explicit_fallback){
         if (parsed_sdp){
-            hash = atoi((char*)sdp.originator.session_id.data);
+            hash = atoi((char*)origin.session_id.data);
         } else if (opts.hash != -1){
             hash = opts.hash;
         } else {
@@ -127,7 +144,7 @@ static int generate_packet(u8_t * payload, size_t plen, size_t typelen)
         if (opts.hash != -1){
             hash = opts.hash;
         } else if (parsed_sdp){
-            hash = atoi((char*)sdp.originator.session_id.data);
+            hash = atoi((char*)origin.session_id.data);
         } else {
             fprintf(stderr, "SAP-PACK no hash given, sdp parse fallback failed\n");
             return EXIT_FAILURE;
@@ -138,7 +155,7 @@ static int generate_packet(u8_t * payload, size_t plen, size_t typelen)
     struct aes67_net_addr ip;
 
     if (opts.extractMode == sdp_with_explicit_fallback){
-        if (aes67_net_str2addr(&ip, (u8_t*)sdp.originator.address.data, sdp.originator.address.length)){
+        if (aes67_net_str2addr(&ip, (u8_t*)origin.address.data, origin.address.length)){
             // success!
         }
         else if (opts.origin.ipver != aes67_net_ipver_undefined){
@@ -151,7 +168,7 @@ static int generate_packet(u8_t * payload, size_t plen, size_t typelen)
     else if (opts.extractMode == explicit_with_sdp_fallback){
         if (opts.origin.ipver != aes67_net_ipver_undefined){
             aes67_net_addrcp(&ip, &opts.origin);
-        } else if (aes67_net_str2addr(&ip, (u8_t*)sdp.originator.address.data, sdp.originator.address.length)){
+        } else if (aes67_net_str2addr(&ip, (u8_t*)origin.address.data, origin.address.length)){
             // success!
         } else {
             fprintf(stderr, "SAP-PACK no origin given, sdp parse fallback failed\n");
@@ -279,7 +296,7 @@ int main(int argc, char * argv[])
 
     u8_t inbuf[1500];
 
-    size_t typelen = (opts.v1 || opts.payloadtype == NULL) ? 0 : strlen((char*)opts.payloadtype);
+    size_t typelen = (opts.v1 || opts.payloadtype == NULL) ? 0 : (strlen((char*)opts.payloadtype) + 1);
 
     if (typelen > 0){
         strcpy((char*)inbuf, (char*)opts.payloadtype);
