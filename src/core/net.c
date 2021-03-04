@@ -164,8 +164,12 @@ s32_t aes67_net_str2ip(enum aes67_net_ipver * ipver, u8_t * ip, u16_t * port, u8
 u16_t aes67_net_ip2str(u8_t * str, enum aes67_net_ipver ipver, u8_t * addr, u16_t port)
 {
     AES67_ASSERT("str != NULL", str != NULL);
-    AES67_ASSERT("AES67_NET_IPVER_ISVALID(ipver)", AES67_NET_IPVER_ISVALID(ipver));
+//    AES67_ASSERT("AES67_NET_IPVER_ISVALID(ipver)", AES67_NET_IPVER_ISVALID(ipver));
     AES67_ASSERT("addr != NULL", addr != NULL);
+
+    if (ipver == aes67_net_ipver_undefined){
+        return 0;
+    }
 
 #if AES67_USE_IPv6 == 1
     AES67_ASSERT("ipver == aes67_net_ipver_4 || ipver == aes67_net_ipver_6", ipver == aes67_net_ipver_4 || ipver == aes67_net_ipver_6);
