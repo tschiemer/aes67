@@ -299,8 +299,11 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
     sapsrv_session_t * session = aes67_sapsrv_session_by_origin(server, &origin);
 
     if (event == aes67_sap_event_new || event == aes67_sap_event_updated){
+
+        enum aes67_sapsrv_event evt;
+
         if (session == NULL){
-            event = aes67_sap_event_new;
+            evt = aes67_sapsrv_event_discovered;
             session = session_new(server, hash, ipver, ip, &origin, payload, payloadlen);
         } else {
 
@@ -309,14 +312,15 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
                 return;
             }
 
+            evt = aes67_sapsrv_event_updated;
+
             // update originator
             memcpy(&session->origin, &origin, sizeof(struct aes67_sdp_originator));
         }
 
 
-
         // publish
-        server->event_handler(server, session, event, &session->origin, session->payload, session->payloadlen, server->user_data);
+        server->event_handler(server, session, evt, &session->origin, session->payload, session->payloadlen, server->user_data);
 
 
     } else if (event == aes67_sap_event_deleted || event == aes67_sap_event_timeout){
@@ -326,8 +330,10 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
             return;
         }
 
+        enum aes67_sapsrv_event evt = event == aes67_sap_event_deleted ? aes67_sapsrv_event_deleted : aes67_sapsrv_event_timeout;
+
         // publish
-        server->event_handler(server, session, event, &session->origin, session->payload, session->payloadlen, server->user_data);
+        server->event_handler(server, session, evt, &session->origin, session->payload, session->payloadlen, server->user_data);
 
         session_delete(server, session);
     }

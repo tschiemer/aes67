@@ -74,20 +74,21 @@ static void local_process();
 
 static int sapsrv_setup();
 static void sapsrv_teardown();
-static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sap_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
+static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
 
 static void write_error(struct connection_st * con, const u32_t code, const char * str);
 static void write_ok(struct connection_st * con);
+static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * except);
 
 static void cmd_help(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len);
-static void cmd_add(struct connection_st * con, u8_t * cmdline, size_t len);
+static void cmd_new(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_delete(struct connection_st * con, u8_t * cmdline, size_t len);
 
 static const struct cmd_st commands[] = {
         CMD_INIT(AES67_SAPD_CMD_HELP, cmd_help),
         CMD_INIT(AES67_SAPD_CMD_LIST, cmd_list),
-        CMD_INIT(AES67_SAPD_CMD_ADD, cmd_add),
+        CMD_INIT(AES67_SAPD_CMD_NEW, cmd_new),
         CMD_INIT(AES67_SAPD_CMD_DELETE, cmd_delete)
 };
 
@@ -455,6 +456,20 @@ static void write_ok(struct connection_st * con)
     write(con->sockfd, AES67_SAPD_MSG_OK "\n", sizeof(AES67_SAPD_MSG_OK));
 }
 
+static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * except)
+{
+    struct connection_st * current = local.first_connection;
+
+    while(current != NULL){
+
+        if (current != except){
+            write(current->sockfd, msg, len);
+        }
+
+        current = current->next;
+    }
+}
+
 static void cmd_help(struct connection_st * con, u8_t * cmdline, size_t len)
 {
     write(con->sockfd, "+MSG help\n", sizeof("+MSG help"));
@@ -469,9 +484,9 @@ static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len)
     write_ok(con);
 }
 
-static void cmd_add(struct connection_st * con, u8_t * cmdline, size_t len)
+static void cmd_new(struct connection_st * con, u8_t * cmdline, size_t len)
 {
-    if (len < sizeof(AES67_SAPD_CMD_ADD " 1")){
+    if (len < sizeof(AES67_SAPD_CMD_NEW " 1")){
         return write_error(con, AES67_SAPD_ERR_MISSING, NULL);
     }
 
@@ -529,12 +544,86 @@ static void sapsrv_teardown()
     aes67_time_deinit_system();
 }
 
-static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sap_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data)
+static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data)
 {
-    printf("sapsrv callback: %d\n", event);
+    u8_t ostr[256];
+    s32_t olen = aes67_sdp_origin_tostr(ostr, sizeof(ostr)-1, (struct aes67_sdp_originator *)origin);
 
+    if (olen >= 0){
+        olen -= 2; // remove CRNL
+        ostr[olen] = '\0';
+    } else {
+        strncpy((char*)ostr, "internal error", sizeof(ostr));
+    }
 
-    //TODO inform all clients
+    u8_t msg[1500];
+    ssize_t mlen;
+
+    if (event == aes67_sapsrv_event_discovered){
+        syslog(LOG_INFO, "SAP: discovered (payload %d): %s", payloadlen, ostr);
+
+        mlen = snprintf((char*)msg, sizeof(msg), "%s %d %s\n",
+                        AES67_SAPD_MSGU_NEW,
+                        payloadlen,
+                        ostr
+                        );
+
+        if (mlen + payloadlen + 1 >= sizeof(msg)){
+            syslog(LOG_ERR, "not enough memory");
+            return;
+        }
+
+        memcpy(&msg[mlen], payload, payloadlen);
+        mlen += payloadlen;
+
+//        msg[mlen++] = '\n'; // always add a newline?
+
+        write_toall_except(msg, mlen, NULL);
+    }
+    else if (event == aes67_sapsrv_event_updated){
+        syslog(LOG_INFO, "SAP: updated (payload %d): %s", payloadlen, ostr);
+
+        mlen = snprintf((char*)msg, sizeof(msg), "%s %d %s\n",
+                        AES67_SAPD_MSGU_UPDATED,
+                        payloadlen,
+                        ostr
+        );
+
+        if (mlen + payloadlen + 1 >= sizeof(msg)){
+            syslog(LOG_ERR, "not enough memory");
+            return;
+        }
+
+        memcpy(&msg[mlen], payload, payloadlen);
+        mlen += payloadlen;
+
+//        msg[mlen++] = '\n'; // always add a newline?
+
+        write_toall_except(msg, mlen, NULL);
+    }
+    else if (event == aes67_sapsrv_event_deleted){
+        syslog(LOG_INFO, "SAP: deleted: %s", ostr);
+
+        mlen = snprintf((char*)msg, sizeof(msg), "%s %s\n",
+                        AES67_SAPD_MSGU_DELETED,
+                        ostr
+        );
+
+        write_toall_except(msg, mlen, NULL);
+    }
+    else if (event == aes67_sapsrv_event_timeout){
+        syslog(LOG_INFO, "SAP: timeout: %s", ostr);
+
+        mlen = snprintf((char*)msg, sizeof(msg), "%s %s\n",
+                        AES67_SAPD_MSGU_TIMEOUT,
+                        ostr
+        );
+
+        write_toall_except(msg, mlen, NULL);
+    }
+    else {
+        syslog(LOG_INFO, "SAP: ???: %s", ostr);
+    }
 }
 
 int main(int argc, char * argv[]){

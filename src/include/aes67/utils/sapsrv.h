@@ -40,14 +40,21 @@ extern "C" {
 typedef void * aes67_sapsrv_t;
 typedef void * aes67_sapsrv_session_t;
 
-//enum aes67_sapsrv_event {
-//    aes67_sapsrv_event_discovered,
-//    aes67_sapsrv_event_updated,
-//    aes67_sapsrv_event_deleted,
-//    aes67_sapsrv_event_timeout
-//};
+enum aes67_sapsrv_event {
+    aes67_sapsrv_event_discovered,
+    aes67_sapsrv_event_updated,
+    aes67_sapsrv_event_deleted,
+    aes67_sapsrv_event_timeout
+};
 
-typedef void (*aes67_sapsrv_event_handler)(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sap_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
+#define AES67_SAPSRV_EVENT_ISTVALID(x) (\
+    (x) == aes67_sapsrv_event_discovered || \
+    (x) == aes67_sapsrv_event_updated || \
+    (x) == aes67_sapsrv_event_deleted || \
+    (x) == aes67_sapsrv_event_timeout \
+)
+
+typedef void (*aes67_sapsrv_event_handler)(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
 
 
 aes67_sapsrv_t aes67_sapsrv_start(const struct aes67_net_addr *listen_addr, const struct aes67_net_addr *iface_addr, aes67_sapsrv_event_handler event_handler, void *user_data);
