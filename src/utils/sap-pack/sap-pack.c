@@ -305,7 +305,7 @@ int main(int argc, char * argv[])
 
     if (optind < argc){
         for (int i = optind; i < argc; i++){
-            size_t plen = readfile(argv[optind], &inbuf[typelen], sizeof(inbuf) - typelen - 1 );
+            size_t plen = readfile(argv[i], &inbuf[typelen], sizeof(inbuf) - typelen - 1 );
             if (generate_packet(inbuf, plen, typelen)){
                 return EXIT_FAILURE; // really exit on error?
             }
