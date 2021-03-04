@@ -265,7 +265,7 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
     assert(user_data != NULL);
     sapsrv_t * server = (sapsrv_t*)user_data;
 
-//    printf("sap service %d\n", event);
+//    printf("sap service %d (plen %d)\n", event, payloadlen);
 
     // because we require sdp payload types, don't check payload type (see AES67_SAP_FILTER_SDP)
 

@@ -37,24 +37,25 @@ https://github.com/tschiemer/aes67
   
 - Command line / developer utilities
   - SAP
-    - [x] [sap-pack](#sap-pack)
-    - [x] [sap-unpack](#sap-unpack)
-    - [ ] ~~sap-server~~ -> a general session server extensible for other discovery protocols would make more sense
+    - [x] [sap-pack](#sap-pack): create SAP message(s)
+    - [x] [sap-unpack](#sap-unpack): parse SAP message(s) 
+    - [ ] [sapd](#sapd): SAP daemon
   - SDP
-    - [x] [sdp-parse](#sdp-parse)
-    - [x] [sdp-gen](#sdp-gen)
-  - RTSP
-    - [x] [rtsp-describe](#rtsp-describe)
+    - [x] [sdp-parse](#sdp-parse): parse SDP(s)
+    - [x] [sdp-gen](#sdp-gen): generate SDP
+  - RTSP/HTTP
+    - [x] [rtsp-describe](#rtsp-describe): retrieve SDP from RTSP service
+    - [ ] rtsp/http combo server?
   - RAVENNA
     - [ ] [RAV2SAP](#rav2sap) alternative?
-    - [x] [rav-lookup](#rav-lookup)
+    - [x] [rav-lookup](#rav-lookup): browse for RAVENNA sessions/devices
     - [ ] rav-register? easily register a specific mDNS service/device 
   - PTP
     - [ ] ptp-monitor? -> https://www.ptptrackhound.com/
     - [ ] ptp-server?
   - RTP/RTCP
-    - [ ] rtp-send
-    - [ ] rtp-recv
+    - [ ] rtp-send: send RTP (from STDIN)
+    - [ ] rtp-recv: receive RTP (to STDOUT)
   - Support
     - mDNS (abstraction for service *discovery* and registration(?))
       - [ ] dns-sd
@@ -242,6 +243,25 @@ Options:
 Examples:
 socat -u UDP4-RECVFROM:9875,ip-add-membership=224.2.127.254:192.168.1.122,reuseport,reuseaddr,fork - | ./sap-unpack -a
 ```
+
+### `sapd`
+```
+Usage: ./sapd [-h|-?] | [-d] [-l<listen-ip>[:<port>]] [-p<port>] [--if<iface-ip>]
+Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and takes care publishingspecified SDPs.
+Communicates through local port (sapd.sock)
+Note: this is NOT a hardened server.
+Options:
+	 -h,-?		 Prints this info.
+	 -d,--daemonize	 Daemonize bwahahaha (and print to syslog if -v)
+	 -l <listen-ip>[:<port>]
+			 IPv4/6 and optional port of particular ip/port to listen to. (default 239.255.255.255:9875)
+			 If not given	 -p <port>	 Force this hash id (if not given tries to extract from SDP file, session id)
+	 --if<iface-ip>	 IP of interface to use (default -> "default interface")
+	 -v		 Print some basic info to STDERR
+Examples:
+./sapd -v && socat - UNIX-CONNECT:sapd.sock,keepalive
+```
+*work in progress*
 
 ### `sdp-parse`
 

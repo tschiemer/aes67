@@ -57,63 +57,7 @@ static void help(FILE * fd)
             , argv0);
 }
 
-// to see syslog in terminal (not in console app)
-// log stream --info --debug --predicate "process == 'rav2sap'"
-// see https://unix.stackexchange.com/questions/545047/how-to-write-to-var-log-system-log-on-a-mac
 
-// Thanks to Pascal Werkl https://stackoverflow.com/a/17955149/1982142
-static void skeleton_daemon()
-{
-    pid_t pid;
-
-    /* Fork off the parent process */
-    pid = fork();
-
-    /* An error occurred */
-    if (pid < 0)
-        exit(EXIT_FAILURE);
-
-    /* Success: Let the parent terminate */
-    if (pid > 0)
-        exit(EXIT_SUCCESS);
-
-    /* On success: The child process becomes session leader */
-    if (setsid() < 0)
-        exit(EXIT_FAILURE);
-
-    /* Catch, ignore and handle signals */
-    //TODO: Implement a working signal handler */
-    signal(SIGCHLD, SIG_IGN);
-    signal(SIGHUP, SIG_IGN);
-
-    /* Fork off for the second time*/
-    pid = fork();
-
-    /* An error occurred */
-    if (pid < 0)
-        exit(EXIT_FAILURE);
-
-    /* Success: Let the parent terminate */
-    if (pid > 0)
-        exit(EXIT_SUCCESS);
-
-    /* Set new file permissions */
-    umask(0);
-
-    /* Change the working directory to the root directory */
-    /* or another appropriated directory */
-    chdir("/");
-
-    /* Close all open file descriptors */
-    int x;
-    for (x = sysconf(_SC_OPEN_MAX); x>=0; x--)
-    {
-        close (x);
-    }
-
-    /* Open the log file */
-    openlog ("rav2sap", LOG_PID, LOG_DAEMON);
-}
 
 void session_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const u8_t * fullname, const u8_t * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context)
 {

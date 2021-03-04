@@ -88,8 +88,8 @@ static void cmd_delete(struct connection_st * con, u8_t * cmdline, size_t len);
 static const struct cmd_st commands[] = {
         CMD_INIT(AES67_SAPD_CMD_HELP, cmd_help),
         CMD_INIT(AES67_SAPD_CMD_LIST, cmd_list),
-        CMD_INIT(AES67_SAPD_CMD_NEW, cmd_new),
-        CMD_INIT(AES67_SAPD_CMD_DELETE, cmd_delete)
+        CMD_INIT(AES67_SAPD_CMD_SET, cmd_new),
+        CMD_INIT(AES67_SAPD_CMD_UNSET, cmd_delete)
 };
 
 #define COMMAND_COUNT (sizeof(commands) / sizeof(struct cmd_st))
@@ -116,7 +116,7 @@ static struct {
     .port = -1,
     .listen_addr = {
             .ipver = aes67_net_ipver_4,
-            .addr = AES67_SAP_IPv4,
+            .addr = AES67_SAP_IPv4_ADMIN,
             .port = AES67_SAP_PORT
     },
     .iface_addr = {
@@ -155,14 +155,14 @@ static void help(FILE * fd)
              "\t -h,-?\t\t Prints this info.\n"
              "\t -d,--daemonize\t Daemonize bwahahaha (and print to syslog if -v)\n"
              "\t -l <listen-ip>[:<port>]\n"
-             "\t\t\t IPv4/6 and optional port of particular ip/port to listen to. (default 224.2.127.254:9875)\n"
+             "\t\t\t IPv4/6 and optional port of particular ip/port to listen to. (default " AES67_SAP_IPv4_ADMIN_STR ":%hu)\n"
              "\t\t\t If not given"
              "\t -p <port>\t Force this hash id (if not given tries to extract from SDP file, session id)\n"
              "\t --if<iface-ip>\t IP of interface to use (default -> \"default interface\")\n"
              "\t -v\t\t Print some basic info to STDERR\n"
              "Examples:\n"
-             "%s && socat -d - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
-            , argv0, argv0);
+             "%s -v && socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
+            , argv0, (u16_t)AES67_SAP_PORT, argv0);
 }
 
 static void sig_int(int sig)
@@ -331,7 +331,7 @@ static void local_accept()
 
             write(sockfd, MSG_VERSIONWELCOME "\n", sizeof(MSG_VERSIONWELCOME));
 
-            syslog(LOG_INFO, "New client..");
+            syslog(LOG_INFO, "New local client (count = %d)", local.nconnections);
 
 //            printf("accepted! now %d\n", local.nconnections);
 
@@ -486,7 +486,7 @@ static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len)
 
 static void cmd_new(struct connection_st * con, u8_t * cmdline, size_t len)
 {
-    if (len < sizeof(AES67_SAPD_CMD_NEW " 1")){
+    if (len < sizeof(AES67_SAPD_CMD_SET " 1")){
         return write_error(con, AES67_SAPD_ERR_MISSING, NULL);
     }
 
@@ -525,6 +525,8 @@ static int sapsrv_setup()
     u16_t listen_len = aes67_net_addr2str(listen_str, &opts.listen_addr);
     u16_t iface_len = aes67_net_addr2str(iface_str, &opts.iface_addr);
 
+//    printf("%hu\n", opts.listen_addr.port);
+
     listen_str[listen_len] = '\0';
     iface_str[iface_len] = '\0';
 
@@ -546,6 +548,8 @@ static void sapsrv_teardown()
 
 static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data)
 {
+//    printf("asdf %d\n", event);
+
     u8_t ostr[256];
     s32_t olen = aes67_sdp_origin_tostr(ostr, sizeof(ostr)-1, (struct aes67_sdp_originator *)origin);
 
@@ -563,7 +567,7 @@ static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sap
         syslog(LOG_INFO, "SAP: discovered (payload %d): %s", payloadlen, ostr);
 
         mlen = snprintf((char*)msg, sizeof(msg), "%s %d %s\n",
-                        AES67_SAPD_MSGU_NEW,
+                        AES67_SAPD_MSGU_DISCVRD,
                         payloadlen,
                         ostr
                         );
@@ -658,6 +662,9 @@ int main(int argc, char * argv[]){
                 if (false == aes67_net_str2addr(&opts.listen_addr, (u8_t*)optarg, strlen(optarg))){
                     fprintf(stderr, "Invalid listen-addr\n");
                     return EXIT_FAILURE;
+                }
+                if (opts.listen_addr.port == 0){
+                    opts.listen_addr.port = AES67_SAP_PORT;
                 }
                 break;
 
