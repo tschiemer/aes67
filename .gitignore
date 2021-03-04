@@ -60,4 +60,4 @@ dkms.conf
 
 cmake-build-debug
 /tmp
-utils
+/utils
