@@ -55,8 +55,12 @@ extern "C" {
 // IP/UDP port that MUST be used
 #define AES67_SAP_PORT  9875
 
-#define AES67_SAP_IPv4       {224,2,127,254}
-#define AES67_SAP_IPv4_STR   "224.2.127.254"
+#define AES67_SAP_IPv4_GLOBAL       {224,2,127,254}
+#define AES67_SAP_IPv4_GLOBAL_STR   "224.2.127.254"
+
+#define AES67_SAP_IPv4_ADMIN        {239,255,255,255}
+#define AES67_SAP_IPv4_ADMIN_STR    "239.255.255.255"
+
 
 /**
  * IPv6 sessions are announced on the address FF0X:0:0:0:0:0:2:7FFE where X
