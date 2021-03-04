@@ -19,6 +19,8 @@
 #ifndef AES67_UTILS_SAPD_H
 #define AES67_UTILS_SAPD_H
 
+#include <syslog.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,8 +30,9 @@ extern "C" {
 
 #define AES67_SAPD_NAME_LONG   AES67_SAPD_NAME "-" AES67_SAPD_VERSION
 
-#define AES67_SAPD_SYSLOG_KEY      APPNAME
-#define AES67_SAPD_SYSLOG_FACILITY 0
+#define AES67_SAPD_SYSLOG_IDENT     AES67_SAPD_NAME
+#define AES67_SAPD_SYSLOG_OPTION    0
+#define AES67_SAPD_SYSLOG_FACILITY  LOG_DAEMON
 
 //#define AES67_SAPD_LOCAL_SOCK     "/var/run/sapd.sock"
 #define AES67_SAPD_LOCAL_SOCK      "sapd.sock"

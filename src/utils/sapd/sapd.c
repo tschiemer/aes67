@@ -23,6 +23,7 @@
 #include "aes67/sap.h"
 
 #include <stdlib.h>
+#include <getopt.h>
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -127,12 +128,17 @@ static char * argv0;
 static volatile bool keep_running;
 
 static struct {
+    const char * fname;
+
     int sockfd;
     struct sockaddr_un addr;
 
     int nconnections;
     struct connection_st * first_connection;
-} local;
+} local = {
+    .fname = NULL,
+    .sockfd = -1
+};
 
 aes67_sapsrv_t * sapsrv = NULL;
 
@@ -142,19 +148,20 @@ static void help(FILE * fd)
              "Usage: %s [-h|-?] | [-d] [-l<listen-ip>[:<port>]] [-p<port>] [--if<iface-ip>]\n"
              "Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and takes care publishing"
              "specified SDPs.\n"
-             "Communicates through local port (AF_LOCAL)\n"
-             "Note: this is not a hardened server.\n"
+             "Communicates through local port (" AES67_SAPD_LOCAL_SOCK ")\n"
+             "Note: this is NOT a hardened server.\n"
              "Options:\n"
              "\t -h,-?\t\t Prints this info.\n"
-             "\t -d\t\t Daemonize bwahahaha (and print to syslog if -v)\n"
+             "\t -d,--daemonize\t Daemonize bwahahaha (and print to syslog if -v)\n"
              "\t -l <listen-ip>[:<port>]\n"
-             "\t\t\t\t\t IPv4/6 and optional port of particular ip/port to listen to. (default 224.2.127.254:9875)\n"
-             "\t\t\t\t\t If not given"
+             "\t\t\t IPv4/6 and optional port of particular ip/port to listen to. (default 224.2.127.254:9875)\n"
+             "\t\t\t If not given"
              "\t -p <port>\t Force this hash id (if not given tries to extract from SDP file, session id)\n"
              "\t --if<iface-ip>\t IP of interface to use (default -> \"default interface\")\n"
              "\t -v\t\t Print some basic info to STDERR\n"
              "Examples:\n"
-            , argv0);
+             "%s && socat -d - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
+            , argv0, argv0);
 }
 
 static void sig_int(int sig)
@@ -240,7 +247,7 @@ static int sock_nonblock(int sockfd){
 static int local_setup(const char * fname)
 {
     if( access( fname, F_OK ) == 0 ){
-        fprintf(stderr, "local file exists, another server running?\n");
+        syslog(LOG_ERR, "local sock already exists: %s", fname );
         return EXIT_FAILURE;
     }
 
@@ -249,6 +256,7 @@ static int local_setup(const char * fname)
         perror ("local.socket().failed");
         return EXIT_FAILURE;
     }
+    local.fname = fname;
 
     local.addr.sun_family = AF_LOCAL;
     strncpy (local.addr.sun_path, fname, sizeof (local.addr.sun_path));
@@ -279,17 +287,24 @@ static int local_setup(const char * fname)
     local.nconnections = 0;
     local.first_connection = NULL;
 
+    syslog(LOG_NOTICE, "listening on local sock: %s", fname);
+
     return EXIT_SUCCESS;
 }
 
 static void local_teardown()
 {
     if (local.sockfd != -1){
-        return;
+        close(local.sockfd);
+        local.sockfd = -1;
     }
 
-    close(local.sockfd);
-    local.sockfd = -1;
+    if (local.fname != NULL){
+        if( access( local.fname, F_OK ) == 0 ){
+            //TODO is this generally safe??
+            remove(local.fname);
+        }
+    }
 }
 
 static void local_accept()
@@ -302,7 +317,7 @@ static void local_accept()
 
         if (local.nconnections >= AES67_SAPD_LOCAL_MAX_CONNECTIONS){
 
-            //TODO log
+            syslog(LOG_NOTICE, "Too many clients");
 
 //            write(sockfd, ERROR_TOO_MANY_CLIENTS NL, sizeof(ERROR_TOO_MANY_CLIENTS));
 
@@ -315,7 +330,9 @@ static void local_accept()
 
             write(sockfd, MSG_VERSIONWELCOME "\n", sizeof(MSG_VERSIONWELCOME));
 
-            printf("accepted! now %d\n", local.nconnections);
+            syslog(LOG_INFO, "New client..");
+
+//            printf("accepted! now %d\n", local.nconnections);
 
             // well, shouldn't happen......
             assert(con != NULL);
@@ -345,7 +362,8 @@ static void local_process()
             retval = read(con->sockfd, &cmdline[len], 1);
 
             if (retval == 0){
-                printf("closed!\n");
+                syslog(LOG_INFO, "Client disconnected");
+
                 close_con = true;
             }
             else if (retval == 1){
@@ -396,7 +414,8 @@ static void local_process()
         } while(retval > 0 && len < MAX_CMDLINE);
 
         if (len >= MAX_CMDLINE){
-            printf("unfriendly client, closing!\n");
+            syslog(LOG_NOTICE, "Rejecting unfriendly client");
+
             close_con = true;
         }
 
@@ -470,10 +489,11 @@ static int sapsrv_setup()
     aes67_timer_init_system();
 
     //TODO iface_addr
+
     sapsrv = aes67_sapsrv_start(&opts.listen_addr, NULL, sapsrv_callback, NULL);
 
     if (sapsrv == NULL){
-        fprintf(stderr, "Failed to start sapsrv\n");
+        syslog(LOG_ERR, "Failed to start sapsrv ..");
 
         aes67_timer_deinit_system();
         aes67_time_deinit_system();
@@ -482,6 +502,18 @@ static int sapsrv_setup()
     }
 
     aes67_sapsrv_setblocking(sapsrv, false);
+
+    // pretty log message
+    u8_t listen_str[64];
+    u8_t iface_str[64];
+
+    u16_t listen_len = aes67_net_addr2str(listen_str, &opts.listen_addr);
+    u16_t iface_len = aes67_net_addr2str(iface_str, &opts.iface_addr);
+
+    listen_str[listen_len] = '\0';
+    iface_str[iface_len] = '\0';
+
+    syslog(LOG_NOTICE, "SAP listening on %s (if %s)", listen_str, iface_len ? (char*)iface_str : "default" );
 
     return EXIT_SUCCESS;
 }
@@ -509,17 +541,90 @@ int main(int argc, char * argv[]){
 
     argv0 = argv[0];
 
-    //TODO getopt
+    // parse options
+    while (1) {
+        int c;
 
+        int option_index = 0;
+        static struct option long_options[] = {
+                {"daemonize",  no_argument,       0,  'd' },
+                {"listen", required_argument, 0, 'l'},
+                {"if", required_argument, 0, 'i'},
+                {"port", required_argument, 0, 'p'},
+                {0,         0,                 0,  0 }
+        };
 
-    if (opts.daemonize){
-        if (aes67_daemonize()){
-            fprintf(stderr, "Failed to daemonize.");
-            return EXIT_FAILURE;
+        c = getopt_long(argc, argv, "?hvdl:i:p:",
+                        long_options, &option_index);
+        if (c == -1)
+            break;
+
+        switch (c) {
+
+            case 'd':
+                opts.daemonize = true;
+                break;
+
+            case 'l':
+                if (false == aes67_net_str2addr(&opts.listen_addr, (u8_t*)optarg, strlen(optarg))){
+                    fprintf(stderr, "Invalid listen-addr\n");
+                    return EXIT_FAILURE;
+                }
+                break;
+
+            case 'i':
+                if (false == aes67_net_str2addr(&opts.iface_addr, (u8_t*)optarg, strlen(optarg))){
+                    fprintf(stderr, "Invalid iface-ip\n");
+                    return EXIT_FAILURE;
+                }
+                break;
+
+            case 'p': {
+                int p = atoi(optarg);
+                if (p <= 0 || (p & 0xffff) != p) {
+                    fprintf(stderr, "Invalid port\n");
+                    return EXIT_FAILURE;
+                }
+                opts.port = p;
+                break;
+            }
+
+            case 'v':
+                opts.verbose = true;
+                break;
+
+            case '?':
+            case 'h':
+                help(stdout);
+                return EXIT_SUCCESS;
+
+            default:
+                fprintf(stderr, "Unrecognized option %c\n", c);
+                return EXIT_FAILURE;
         }
     }
 
+    // no additional arguments allowed
+    if ( optind != argc ){
+        fprintf(stderr, "Invalid arg count\n");
+        return EXIT_FAILURE;
+    }
+
+    if (opts.port != -1){
+        opts.listen_addr.port = opts.port;
+    }
+
+    int syslog_option = AES67_SAPD_SYSLOG_OPTION | (opts.verbose ? LOG_PERROR : 0);
+    openlog(AES67_SAPD_SYSLOG_IDENT,  syslog_option, AES67_SAPD_SYSLOG_FACILITY);
+
+    if (opts.daemonize){
+        aes67_daemonize();
+    }
+
+    syslog(LOG_INFO, "starting");
+
     if (local_setup(AES67_SAPD_LOCAL_SOCK)){
+        syslog(LOG_ERR, "Failed to open local sock: " AES67_SAPD_LOCAL_SOCK);
         return EXIT_FAILURE;
     }
 
@@ -528,6 +633,8 @@ int main(int argc, char * argv[]){
         return EXIT_FAILURE;
     }
 
+    syslog(LOG_INFO, "started");
+
     signal(SIGINT, sig_int);
     keep_running = true;
     while(keep_running){
@@ -535,9 +642,13 @@ int main(int argc, char * argv[]){
         aes67_sapsrv_process(sapsrv);
     }
 
+    syslog(LOG_INFO, "stopping");
+
     sapsrv_teardown();
 
     local_teardown();
+
+    syslog(LOG_INFO, "stopped");
 
     return EXIT_SUCCESS;
 }
