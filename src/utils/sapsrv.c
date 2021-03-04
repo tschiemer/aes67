@@ -117,6 +117,7 @@ static void session_delete(sapsrv_t * server, sapsrv_session_t * session)
                 current->next = session->next;
                 break;
             }
+            current = current->next;
         }
     }
 
