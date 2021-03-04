@@ -29,7 +29,7 @@ static char * argv0;
 
 static struct {
   bool print_headers;
-  bool print_debug;
+  bool verbose;
 } opts;
 
 static bool handled;
@@ -37,14 +37,14 @@ static bool handled;
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s [-h?ad]\n"
+             "Usage: %s [-h?ad] [<file.raw>]\n"
              "Attempts to parse SAP packets incoming on STDIN and prints to STDOUT in the following format:\n"
              "\t (announce|delete) <hash> <ip> <payload-type>\n"
              "\t <payload-data>\n"
              "\t <newline>\n"
              "Options:\n"
              "\t -a\t Print SAP headers\n"
-             "\t -d\t Print basic dbg info to STDERR\n"
+             "\t -v\t Print basic dbg info to STDERR\n"
              "\t -h,-?\t Prints this help.\n"
              "Examples:\n"
              "socat -u UDP4-RECVFROM:9875,ip-add-membership=224.2.127.254:192.168.1.122,reuseport,reuseaddr,fork - | ./sap-unpack -a\n"
@@ -57,7 +57,7 @@ aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event even
                         enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype, u16_t payloadtypelen,
                         u8_t *payload, u16_t payloadlen, void *user_data)
 {
-    if (opts.print_debug){
+    if (opts.verbose){
 
         handled = true;
 
@@ -83,9 +83,44 @@ aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event even
         printf("\n");
     }
 
-    printf("%s\n", payload);
+    write(STDOUT_FILENO, payload, payloadlen);
 
     fflush(stdout);
+}
+
+static size_t readfile(char * fname, u8_t * buf, size_t maxlen)
+{
+    FILE * fd = fopen(fname, "rb");
+    if (fd == NULL){
+        fprintf(stderr, "ERROR failed to open file %s\n", fname);
+        exit(EXIT_FAILURE);
+    }
+
+    int c;
+    ssize_t len = 0;
+    while( (c = fgetc(fd)) != EOF ){
+        if (len >= maxlen){
+            fprintf(stderr, "ERROR overflow\n");
+            exit(EXIT_FAILURE);
+        }
+        buf[len++] = c;
+    }
+
+    fclose(fd);
+
+    return len;
+}
+
+static void process(u8_t * buf, size_t len)
+{
+
+    handled = false;
+
+    aes67_sap_service_handle(NULL, buf, len, NULL);
+
+    if (opts.verbose == true && handled == false){
+        fprintf(stderr, "%s: Unhandled packet of size %zd\n", argv0, len);
+    }
 }
 
 int main(int argc, char * argv[])
@@ -93,18 +128,18 @@ int main(int argc, char * argv[])
     argv0 = argv[0];
 
     opts.print_headers = false;
-    opts.print_debug = false;
+    opts.verbose = false;
 
     int opt;
 
-    while ((opt = getopt(argc, argv, "h?ad")) != -1) {
+    while ((opt = getopt(argc, argv, "h?av")) != -1) {
         switch (opt) {
             case 'a':
                 opts.print_headers = true;
                 break;
 
-            case 'd':
-                opts.print_debug = true;
+            case 'v':
+                opts.verbose = true;
                 break;
 
             case 'h':
@@ -115,9 +150,20 @@ int main(int argc, char * argv[])
         }
     }
 
-    if ( optind < argc ){ // 1 < argc &&
+    if ( optind + 1 < argc ){
         fprintf(stderr, "ERROR too many arguments\n");
         return EXIT_FAILURE;
+    }
+
+    u8_t rbuf[1024];
+
+    if ( optind + 1 == argc ){
+
+        size_t len = readfile(argv[optind], rbuf, sizeof(rbuf));
+
+        process(rbuf, len);
+
+        return EXIT_SUCCESS;
     }
 
     // set non-blocking stdin
@@ -127,7 +173,6 @@ int main(int argc, char * argv[])
         return 1;
     }
 
-    u8_t rbuf[1024];
 
     while(feof(stdin) == 0){
 
@@ -141,13 +186,7 @@ int main(int argc, char * argv[])
             }
         } else if (r > 0){ // data read
 
-            handled = false;
-
-            aes67_sap_service_handle(NULL, rbuf, r, NULL);
-
-            if (opts.print_debug == true && handled == false){
-                fprintf(stderr, "%s: Unhandled packet of size %zd\n", argv0, r);
-            }
+            process(rbuf, r);
 
         } else { // r == 0 if stdin closed
             break;
