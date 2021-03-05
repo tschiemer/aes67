@@ -189,7 +189,8 @@ multiple stream sources into one reception buffer (discarding any unwanted audio
 - Provides interfaces for zlib de-/compression. For the moment being it is assumed that compression is not used by implementations.
 - Provides interfaces for authentication.
 - Can be used as an abstract service with basic session memory (only identifiers, ie no payloads, saved) and timeout detection but can also used to parse or generate SAP messages in a standalone fashion.
-
+- Note: global multicast scope (224.2.127.254) vs highest address in administered scope (AES67 devices typically use **239.255.255.255**). 
+  
 ### SDP
 
 - Parser to/generator from internal struct.
@@ -224,7 +225,7 @@ Options:
 	 --xf		 Attempt to parse SDP payload, on fail fallback to given hash and origin-ip
 	 -v		 Print some basic info to STDERR
 Examples:
-./sap-pack test.sdp | socat -u - UDP4-DATAGRAM:224.2.127.254:9875
+./sap-pack test.sdp | socat -u - UDP4-DATAGRAM:239.255.255.255:9875
 watch -t 300 "./sap-pack  test.sdp | socat -u -v - UDP4-DATAGRAM:224.2.127.254:9875"
 ```
 Note that you can improvise a SAP server that just broadcasts SDPs regularly :)
@@ -241,27 +242,38 @@ Options:
 	 -d	 Print basic dbg info to STDERR
 	 -h,-?	 Prints this help.
 Examples:
-socat -u UDP4-RECVFROM:9875,ip-add-membership=224.2.127.254:192.168.1.122,reuseport,reuseaddr,fork - | ./sap-unpack -a
+socat -u UDP4-RECVFROM:9875,ip-add-membership=239.255.255.255:192.168.1.122,reuseport,reuseaddr,fork - | ./sap-unpack -a
 ```
 
 ### `sapd`
 ```
-Usage: ./sapd [-h|-?] | [-d] [-l<listen-ip>[:<port>]] [-p<port>] [--if<iface-ip>]
-Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and takes care publishingspecified SDPs.
+Usage: ./sapd [-h|-?] | [-d] [-p<port>] [--l<mcast-scope>] [--s<mcast-scope>]
+Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and keeps announcing
+specified SDPs on network.
 Communicates through local port (sapd.sock)
+Logs to syslog (identity sapd)
 Note: this is NOT a hardened server.
 Options:
 	 -h,-?		 Prints this info.
 	 -d,--daemonize	 Daemonize bwahahaha (and print to syslog if -v)
-	 -l <listen-ip>[:<port>]
-			 IPv4/6 and optional port of particular ip/port to listen to. (default 239.255.255.255:9875)
-			 If not given	 -p <port>	 Force this hash id (if not given tries to extract from SDP file, session id)
-	 --if<iface-ip>	 IP of interface to use (default -> "default interface")
-	 -v		 Print some basic info to STDERR
+	 -p,--port <port>	 Listen on this port (default 9875)
+	 -v		 Also print syslog to STDERR
+	 --l<mcast-scope>, --s<mcast-scope>
+			 Listens, sends respectively on these IPv4/6 multicast scopes (multiple possible). Scopes:
+				 4g	 IPv4 SAP global (224.2.127.254)
+				 4a	 IPv4 SAP administered (239.255.255.255)
+				 6ll	 IPv6 SAP link local (FF02::2:7FFE)
+				 6al	 IPv6 SAP admin local (FF04::2:7FFE)
+				 6sl	 IPv6 SAP site local (FF05::2:7FFE)
+			 Default listen: 4g + 4a + 6ll
+			 Default send: 4a
 Examples:
-./sapd -v && socat - UNIX-CONNECT:sapd.sock,keepalive
+./sapd -v --l4a & socat - UNIX-CONNECT:sapd.sock,keepalive
 ```
+
 *work in progress*
+
+(note: AES67-2018 is specified for IPv4 primarily, consider IPv6 a proof of concept and for other purposes..)
 
 ### `sdp-parse`
 
@@ -371,6 +383,9 @@ rav-lookup -v | rtsp-describe -v | sap-pack -v | socat -u - UDP4-DATAGRAM:224.2.
 ```
 
 Note: the `-v` option just helps to trace what's happening.
+
+Also note multicast global scope (224.2.127.254) vs. administered scope which devices typically assume to be
+239.255.255.255.
 
 ## References
 

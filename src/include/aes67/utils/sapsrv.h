@@ -19,7 +19,7 @@
 #ifndef AES67_UTILS_SAPSRV_H
 #define AES67_UTILS_SAPSRV_H
 
-#include <aes67/sap.h>
+#include "aes67/sap.h"
 #include "aes67/arch.h"
 #include "aes67/net.h"
 #include "aes67/opt.h"
@@ -36,6 +36,20 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define AES67_SAPSRV_SCOPE_IPv4_GLOBAL        0x1
+#define AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED  0x2
+#define AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL     0x10
+#define AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL    0x20
+#define AES67_SAPSRV_SCOPE_IPv6_SITELOCAL     0x40
+
+#define AES67_SAPSRV_SCOPE_IPv4               0x3
+#define AES67_SAPSRV_SCOPE_IPv6               0x70
+
+#define AES67_SAPSRV_SCOPES_HAS(x) (((x) & 0x73))
+#define AES67_SAPSRV_SCOPES_ISVALID(x) (((x) & 0x73) == (x))
+
+#define AES67_SAPSRV_RX_BUFLEN                  1024
 
 typedef void * aes67_sapsrv_t;
 typedef void * aes67_sapsrv_session_t;
@@ -57,7 +71,9 @@ enum aes67_sapsrv_event {
 typedef void (*aes67_sapsrv_event_handler)(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
 
 
-aes67_sapsrv_t aes67_sapsrv_start(const struct aes67_net_addr *listen_addr, const struct aes67_net_addr *iface_addr, aes67_sapsrv_event_handler event_handler, void *user_data);
+aes67_sapsrv_t
+aes67_sapsrv_start(u32_t listen_scopes, u32_t send_scopes, u16_t port, aes67_sapsrv_event_handler event_handler,
+                   void *user_data);
 void aes67_sapsrv_stop(aes67_sapsrv_t sapserver);
 
 int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state);

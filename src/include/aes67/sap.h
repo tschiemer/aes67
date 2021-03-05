@@ -53,7 +53,7 @@ extern "C" {
 #define AES67_SAP_TTL   255
 
 // IP/UDP port that MUST be used
-#define AES67_SAP_PORT  9875
+#define AES67_SAP_PORT      9875
 
 #define AES67_SAP_IPv4_GLOBAL       {224,2,127,254}
 #define AES67_SAP_IPv4_GLOBAL_STR   "224.2.127.254"
@@ -66,9 +66,18 @@ extern "C" {
  * IPv6 sessions are announced on the address FF0X:0:0:0:0:0:2:7FFE where X
  * is the 4-bit scope value.
  * ff02 := link local (identical to mdns multicast scope)
+ * ff03 := ipv4 local scope
+ * ff04 := admin local
+ * ff05 := site local
  */
 #define AES67_SAP_IPv6_LL       {0xff,0x02, 0,0, 0,0, 0,0, 0,0, 0,0, 0,2, 0x7f,0xfe}
-#define AES67_SAP_IPv6_LL_STR   "FF02:0:0:0:0:0:2:7FFE"
+#define AES67_SAP_IPv6_LL_STR   "FF02::2:7FFE"
+#define AES67_SAP_IPv6_IP4      {0xff,0x03, 0,0, 0,0, 0,0, 0,0, 0,0, 0,2, 0x7f,0xfe}
+#define AES67_SAP_IPv6_IP4_STR  "FF03::2:7FFE"
+#define AES67_SAP_IPv6_AL       {0xff,0x04, 0,0, 0,0, 0,0, 0,0, 0,0, 0,2, 0x7f,0xfe}
+#define AES67_SAP_IPv6_AL_STR   "FF04::2:7FFE"
+#define AES67_SAP_IPv6_SL       {0xff,0x05, 0,0, 0,0, 0,0, 0,0, 0,0, 0,2, 0x7f,0xfe}
+#define AES67_SAP_IPv6_SL_STR   "FF05::2:7FFE"
 
 
 // Bandwidth in bits per seconds (SHOULD value)

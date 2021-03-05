@@ -82,6 +82,13 @@
 #define AES67_SAP_FILTER_SDP 1
 #endif
 
+#ifndef AES67_SAP_FILTER_MAXPAYLOAD
+/**
+ *
+ */
+#define AES67_SAP_FILTER_MAXSIZE 1000
+#endif
+
 #ifndef AES67_SAP_FILTER_XOR8
 /**
  * If enabled, complete message will be xor8'ed and (upon renewal) compared -> identical messages will not be passed on.

@@ -107,22 +107,20 @@ static const char * error_msg[] = {
 static struct {
     bool daemonize;
     bool verbose;
+    u32_t listen_scopes;
+    u32_t send_scopes;
     s32_t port;
-    struct aes67_net_addr listen_addr;
-    struct aes67_net_addr iface_addr;
+
 } opts = {
     .daemonize = false,
     .verbose = false,
-    .port = -1,
-    .listen_addr = {
-            .ipver = aes67_net_ipver_4,
-            .addr = AES67_SAP_IPv4_ADMIN,
-            .port = AES67_SAP_PORT
-    },
-    .iface_addr = {
-        .ipver = aes67_net_ipver_undefined
-    }
+    .listen_scopes = 0,
+    .send_scopes = 0,
+    .port = AES67_SAP_PORT
 };
+
+#define DEFAULT_LISTEN_SCOPES   (AES67_SAPSRV_SCOPE_IPv4 | AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)
+#define DEFAULT_SEND_SCOPES     AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED
 
 static char * argv0;
 
@@ -146,22 +144,29 @@ aes67_sapsrv_t * sapsrv = NULL;
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s [-h|-?] | [-d] [-l<listen-ip>[:<port>]] [-p<port>] [--if<iface-ip>]\n"
-             "Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and takes care publishing"
-             "specified SDPs.\n"
+             "Usage: %s [-h|-?] | [-d] [-p<port>] [--l<mcast-scope>] [--s<mcast-scope>]\n"
+             "Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and keeps announcing\n"
+             "specified SDPs on network.\n"
              "Communicates through local port (" AES67_SAPD_LOCAL_SOCK ")\n"
+             "Logs to syslog (identity " AES67_SAPD_SYSLOG_IDENT ")\n"
              "Note: this is NOT a hardened server.\n"
              "Options:\n"
              "\t -h,-?\t\t Prints this info.\n"
              "\t -d,--daemonize\t Daemonize bwahahaha (and print to syslog if -v)\n"
-             "\t -l <listen-ip>[:<port>]\n"
-             "\t\t\t IPv4/6 and optional port of particular ip/port to listen to. (default " AES67_SAP_IPv4_ADMIN_STR ":%hu)\n"
-             "\t\t\t If not given"
-             "\t -p <port>\t Force this hash id (if not given tries to extract from SDP file, session id)\n"
-             "\t --if<iface-ip>\t IP of interface to use (default -> \"default interface\")\n"
-             "\t -v\t\t Print some basic info to STDERR\n"
+             "\t -p,--port <port>\t Listen on this port (default %hu)\n"
+             "\t -v\t\t Also print syslog to STDERR\n"
+             "\t --l<mcast-scope>, --s<mcast-scope>\n"
+             "\t\t\t Listens, sends respectively on these IPv4/6 multicast scopes (multiple possible). Scopes:\n"
+             "\t\t\t\t 4g\t IPv4 SAP global (" AES67_SAP_IPv4_GLOBAL_STR ")\n"
+             "\t\t\t\t 4a\t IPv4 SAP administered (" AES67_SAP_IPv4_ADMIN_STR ")\n"
+             "\t\t\t\t 6ll\t IPv6 SAP link local (" AES67_SAP_IPv6_LL_STR ")\n"
+//             "\t\t\t\t 6ip4\t IPv6 SAP ip4 scope local (" AES67_SAP_IPv6_IP4_STR ")\n"
+            "\t\t\t\t 6al\t IPv6 SAP admin local (" AES67_SAP_IPv6_AL_STR ")\n"
+            "\t\t\t\t 6sl\t IPv6 SAP site local (" AES67_SAP_IPv6_SL_STR ")\n"
+            "\t\t\t Default listen: 4g + 4a + 6ll\n"
+            "\t\t\t Default send: 4a\n"
              "Examples:\n"
-             "%s -v && socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
+             "%s -v --l4a & socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
             , argv0, (u16_t)AES67_SAP_PORT, argv0);
 }
 
@@ -503,9 +508,7 @@ static int sapsrv_setup()
     aes67_time_init_system();
     aes67_timer_init_system();
 
-    //TODO iface_addr
-
-    sapsrv = aes67_sapsrv_start(&opts.listen_addr, NULL, sapsrv_callback, NULL);
+    sapsrv = aes67_sapsrv_start(opts.listen_scopes, opts.send_scopes, opts.port, sapsrv_callback, NULL);
 
     if (sapsrv == NULL){
         syslog(LOG_ERR, "Failed to start sapsrv ..");
@@ -519,18 +522,19 @@ static int sapsrv_setup()
     aes67_sapsrv_setblocking(sapsrv, false);
 
     // pretty log message
-    u8_t listen_str[64];
-    u8_t iface_str[64];
-
-    u16_t listen_len = aes67_net_addr2str(listen_str, &opts.listen_addr);
-    u16_t iface_len = aes67_net_addr2str(iface_str, &opts.iface_addr);
-
-//    printf("%hu\n", opts.listen_addr.port);
-
-    listen_str[listen_len] = '\0';
-    iface_str[iface_len] = '\0';
-
-    syslog(LOG_NOTICE, "SAP listening on %s (if %s)", listen_str, iface_len ? (char*)iface_str : "default" );
+//    u8_t listen_str[64];
+//    u8_t iface_str[64];
+//
+//    u16_t listen_len = aes67_net_addr2str(listen_str, &opts.listen_addr);
+//    u16_t iface_len = aes67_net_addr2str(iface_str, &opts.iface_addr);
+//
+////    printf("%hu\n", opts.listen_addr.port);
+//
+//    listen_str[listen_len] = '\0';
+//    iface_str[iface_len] = '\0';
+//
+//    syslog(LOG_NOTICE, "SAP listening on %s (if %s)", listen_str, iface_len ? (char*)iface_str : "default" );
+syslog(LOG_NOTICE, "SAP listening...");
 
     return EXIT_SUCCESS;
 }
@@ -641,38 +645,69 @@ int main(int argc, char * argv[]){
         int option_index = 0;
         static struct option long_options[] = {
                 {"daemonize",  no_argument,       0,  'd' },
-                {"listen", required_argument, 0, 'l'},
-                {"if", required_argument, 0, 'i'},
+                {"l4g", no_argument, 0, 1},
+                {"l4a", no_argument, 0, 2},
+                {"l6ll", no_argument, 0, 3},
+                {"l6al", no_argument, 0, 4},
+                {"l6sl", no_argument, 0, 5},
+                {"s4g", no_argument, 0, 6},
+                {"s4a", no_argument, 0, 7},
+                {"s6ll", no_argument, 0, 8},
+                {"s6al", no_argument, 0, 9},
+                {"s6sl", no_argument, 0, 10},
                 {"port", required_argument, 0, 'p'},
                 {0,         0,                 0,  0 }
         };
 
-        c = getopt_long(argc, argv, "?hvdl:i:p:",
+        c = getopt_long(argc, argv, "?hvdp:",
                         long_options, &option_index);
         if (c == -1)
             break;
 
         switch (c) {
 
+            case 1: // --l4gl
+                opts.listen_scopes |= AES67_SAPSRV_SCOPE_IPv4_GLOBAL;
+                break;
+
+            case 2: // --l4al
+                opts.listen_scopes |= AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED;
+                break;
+
+            case 3: // --l6ll
+                opts.listen_scopes |= AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL;
+                break;
+
+            case 4: // --l6al
+                opts.listen_scopes |= AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL;
+                break;
+
+            case 5: // --l6sl
+                opts.listen_scopes |= AES67_SAPSRV_SCOPE_IPv6_SITELOCAL;
+                break;
+
+            case 6: // --l4gl
+                opts.send_scopes |= AES67_SAPSRV_SCOPE_IPv4_GLOBAL;
+                break;
+
+            case 7: // --l4al
+                opts.send_scopes |= AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED;
+                break;
+
+            case 8: // --l6ll
+                opts.send_scopes |= AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL;
+                break;
+
+            case 9: // --l6al
+                opts.send_scopes |= AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL;
+                break;
+
+            case 10: // --l6sl
+                opts.send_scopes |= AES67_SAPSRV_SCOPE_IPv6_SITELOCAL;
+                break;
+
             case 'd':
                 opts.daemonize = true;
-                break;
-
-            case 'l':
-                if (false == aes67_net_str2addr(&opts.listen_addr, (u8_t*)optarg, strlen(optarg))){
-                    fprintf(stderr, "Invalid listen-addr\n");
-                    return EXIT_FAILURE;
-                }
-                if (opts.listen_addr.port == 0){
-                    opts.listen_addr.port = AES67_SAP_PORT;
-                }
-                break;
-
-            case 'i':
-                if (false == aes67_net_str2addr(&opts.iface_addr, (u8_t*)optarg, strlen(optarg))){
-                    fprintf(stderr, "Invalid iface-ip\n");
-                    return EXIT_FAILURE;
-                }
                 break;
 
             case 'p': {
@@ -706,8 +741,11 @@ int main(int argc, char * argv[]){
         return EXIT_FAILURE;
     }
 
-    if (opts.port != -1){
-        opts.listen_addr.port = opts.port;
+    if ( opts.listen_scopes == 0){
+        opts.listen_scopes = DEFAULT_LISTEN_SCOPES;
+    }
+    if ( opts.send_scopes == 0){
+        opts.send_scopes = DEFAULT_SEND_SCOPES;
     }
 
     int syslog_option = AES67_SAPD_SYSLOG_OPTION | (opts.verbose ? LOG_PERROR : 0);

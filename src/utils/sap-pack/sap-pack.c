@@ -61,7 +61,7 @@ static void help(FILE * fd)
              "\t --xf\t\t Attempt to parse SDP payload, on fail fallback to given hash and origin-ip\n"
              "\t -v\t\t Print some basic info to STDERR\n"
              "Examples:\n"
-             "./sap-pack test.sdp | socat -u - UDP4-DATAGRAM:224.2.127.254:9875\n"
+             "./sap-pack test.sdp | socat -u - UDP4-DATAGRAM:239.255.255.255:9875\n"
              "watch -t 300 \"./sap-pack  test.sdp | socat -u -v - UDP4-DATAGRAM:224.2.127.254:9875\"\n"
              , argv0);
 }

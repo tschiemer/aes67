@@ -47,7 +47,7 @@ static void help(FILE * fd)
              "\t -v\t Print basic dbg info to STDERR\n"
              "\t -h,-?\t Prints this help.\n"
              "Examples:\n"
-             "socat -u UDP4-RECVFROM:9875,ip-add-membership=224.2.127.254:192.168.1.122,reuseport,reuseaddr,fork - | ./sap-unpack -a\n"
+             "socat -u UDP4-RECVFROM:9875,ip-add-membership=239.255.255.255:192.168.1.122,reuseport,reuseaddr,fork - | ./sap-unpack -a\n"
              , argv0);
 }
 

@@ -30,6 +30,11 @@
 #include <netdb.h>
 #include <libproc.h>
 #include <ifaddrs.h>
+#include <syslog.h>
+
+//#if !defined(SYSLOG)
+//#define SYSLOG(priority, fmt, ...)
+//#endif
 
 typedef struct sapsrv_session_st {
     u16_t hash;
@@ -47,17 +52,16 @@ typedef struct {
     aes67_sapsrv_event_handler event_handler;
     void * user_data;
 
-    struct aes67_net_addr listen_addr;
-    struct aes67_net_addr iface_addr;
+    u32_t listen_scopes;
+    u32_t send_scopes;
+    u16_t port;
 
-    int sockfd;
-    struct sockaddr_storage addr;
+    int sockfd4;
+    struct sockaddr_in addr4;
+
+    int sockfd6;
+    struct sockaddr_in6 addr6;
 } sapsrv_t;
-
-#define SAPSERVER(s)    ((sapsrv_t*)(s))
-#define ADDR_IN(a)      ((struct sockaddr_in*)(a))
-#define ADDR_IN6(a)     ((struct sockaddr_in6*)(a))
-#define ADDR(a)         ((a)->ss_family == AF_INET ? ADDR_IN(a) : ADDR_IN6(a))
 
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
@@ -127,113 +131,198 @@ static void session_delete(sapsrv_t * server, sapsrv_session_t * session)
     free(session);
 }
 
-static int get_ifindex(struct aes67_net_addr * addr)
+//static int get_ifindex(struct aes67_net_addr * addr)
+//{
+//    if (addr->ipver == aes67_net_ipver_undefined){
+//        return 0;
+//    }
+//
+//    struct ifaddrs* ifaddr;
+//    struct ifaddrs* ifa;
+//
+//    int iface = 0;
+//
+//    int family = addr->ipver == aes67_net_ipver_4 ? AF_INET : AF_INET6;
+//
+//    getifaddrs(&ifaddr);
+//
+//    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
+//    {
+//        if (!ifa->ifa_addr) continue;
+//        if (!ifa->ifa_name) continue;
+//        if (ifa->ifa_addr->sa_family != family) continue;
+//
+//        if (family == AF_INET){
+//            struct sockaddr_in* inaddr = (struct sockaddr_in*)ifa->ifa_addr;
+//            if (inaddr->sin_addr.s_addr == *(u32_t*)(addr->addr)){
+//                iface = if_nametoindex(ifa->ifa_name);
+//                break;
+//            }
+//        } else {
+//            struct sockaddr_in6* inaddr = (struct sockaddr_in6*)ifa->ifa_addr;
+//            if (memcmp(&inaddr->sin6_addr, addr->addr, AES67_NET_IPVER_SIZE(addr->ipver)) == 0){
+//                iface = if_nametoindex(ifa->ifa_name);
+//                break;
+//            }
+//        }
+//    }
+//
+//    freeifaddrs(ifaddr);
+//
+//    return iface;
+//}
+
+
+static int join_mcast_group(int sockfd, u32_t scope)
 {
-    if (addr->ipver == aes67_net_ipver_undefined){
-        return 0;
+    int proto;
+    int optname;
+    union {
+        struct ip_mreq v4;
+        struct ipv6_mreq v6;
+    } mreq;
+    socklen_t optlen;
+
+    // prepare mcast join
+    if (scope & AES67_SAPSRV_SCOPE_IPv4){
+        proto = IPPROTO_IP;
+        optname = IP_ADD_MEMBERSHIP;
+        if (scope & AES67_SAPSRV_SCOPE_IPv4_GLOBAL){
+            memcpy(&mreq.v4.imr_multiaddr.s_addr, (u8_t[])AES67_SAP_IPv4_GLOBAL, 4);
+        } else if (scope & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED){
+            memcpy(&mreq.v4.imr_multiaddr.s_addr, (u8_t[])AES67_SAP_IPv4_ADMIN, 4);
+        }
+        mreq.v4.imr_interface.s_addr = htonl(INADDR_ANY);//*(in_addr_t*)server->iface_addr.addr;
+        optlen = sizeof(struct ip_mreq);
+    } else if (scope & AES67_SAPSRV_SCOPE_IPv6){
+        proto = IPPROTO_IPV6;
+        optname = IPV6_JOIN_GROUP;
+        if (scope & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL){
+            memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_LL, 16);
+        } else if (scope & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL){
+            memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_AL, 16);
+        } else if (scope & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL){
+            memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_SL, 16);
+        }
+        mreq.v6.ipv6mr_interface = 0; // default interface // get_ifindex(&server->iface_addr);
+        optlen = sizeof(struct ipv6_mreq);
+    } else {
+        return EXIT_FAILURE;
     }
 
-    struct ifaddrs* ifaddr;
-    struct ifaddrs* ifa;
-
-    int iface = 0;
-
-    int family = addr->ipver == aes67_net_ipver_4 ? AF_INET : AF_INET6;
-
-    getifaddrs(&ifaddr);
-
-    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
-    {
-        if (!ifa->ifa_addr) continue;
-        if (!ifa->ifa_name) continue;
-        if (ifa->ifa_addr->sa_family != family) continue;
-
-        if (family == AF_INET){
-            struct sockaddr_in* inaddr = (struct sockaddr_in*)ifa->ifa_addr;
-            if (inaddr->sin_addr.s_addr == *(u32_t*)(addr->addr)){
-                iface = if_nametoindex(ifa->ifa_name);
-                break;
-            }
-        } else {
-            struct sockaddr_in6* inaddr = (struct sockaddr_in6*)ifa->ifa_addr;
-            if (memcmp(&inaddr->sin6_addr, addr->addr, AES67_NET_IPVER_SIZE(addr->ipver)) == 0){
-                iface = if_nametoindex(ifa->ifa_name);
-                break;
-            }
-        }
-    }
-
-    freeifaddrs(ifaddr);
-
-    return iface;
-}
-
-static int join_mcast_group(sapsrv_t * server)
-{
-    // opt join mcast group
-    if (aes67_net_ismcastip_addr(&server->listen_addr)){
-
-        assert( server->iface_addr.ipver == aes67_net_ipver_undefined || server->listen_addr.ipver == server->iface_addr.ipver);
-
-        int optname;
-        union {
-            struct ip_mreq v4;
-            struct ipv6_mreq v6;
-        } mreq;
-        socklen_t optlen;
-
-        // prepare mcast join
-        if (server->listen_addr.ipver == aes67_net_ipver_4){
-            mreq.v4.imr_multiaddr.s_addr = *(in_addr_t*)server->listen_addr.addr;
-            mreq.v4.imr_interface.s_addr = htonl(INADDR_ANY);//*(in_addr_t*)server->iface_addr.addr;
-            optname = IP_ADD_MEMBERSHIP;
-            optlen = sizeof(mreq.v4);
-        } else {
-            memcpy(&mreq.v6.ipv6mr_multiaddr, server->listen_addr.addr, AES67_NET_IPVER_SIZE(aes67_net_ipver_6));
-            mreq.v6.ipv6mr_interface = get_ifindex(&server->iface_addr);
-            optname = IPV6_JOIN_GROUP;
-            optlen = sizeof(mreq.v6);
-        }
-
-        if (setsockopt(server->sockfd, IPPROTO_IP, optname, &mreq, optlen) < 0){
-            perror("setsockopt(IP_ADD_MEMBERSHIP/IPV6_JOIN_GROUP) failed");
-            return EXIT_FAILURE;
-        }
+    if (setsockopt(sockfd, proto, optname, &mreq, optlen) < 0){
+        perror("setsockopt(IP_ADD_MEMBERSHIP/IPV6_JOIN_GROUP) failed");
+        return EXIT_FAILURE;
     }
 
     return EXIT_SUCCESS;
 }
 
-static int leave_mcast_group(sapsrv_t * server)
+static int join_mcast_groups(sapsrv_t * server, u32_t scopes)
 {
-    // opt leave mcast group
-    if (aes67_net_ismcastip_addr(&server->listen_addr)){
-
-        int optname;
-        union {
-            struct ip_mreq v4;
-            struct ipv6_mreq v6;
-        } mreq;
-        socklen_t optlen;
-
-        // prepare mcast join
-        if (server->listen_addr.ipver == aes67_net_ipver_4){
-            mreq.v4.imr_multiaddr.s_addr = *(in_addr_t*)server->listen_addr.addr;
-            mreq.v4.imr_interface.s_addr = *(in_addr_t*)server->iface_addr.addr;
-            optname = IP_DROP_MEMBERSHIP;
-            optlen = sizeof(mreq.v4);
-        } else {
-            memcpy(&mreq.v6.ipv6mr_multiaddr, server->listen_addr.addr, AES67_NET_IPVER_SIZE(aes67_net_ipver_6));
-            mreq.v6.ipv6mr_interface = get_ifindex(&server->iface_addr);
-            optname = IPV6_LEAVE_GROUP;
-            optlen = sizeof(mreq.v6);
-        }
-
-        if (setsockopt(server->sockfd, IPPROTO_IP, optname, &mreq, optlen) < 0){
-            perror("setsockopt(IP_DROP_MEMBERSHIP/IPV6_LEAVE_GROUP) failed");
-            return EXIT_FAILURE;
-        }
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL)){
+//        perror("4gl");
+        return EXIT_FAILURE;
     }
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED)){
+//        perror("4al");
+        return EXIT_FAILURE;
+    }
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)){
+//        perror("6ll");
+        return EXIT_FAILURE;
+    }
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL)){
+//        perror("6al");
+        return EXIT_FAILURE;
+    }
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL)){
+//        perror("6sl");
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+static int leave_mcast_group(int sockfd, u32_t scope)
+{
+    int proto;
+    int optname;
+    union {
+        struct ip_mreq v4;
+        struct ipv6_mreq v6;
+    } mreq;
+    socklen_t optlen;
+
+    // prepare mcast join
+    if (scope & AES67_SAPSRV_SCOPE_IPv4){
+        proto = IPPROTO_IP;
+        optname = IP_DROP_MEMBERSHIP;
+        if (scope & AES67_SAPSRV_SCOPE_IPv4_GLOBAL){
+            memcpy(&mreq.v4.imr_multiaddr.s_addr, (u8_t[])AES67_SAP_IPv4_GLOBAL, 4);
+        } else if (scope & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED){
+            memcpy(&mreq.v4.imr_multiaddr.s_addr, (u8_t[])AES67_SAP_IPv4_ADMIN, 4);
+        }
+        mreq.v4.imr_interface.s_addr = htonl(INADDR_ANY);//*(in_addr_t*)server->iface_addr.addr;
+        optlen = sizeof(mreq.v4);
+    } else if (scope & AES67_SAPSRV_SCOPE_IPv6){
+        proto = IPPROTO_IPV6;
+        optname = IPV6_LEAVE_GROUP;
+        if (scope & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL){
+            memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_LL, 16);
+        } else if (scope & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL){
+            memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_AL, 16);
+        } else if (scope & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL){
+            memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_SL, 16);
+        }
+        mreq.v6.ipv6mr_interface = 0; // default interface // get_ifindex(&server->iface_addr);
+        optlen = sizeof(mreq.v6);
+    } else {
+        return EXIT_FAILURE;
+    }
+
+    if (setsockopt(sockfd, IPPROTO_IP, optname, &mreq, optlen) < 0){
+        perror("setsockopt(IP_DROP_MEMBERSHIP/IPV6_LEAVE_GROUP) failed");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+
+static int leave_mcast_groups(sapsrv_t * server, u32_t scopes)
+{
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && leave_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL)){
+        return EXIT_FAILURE;
+    }
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && leave_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED)){
+        return EXIT_FAILURE;
+    }
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)){
+        return EXIT_FAILURE;
+    }
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL)){
+        return EXIT_FAILURE;
+    }
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL)){
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+static int set_sock_requse(int sockfd)
+{
+    // set addr/port reuse
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
+        perror("setsockopt(SO_REUSEADDR) failed");
+        return EXIT_FAILURE;
+    }
+
+#ifdef SO_REUSEPORT
+    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int)) < 0){
+        perror("setsockopt(SO_REUSEPORT) failed");
+        return EXIT_FAILURE;
+    }
+#endif
 
     return EXIT_SUCCESS;
 }
@@ -244,27 +333,40 @@ int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state)
 
     sapsrv_t * server = sapserver;
 
-    if (server->sockfd == -1){
-        return -1;
+    if (server->sockfd4 != -1){
+
+        // set non-blocking stdin
+        int flags = fcntl(server->sockfd4, F_GETFL, 0);
+        flags = (flags & ~O_NONBLOCK) | (state ? 0 : O_NONBLOCK);
+        if (fcntl(server->sockfd4, F_SETFL, flags) == -1){
+            fprintf(stderr, "Couldn't change non-/blocking\n");
+            return EXIT_FAILURE;
+        }
     }
 
-    // set non-blocking stdin
-    int flags = fcntl(server->sockfd, F_GETFL, 0);
-    flags = (flags & ~O_NONBLOCK) | (state ? 0 : O_NONBLOCK);
-    if (fcntl(server->sockfd, F_SETFL, flags) == -1){
-        fprintf(stderr, "Couldn't change non-/blocking\n");
-        return -1;
+    if (server->sockfd6 != -1){
+
+        // set non-blocking stdin
+        int flags = fcntl(server->sockfd6, F_GETFL, 0);
+        flags = (flags & ~O_NONBLOCK) | (state ? 0 : O_NONBLOCK);
+        if (fcntl(server->sockfd6, F_SETFL, flags) == -1){
+            fprintf(stderr, "Couldn't change non-/blocking\n");
+            return EXIT_FAILURE;
+        }
     }
 
-    return 0;
+
+    return EXIT_SUCCESS;
 }
 
 void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event event, u16_t hash,
-                             enum aes67_net_ipver ipver, u8_t *ip, u8_t *payloadtype, u16_t payloadtypelen,
+                             enum aes67_net_ipver ipver, u8_t *ip, u8_t *type, u16_t typelen,
                              u8_t *payload, u16_t payloadlen, void *user_data)
 {
     assert(user_data != NULL);
     sapsrv_t * server = (sapsrv_t*)user_data;
+
+    syslog(LOG_DEBUG, "sap evt=%d, plen=%d", event, payloadlen);
 
 //    printf("sap service %d (plen %d)\n", event, payloadlen);
 
@@ -340,10 +442,13 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
     }
 }
 
-aes67_sapsrv_t aes67_sapsrv_start(const struct aes67_net_addr *listen_addr, const struct aes67_net_addr *iface_addr, aes67_sapsrv_event_handler event_handler, void *user_data)
+aes67_sapsrv_t
+aes67_sapsrv_start(u32_t listen_scopes, u32_t send_scopes, u16_t port, aes67_sapsrv_event_handler event_handler,
+                   void *user_data)
 {
-    assert(listen_addr != NULL);
-    assert(AES67_NET_IPVER_ISVALID(listen_addr->ipver));
+    assert(AES67_SAPSRV_SCOPES_HAS(listen_scopes));
+    assert(AES67_SAPSRV_SCOPES_HAS(send_scopes));
+    assert(port > 0);
     assert(event_handler != NULL);
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
@@ -360,90 +465,83 @@ aes67_sapsrv_t aes67_sapsrv_start(const struct aes67_net_addr *listen_addr, cons
 
     aes67_sap_service_init(&server->service);
 
-    memcpy(&server->listen_addr, listen_addr, sizeof(server->listen_addr));
-
-    if (iface_addr != NULL){
-        memcpy(&server->iface_addr, iface_addr, sizeof(server->iface_addr));
-    }
-
+    server->listen_scopes = listen_scopes;
+    server->send_scopes = send_scopes;
+    server->port = port;
     server->event_handler = event_handler;
     server->user_data = user_data;
 
     server->first_session = NULL;
 
-    memset(&server->addr, 0, sizeof(server->addr));
 
-    if (listen_addr->ipver == aes67_net_ipver_4){
-        server->addr.ss_len = sizeof(struct sockaddr_in);
-        server->addr.ss_family = AF_INET;
-        ADDR_IN(&server->addr)->sin_port = htons(listen_addr->port);
-    } else if (listen_addr->ipver == aes67_net_ipver_6){
-        server->addr.ss_len = sizeof(struct sockaddr_in6);
-        server->addr.ss_family = AF_INET6;
-        ADDR_IN6(&server->addr)->sin6_port = htons(listen_addr->port);
+    if (listen_scopes & AES67_SAPSRV_SCOPE_IPv4){
+        server->addr4.sin_len = sizeof(struct sockaddr_in);
+        server->addr4.sin_family = AF_INET;
+        server->addr4.sin_port = htons(port);
 
-    } else {
-        free(server);
-        return NULL;
-    }
+        server->sockfd4 = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 
-    server->sockfd = socket(server->addr.ss_family, SOCK_DGRAM, IPPROTO_UDP);
-
-    if (server->sockfd == -1) {
-        return NULL;
-    }
-
-    // set addr/port reuse
-    if (setsockopt(server->sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
-        perror("setsockopt(SO_REUSEADDR) failed");
-        free(server);
-        close(server->sockfd);
-        return NULL;
-    }
-
-#ifdef SO_REUSEPORT
-    if (setsockopt(server->sockfd, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int)) < 0){
-        perror("setsockopt(SO_REUSEPORT) failed");
-        free(server);
-        close(server->sockfd);
-        return NULL;
-    }
-#endif
-
-    if (aes67_net_ismcastip_addr(listen_addr)){
-
-//        assert(iface_addr != NULL);
-
-
-        if (listen_addr->ipver == aes67_net_ipver_4){
-            ADDR_IN(&server->addr)->sin_addr.s_addr = htonl(INADDR_ANY);
-        } else {
-            memcpy(&ADDR_IN6(&server->addr)->sin6_addr, &in6addr_any, sizeof(in6addr_any));
+        if (server->sockfd4 == -1) {
+            free(server);
+            return NULL;
         }
 
-    } else {
-        if (listen_addr->ipver == aes67_net_ipver_4){
-            ADDR_IN(&server->addr)->sin_addr.s_addr = *(in_addr_t*)listen_addr->addr;
-        } else {
-            memcpy(&ADDR_IN6(&server->addr)->sin6_addr, listen_addr->addr, AES67_NET_IPVER_SIZE(aes67_net_ipver_6));
+        if (set_sock_requse(server->sockfd4)){
+            close(server->sockfd4);
+            free(server);
+            return NULL;
+        }
+
+        if (bind(server->sockfd4, (struct sockaddr*)&server->addr4, server->addr4.sin_len) == -1){
+            perror("bind() failed");
+            close(server->sockfd4);
+            free(server);
+            return NULL;
         }
     }
 
-//    printf("len = %d\n", ADDR_IN(&server->addr)->sin_len);
-//    printf("family = %d\n", ADDR_IN(&server->addr)->sin_family);
-//    printf("ip = %08x\n", ntohl(ADDR_IN(&server->addr)->sin_addr.s_addr));
-//    printf("port = %d\n", ntohs(ADDR_IN(&server->addr)->sin_port));
+    if (listen_scopes & AES67_SAPSRV_SCOPE_IPv6){
+        server->addr6.sin6_len = sizeof(struct sockaddr_in6);
+        server->addr6.sin6_family = AF_INET6;
+        server->addr6.sin6_port = htons(port);
 
-    if (bind(server->sockfd, (struct sockaddr*)&server->addr, server->addr.ss_len) == -1){
-        perror("bind() failed");
-        free(server);
-        close(server->sockfd);
-        return NULL;
+        server->sockfd6 = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+
+        if (server->sockfd6 == -1) {
+            if (server->sockfd4 != -1){
+                close(server->sockfd4);
+            }
+            free(server);
+            return NULL;
+        }
+
+        if (set_sock_requse(server->sockfd4)){
+            if (server->sockfd4 != -1){
+                close(server->sockfd4);
+            }
+            close(server->sockfd6);
+            free(server);
+        }
+
+        if (bind(server->sockfd6, (struct sockaddr*)&server->addr6, server->addr6.sin6_len) == -1){
+            perror("bind() failed");
+            if (server->sockfd4 != -1){
+                close(server->sockfd4);
+            }
+            close(server->sockfd6);
+            free(server);
+            return NULL;
+        }
     }
 
-    if (join_mcast_group(server)){
+    if (join_mcast_groups(server, listen_scopes)){
+        if (server->sockfd4 != -1){
+            close(server->sockfd4);
+        }
+        if (server->sockfd6 != -1){
+            close(server->sockfd6);
+        }
         free(server);
-        close(server->sockfd);
         return NULL;
     }
 
@@ -456,11 +554,14 @@ void aes67_sapsrv_stop(aes67_sapsrv_t sapserver)
 
     sapsrv_t * server = sapserver;
 
-    leave_mcast_group(server);
+    leave_mcast_groups(server, server->listen_scopes);
 
-    if (server->sockfd != -1){
-        close(server->sockfd);
-        server->sockfd = -1;
+    if (server->sockfd4 != -1){
+        close(server->sockfd4);
+    }
+
+    if (server->sockfd6 != -1){
+        close(server->sockfd6);
     }
 
     aes67_sap_service_deinit(&server->service);
@@ -479,16 +580,20 @@ void aes67_sapsrv_process(aes67_sapsrv_t sapserver)
 
     sapsrv_t * server = sapserver;
 
-    if (server->sockfd != -1){
+    u8_t buf[AES67_SAPSRV_RX_BUFLEN];
+    ssize_t rlen;
 
-        u8_t buf[1500];
-        ssize_t rlen;
-
-        if ( (rlen = recv(server->sockfd, buf, sizeof(buf), 0)) > 0){
-//            printf("recv %zd\n", rlen);
+    if (server->sockfd4 != -1){
+        if ( (rlen = recv(server->sockfd4, buf, sizeof(buf), 0)) > 0){
+//            printf("recv4 %zd\n", rlen);
             aes67_sap_service_handle(&server->service, buf, rlen, server);
-        } else {
-//            printf("%zd\n", rlen);
+        }
+    }
+
+    if (server->sockfd6 != -1){
+        if ( (rlen = recv(server->sockfd6, buf, sizeof(buf), 0)) > 0){
+//            printf("recv6 %zd\n", rlen);
+            aes67_sap_service_handle(&server->service, buf, rlen, server);
         }
     }
 
