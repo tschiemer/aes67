@@ -364,6 +364,21 @@ Options:
 	 -d,--devices	 Browse for senders and receivers (shortcut for --receivers --senders)
 	 -r, --raw	 Output raw mDNS results
 ```
+Just a comfort utility, using `dns-sd` you could also discover services:
+
+```bash
+# sessions -> rtsp://<host>:<port>/by-name/<ravenna-session-name>
+dns-sd -Z _rtsp._tcp,_ravenna_session
+
+# general ravenna compatible devices
+dns-sd -Z _rtsp._tcp,_ravenna
+dns-sd -Z _http._tcp,_ravenna
+```
+Or similarly using `ahavi-browse`
+```bash
+ahavi-browse _ravenna_session._sub._rtsp._tcp
+```
+
 
 ### rav2sap
 
