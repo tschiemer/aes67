@@ -37,6 +37,8 @@
 //#endif
 
 typedef struct sapsrv_session_st {
+    u8_t managed_by;
+    time_t last_activity;
     u16_t hash;
     struct aes67_net_addr ip;
     u16_t payloadlen;
@@ -69,9 +71,12 @@ static sapserver_t sapserver_singleton;
 static u8_t initialized = false;
 #endif
 
-static sapsrv_session_t * session_new(sapsrv_t * server, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t * ip, const struct aes67_sdp_originator * origin, const u8_t * payload,  const u16_t payloadlen)
+static sapsrv_session_t * session_new(sapsrv_t *server, u8_t managed_by, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t *ip, const struct aes67_sdp_originator *origin, const u8_t *payload, const u16_t payloadlen)
 {
     sapsrv_session_t * session = malloc(sizeof(sapsrv_session_t));
+
+    session->managed_by = managed_by;
+    session->last_activity = 0;
 
     session->hash = hash;
 
@@ -380,7 +385,7 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
     assert(user_data != NULL);
     sapsrv_t * server = (sapsrv_t*)user_data;
 
-    syslog(LOG_DEBUG, "sap evt=%d, plen=%d", event, payloadlen);
+    syslog(LOG_DEBUG, "sap evt=%d plen=%d", event, payloadlen);
 
 //    printf("sap service %d (plen %d)\n", event, payloadlen);
 
@@ -421,7 +426,7 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
 
         if (session == NULL){
             evt = aes67_sapsrv_event_discovered;
-            session = session_new(server, hash, ipver, ip, &origin, payload, payloadlen);
+            session = session_new(server, AES67_SAPSRV_MANAGEDBY_REMOTE, hash, ipver, ip, &origin, payload, payloadlen);
         } else {
 
             // if previous session is not older, just skip (because is just a SAP message to prevent timeout)
@@ -435,6 +440,7 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
             memcpy(&session->origin, &origin, sizeof(struct aes67_sdp_originator));
         }
 
+        session->last_activity = time(NULL);
 
         // publish
         server->event_handler(server, session, evt, &session->origin, session->payload, session->payloadlen, server->user_data);
@@ -616,28 +622,44 @@ void aes67_sapsrv_process(aes67_sapsrv_t sapserver)
 
 aes67_sapsrv_session_t aes67_sapsrv_session_add(aes67_sapsrv_t sapserver, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t * ip, const u8_t * payload, const u16_t payloadlen)
 {
+    assert(sapserver != NULL);
+    assert(payload != NULL);
     assert(payloadlen <= AES67_SAPSRV_SDP_MAXLEN);
-    sapsrv_session_t * session = NULL;//session_new(sapserver, hash, ipver, ip, payload, payloadlen);
+
+    u8_t * o = (u8_t*)&payload[(payload[sizeof("v=0\n")] == 'o') ? sizeof("v=0\n") : sizeof("v=0\r\n")];
+
+    struct aes67_sdp_originator origin;
+    if (aes67_sdp_origin_fromstr(&origin, o, payloadlen - (o - payload)) == AES67_SDP_ERROR){
+        printf("invalid origin\n");
+        return NULL;
+    }
+
+    sapsrv_t * server = (sapsrv_t*)sapserver;
+    sapsrv_session_t * session = session_new(server, AES67_SAPSRV_MANAGEDBY_LOCAL, hash, ipver, ip, &origin, payload, payloadlen);
 
     //TODO announce
 
-    return 1;
+    return session;
 }
 
-void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session, const u8_t * payload, const u16_t payloadlen)
+void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, const u8_t * payload, const u16_t payloadlen)
 {
     assert( payloadlen <= AES67_SAPSRV_SDP_MAXLEN);
 
-    sapsrv_session_t * sess = session_update(sapserver, session, payload, payloadlen);
+    sapsrv_t * server = (sapsrv_t*)sapserver;
+
+    sapsrv_session_t * session = (sapsrv_session_t *)sapsession;
+    //session_update(server, session, payload, payloadlen);
 
     //TODO announce
 }
 
 void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session)
 {
-    //TODO remove from list
-    //SAP delete
-    //free
+
+    //TODO SAP delete
+
+    session_delete(sapserver, session);
 }
 
 aes67_sapsrv_session_t aes67_sapsrv_session_by_origin(aes67_sapsrv_t sapserver, const struct aes67_sdp_originator * origin)
@@ -656,4 +678,47 @@ aes67_sapsrv_session_t aes67_sapsrv_session_by_origin(aes67_sapsrv_t sapserver, 
     }
 
     return NULL;
+}
+
+aes67_sapsrv_session_t aes67_sapsrv_session_first(aes67_sapsrv_t sapserver)
+{
+    assert(sapserver != NULL);
+
+    return ((sapsrv_t*)sapserver)->first_session;
+}
+
+aes67_sapsrv_session_t aes67_sapsrv_session_next(aes67_sapsrv_session_t session)
+{
+    assert(session != NULL);
+
+    return ((sapsrv_session_t*)session)->next;
+}
+
+void aes67_sapsrv_session_get_payload(aes67_sapsrv_session_t session, u8_t ** payload, u16_t * len)
+{
+    assert(session != NULL);
+    assert(payload != NULL);
+    assert(len != NULL);
+
+    *payload = ((sapsrv_session_t*)session)->payload;
+    *len = ((sapsrv_session_t*)session)->payloadlen;
+}
+
+struct aes67_sdp_originator * aes67_sapsrv_session_get_origin(aes67_sapsrv_session_t session)
+{
+    assert(session != NULL);
+    return &((sapsrv_session_t*)session)->origin;
+}
+
+
+time_t aes67_sapsrv_session_get_lastactivity(aes67_sapsrv_session_t session)
+{
+    assert(session != NULL);
+    return ((sapsrv_session_t*)session)->last_activity;
+}
+
+u8_t aes67_sapsrv_session_get_managedby(aes67_sapsrv_session_t session)
+{
+    assert(session != NULL);
+    return ((sapsrv_session_t*)session)->managed_by;
 }

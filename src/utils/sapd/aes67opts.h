@@ -20,6 +20,7 @@
 #define AES67_AES67OPTS_H
 
 #include <memory.h>
+#include <time.h>
 
 // this implicitly disables timer functionality (ie no initialization needed)
 #define AES67_SAP_MEMORY        AES67_MEMORY_DYNAMIC
@@ -30,5 +31,6 @@
 #define AES67_SAP_FILTER_SDP    1
 #define AES67_SAP_FILTER_XOR8    0
 
+#define aes67_sapsrv_time_t time_t
 
 #endif //AES67_AES67OPTS_H_H

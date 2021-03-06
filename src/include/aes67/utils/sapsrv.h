@@ -52,6 +52,13 @@ extern "C" {
 
 #define AES67_SAPSRV_SDP_MAXLEN                  1024
 
+#ifndef aes67_sapsrv_time_t
+#define u32_t aes67_sapsrv_time_t;
+#endif
+
+#define  AES67_SAPSRV_MANAGEDBY_LOCAL     1
+#define  AES67_SAPSRV_MANAGEDBY_REMOTE    2
+
 
 typedef void * aes67_sapsrv_t;
 typedef void * aes67_sapsrv_session_t;
@@ -70,8 +77,7 @@ enum aes67_sapsrv_event {
     (x) == aes67_sapsrv_event_timeout \
 )
 
-typedef void (*aes67_sapsrv_event_handler)(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
-
+typedef void (*aes67_sapsrv_event_handler)(aes67_sapsrv_t server, aes67_sapsrv_session_t session, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
 
 aes67_sapsrv_t
 aes67_sapsrv_start(u32_t listen_scopes, u32_t send_scopes, u16_t port, aes67_sapsrv_event_handler event_handler,
@@ -90,6 +96,13 @@ void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_
 void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session);
 
 aes67_sapsrv_session_t aes67_sapsrv_session_by_origin(aes67_sapsrv_t sapserver, const struct aes67_sdp_originator * origin);
+aes67_sapsrv_session_t aes67_sapsrv_session_first(aes67_sapsrv_t sapserver);
+aes67_sapsrv_session_t aes67_sapsrv_session_next(aes67_sapsrv_session_t current);
+
+void aes67_sapsrv_session_get_payload(aes67_sapsrv_session_t session, u8_t ** payload, u16_t * len);
+struct aes67_sdp_originator * aes67_sapsrv_session_get_origin(aes67_sapsrv_session_t session);
+time_t aes67_sapsrv_session_get_lastactivity(aes67_sapsrv_session_t session);
+u8_t aes67_sapsrv_session_get_managedby(aes67_sapsrv_session_t session);
 
 #ifdef __cplusplus
 }

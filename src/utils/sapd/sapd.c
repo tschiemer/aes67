@@ -32,7 +32,7 @@
 //#define BUFSIZE 1024
 #define MAX_CMDLINE 256
 
-#define MSG_VERSIONWELCOME         AES67_SAPD_MSGU " " AES67_SAPD_NAME_LONG
+#define MSG_VERSIONWELCOME         AES67_SAPD_MSGU_INFO " " AES67_SAPD_NAME_LONG
 
 
 struct connection_st {
@@ -505,9 +505,88 @@ static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * exc
 //    write_ok(con);
 //}
 
+static void write_list_entry(struct connection_st * con, aes67_sapsrv_session_t session, bool return_payload)
+{
+    u8_t buf[256 + AES67_SAPSRV_SDP_MAXLEN];
+    size_t blen = 0;
+
+    // assuming 256 is enough for first line...
+
+    memcpy(buf, AES67_SAPD_RESULT_LIST, sizeof(AES67_SAPD_RESULT_LIST)-1);
+    blen = sizeof(AES67_SAPD_RESULT_LIST)-1;
+
+    buf[blen++] = ' ';
+
+    u8_t managed_by = aes67_sapsrv_session_get_managedby(session);
+    blen += aes67_itoa(managed_by, &buf[blen], 10);
+    buf[blen++] = ' ';
+
+    u32_t last_activity = aes67_sapsrv_session_get_lastactivity(session);
+    blen += aes67_itoa(last_activity, &buf[blen], 10);
+    buf[blen++] = ' ';
+
+
+    u8_t *payload = NULL;
+    u16_t payloadlen = 0;
+
+    if (return_payload){
+        aes67_sapsrv_session_get_payload(session, &payload, &payloadlen);
+    }
+
+    blen += aes67_itoa(payloadlen, &buf[blen], 10);
+    buf[blen++] = ' ';
+
+
+    struct aes67_sdp_originator * origin = aes67_sapsrv_session_get_origin(session);
+
+    assert(origin != NULL);
+
+    s32_t olen = aes67_sdp_origin_tostr(&buf[blen], sizeof(buf) - blen, origin);
+    if (olen <= 0){
+        write_error(con, AES67_SAPD_ERR, "unexpected origin tostr err");
+        return;
+    }
+    olen -= 2; // remove CRNL
+    blen += olen;
+
+    buf[blen++] = '\n';
+
+    if (payloadlen > 0){
+        assert(payload != NULL);
+
+        memcpy(&buf[blen], payload, payloadlen);
+        blen += payloadlen;
+    }
+
+    write(con->sockfd, buf, blen);
+}
+
 static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len)
 {
-    //TODO for each (SDP) session print data
+    bool return_payload = false;
+    if (len == sizeof(AES67_SAPD_CMD_LIST)+1){
+        if (cmdline[sizeof(AES67_SAPD_CMD_LIST)] == '1'){
+            return_payload = true;
+        } else if (cmdline[sizeof(AES67_SAPD_CMD_LIST)] == '0'){
+            return_payload = false;
+        } else {
+            write_error(con, AES67_SAPD_ERR_SYNTAX, NULL);
+            return;
+        }
+    }
+    else if (len != sizeof(AES67_SAPD_CMD_LIST)-1){
+         write_error(con, AES67_SAPD_ERR_SYNTAX, NULL);
+         return;
+    }
+
+    aes67_sapsrv_session_t session = aes67_sapsrv_session_first(sapsrv);
+
+    while(session != NULL){
+
+        write_list_entry(con, session, return_payload);
+
+        session = aes67_sapsrv_session_next(session);
+    }
 
     write_ok(con);
 }
@@ -643,6 +722,11 @@ static void cmd_unset(struct connection_st * con, u8_t * cmdline, size_t len)
     aes67_sapsrv_session_t session = aes67_sapsrv_session_by_origin(sapsrv, &origin);
     if (session == NULL){
         write_error(con, AES67_SAPD_ERR_UNKNOWN, NULL);
+        return;
+    }
+
+    if (aes67_sapsrv_session_get_managedby(session) != AES67_SAPSRV_MANAGEDBY_LOCAL){
+        write_error(con, AES67_SAPD_ERR, "Not a locally managed service");
         return;
     }
 
