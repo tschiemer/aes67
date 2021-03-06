@@ -43,25 +43,23 @@ void aes67_timer_deinit_system(void)
 
 void aes67_timer_init(struct aes67_timer *timer)
 {
-    timer->dispatchSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
-
-    dispatch_source_set_event_handler_f(timer->dispatchSource, (dispatch_function_t)timer_event_handler);
-
-    dispatch_set_context(timer->dispatchSource, timer);
 }
 
 void aes67_timer_deinit(struct aes67_timer *timer)
 {
-    if (timer->dispatchSource){
-        // generates SIGILL...
-//        dispatch_release(timer->dispatchSource);
-        timer->dispatchSource = NULL;
-    }
+    aes67_timer_unset(timer);
 }
 
 void aes67_timer_set(struct aes67_timer *timer, u32_t millisec)
 {
     aes67_timer_unset(timer);
+
+    timer->dispatchSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
+
+    dispatch_source_set_event_handler_f(timer->dispatchSource, (dispatch_function_t)timer_event_handler);
+
+    dispatch_set_context(timer->dispatchSource, timer);
+
 
     uint64_t nanosec = 1000000 * (uint64_t)millisec;
 
@@ -81,6 +79,13 @@ void aes67_timer_unset(struct aes67_timer *timer)
     }
 
     dispatch_source_cancel(timer->dispatchSource);
+
+    if (timer->dispatchSource){
+        // generates SIGILL...
+        dispatch_release(timer->dispatchSource);
+        timer->dispatchSource = NULL;
+    }
+
 
     timer->state = aes67_timer_state_unset;
 }
