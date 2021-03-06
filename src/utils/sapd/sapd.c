@@ -40,6 +40,9 @@ struct connection_st {
     struct sockaddr_un addr;
     socklen_t socklen;
 
+    uid_t euid;
+    gid_t egid;
+
     struct connection_st * next;
 };
 
@@ -80,16 +83,21 @@ static void write_error(struct connection_st * con, const u32_t code, const char
 static void write_ok(struct connection_st * con);
 static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * except);
 
-static void cmd_help(struct connection_st * con, u8_t * cmdline, size_t len);
+//static void cmd_help(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len);
-static void cmd_new(struct connection_st * con, u8_t * cmdline, size_t len);
-static void cmd_delete(struct connection_st * con, u8_t * cmdline, size_t len);
+static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len);
+static void cmd_unset(struct connection_st * con, u8_t * cmdline, size_t len);
+
+//const char cmd_help_str[] = AES67_SAPD_CMD_HELP;
+//const char cmd_list_str[] = AES67_SAPD_CMD_LIST;
+//const char cmd_set_str[] = AES67_SAPD_CMD_SET;
+//const char cmd_unset_str[] = AES67_SAPD_CMD_UNSET;
 
 static const struct cmd_st commands[] = {
-        CMD_INIT(AES67_SAPD_CMD_HELP, cmd_help),
+//        CMD_INIT(AES67_SAPD_CMD_HELP, cmd_help),
         CMD_INIT(AES67_SAPD_CMD_LIST, cmd_list),
-        CMD_INIT(AES67_SAPD_CMD_SET, cmd_new),
-        CMD_INIT(AES67_SAPD_CMD_UNSET, cmd_delete)
+        CMD_INIT(AES67_SAPD_CMD_SET, cmd_set),
+        CMD_INIT(AES67_SAPD_CMD_UNSET, cmd_unset)
 };
 
 #define COMMAND_COUNT (sizeof(commands) / sizeof(struct cmd_st))
@@ -99,6 +107,9 @@ static const char * error_msg[] = {
   "Unrecognized command",   // AES67_SAPD_ERR_UNRECOGNIZED
   "Missing args",           // AES67_SAPD_ERR_MISSING
   "Syntax error",           // AES67_SAPD_ERR_SYNTAX
+  "Unknown session",        // AES67_SAPD_ERR_UNKNOWN
+  "SDP too big",            // AES67_SAPD_ERR_TOOBIG
+  "Invalid..",                // AES67_SAPD_ERR_INVALID
 };
 
 #define ERROR_COUNT (sizeof(error_msg) / sizeof(char *))
@@ -192,6 +203,11 @@ static struct connection_st * connection_new(int sockfd, struct sockaddr_un * ad
     local.nconnections++;
 
     con->sockfd = sockfd;
+
+    con->euid = 0;
+    con->egid = 0;
+
+    getpeereid(sockfd, &con->euid, &con->egid);
 
     con->next = local.first_connection;
 
@@ -330,15 +346,14 @@ static void local_accept()
             close(sockfd);
         } else {
 
+
             sock_nonblock(sockfd);
 
             struct connection_st * con = connection_new(sockfd, &addr, socklen);
 
             write(sockfd, MSG_VERSIONWELCOME "\n", sizeof(MSG_VERSIONWELCOME));
 
-            syslog(LOG_INFO, "New local client (count = %d)", local.nconnections);
-
-//            printf("accepted! now %d\n", local.nconnections);
+            syslog(LOG_INFO, "client connected: uid %d gid %d (count = %d)", con->euid, con->egid, local.nconnections);
 
             // well, shouldn't happen......
             assert(con != NULL);
@@ -368,9 +383,9 @@ static void local_process()
             retval = read(con->sockfd, &cmdline[len], 1);
 
             if (retval == 0){
-                syslog(LOG_INFO, "Client disconnected");
-
                 close_con = true;
+
+//            syslog(LOG_INFO, "client discconnected:  (count = %d)", local.nconnections);
             }
             else if (retval == 1){
                 // NL terminates command-line
@@ -429,7 +444,15 @@ static void local_process()
         if (close_con){
             struct connection_st * prev = con;
             con = con->next;
+
+//            uid_t euid = con->euid;
+//            gid_t egid = con->egid;
+
             connection_close(prev);
+
+            // why does this segfault??
+//            printf("client disconnected: uid %d gid %d (count = %d)\n", egid, 0, local.nconnections);
+            syslog(LOG_INFO, "client disconnected: (count = %d)", local.nconnections);
         } else {
             con = con->next;
         }
@@ -475,12 +498,12 @@ static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * exc
     }
 }
 
-static void cmd_help(struct connection_st * con, u8_t * cmdline, size_t len)
-{
-    write(con->sockfd, "+MSG help\n", sizeof("+MSG help"));
-
-    write_ok(con);
-}
+//static void cmd_help(struct connection_st * con, u8_t * cmdline, size_t len)
+//{
+//    write(con->sockfd, "+MSG help\n", sizeof("+MSG help"));
+//
+//    write_ok(con);
+//}
 
 static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len)
 {
@@ -489,18 +512,162 @@ static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len)
     write_ok(con);
 }
 
-static void cmd_new(struct connection_st * con, u8_t * cmdline, size_t len)
+static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len)
 {
     if (len < sizeof(AES67_SAPD_CMD_SET " 1")){
         return write_error(con, AES67_SAPD_ERR_MISSING, NULL);
     }
 
+    // prepare to read data
+    u16_t sdplen_slen;
+    ssize_t sdplen = aes67_atoi(&cmdline[sizeof(AES67_SAPD_CMD_SET)], len - sizeof(AES67_SAPD_CMD_SET), 10, &sdplen_slen);
+
+    // sanity check
+    if (sdplen < sizeof("v=0\no=- 1 1 IN IP4 1.1.1.1") || sdplen > AES67_SAPSRV_SDP_MAXLEN){
+        if (sdplen > AES67_SAPSRV_SDP_MAXLEN) {
+            write_error(con, AES67_SAPD_ERR_TOOBIG, NULL);
+        } else {
+            write_error(con, AES67_SAPD_ERR_INVALID, NULL);
+        }
+
+        // consume sdp data
+        u8_t t;
+        while(len--){
+            read(con->sockfd, &t, 1);
+        }
+
+        return;
+    }
+
+    // read payload data in one go
+    u8_t sdp[AES67_SAPSRV_SDP_MAXLEN];
+    ssize_t rlen = read(con->sockfd, sdp, sizeof(sdp));
+
+    if (rlen != sdplen){
+        write_error(con, AES67_SAPD_ERR, "Not enough data");
+        return;
+    }
+
+    // figure out origin offset ( w/ or w/o CR?
+    u8_t * o = sdp[sizeof("v=0\n")] == 'o' ? &sdp[sizeof("v=0\n")] : &sdp[sizeof("v=0\r\n")];
+
+    // parse originator
+    struct aes67_sdp_originator origin;
+    if (aes67_sdp_origin_fromstr(&origin, o, sdplen - (o - sdp)) == AES67_SDP_ERROR){
+        write_error(con, AES67_SAPD_ERR_INVALID, "invalid originator");
+        return;
+    }
+
+    // parse address (requires ip and NOT hostname)
+    struct aes67_net_addr addr;
+    if (aes67_net_str2addr(&addr, origin.address.data, origin.address.length) == false){
+        write_error(con, AES67_SAPD_ERR, "origin must be denoted with IPv4/6");
+        return;
+    }
+
+    aes67_sapsrv_session_t session = aes67_sapsrv_session_by_origin(sapsrv, &origin);
+
+    if (session == NULL){
+        // new SDP
+        u16_t hash = atoi((char*)origin.session_id.data);
+        session = aes67_sapsrv_session_add(sapsrv, hash, addr.ipver, addr.addr, sdp, sdplen);
+    } else {
+        aes67_sapsrv_session_update(sapsrv, session, sdp, sdplen);
+    }
+
+    if (session == NULL){
+        write_error(con, AES67_SAPD_ERR, "internal");
+        return;
+    }
+
     write_ok(con);
+
+
+    // now inform all other clients that session was deleted
+    u8_t buf[256];
+
+    u16_t olen = aes67_sdp_origin_size(&origin)-2; // ignore CRNL
+
+    // "+NEW <size> o=....\n"
+    //
+//    size_t blen = (sizeof(AES67_SAPD_MSGU_NEW) + 2) + sdplen_slen + (aes67_sdp_origin_size(&origin) - 2);
+    size_t blen = sizeof(AES67_SAPD_MSGU_NEW)+2 + sdplen_slen + olen;
+
+
+    if (blen > sizeof(buf)){
+        syslog(LOG_ERR, "buf too small for " AES67_SAPD_MSGU_NEW " msg, %zu required", blen);
+        return;
+    }
+
+    memcpy(buf, AES67_SAPD_MSGU_NEW, sizeof(AES67_SAPD_MSGU_NEW)-1);
+    blen = sizeof(AES67_SAPD_MSGU_NEW)-1;
+
+    buf[blen++] = ' ';
+
+    // copy sdplen
+    memcpy(&buf[blen], &cmdline[sizeof(AES67_SAPD_CMD_SET)], sdplen_slen);
+    blen += sdplen_slen;
+
+    buf[blen++] = ' ';
+
+    memcpy(&buf[blen], o, olen);
+    blen += olen;
+
+    buf[blen++] = '\n';
+
+    // also add sdp payload
+//    memcpy(&buf[blen], sdp, sdplen);
+//    blen += sdplen;
+
+    write_toall_except(buf, blen, con);
+
+    write_toall_except(sdp, sdplen, con);
 }
 
-static void cmd_delete(struct connection_st * con, u8_t * cmdline, size_t len)
+static void cmd_unset(struct connection_st * con, u8_t * cmdline, size_t len)
 {
+    if (len < sizeof(AES67_SAPD_CMD_UNSET " o=- 1 1 IN IP4 1.2.3.4")){
+        write_error(con, AES67_SAPD_ERR_SYNTAX, NULL);
+        return;
+    }
+
+    // try to parse given originator
+    struct aes67_sdp_originator origin;
+    // note sizeof(..) gives length of string + 1 (terminating null)
+    if (aes67_sdp_origin_fromstr(&origin, &cmdline[sizeof(AES67_SAPD_CMD_UNSET)], len - sizeof(AES67_SAPD_CMD_UNSET)) == AES67_SDP_ERROR){
+        write_error(con, AES67_SAPD_ERR_SYNTAX, "Invalid origin");
+        return;
+    }
+
+    // lookup session
+    aes67_sapsrv_session_t session = aes67_sapsrv_session_by_origin(sapsrv, &origin);
+    if (session == NULL){
+        write_error(con, AES67_SAPD_ERR_UNKNOWN, NULL);
+        return;
+    }
+
+    // delete session
+    aes67_sapsrv_session_delete(sapsrv, session);
+
     write_ok(con);
+
+    // now inform all other clients that session was deleted
+    u8_t buf[256];
+
+    // "+DEL o=....\n"
+    size_t blen = (sizeof(AES67_SAPD_MSGU_DELETED) + 1) + (len - sizeof(AES67_SAPD_CMD_UNSET));
+
+    if (blen > sizeof(buf)){
+        syslog(LOG_ERR, "buf too small for " AES67_SAPD_MSGU_DELETED " msg, %zu required", blen);
+        return;
+    }
+
+    memcpy(buf, AES67_SAPD_MSGU_DELETED, sizeof(AES67_SAPD_MSGU_DELETED)-1);
+    buf[sizeof(AES67_SAPD_MSGU_DELETED)-1] = ' ';
+    memcpy(&buf[sizeof(AES67_SAPD_MSGU_DELETED)], &cmdline[sizeof(AES67_SAPD_CMD_UNSET)], len - sizeof(AES67_SAPD_CMD_UNSET));
+    buf[blen-1] = '\n';
+
+    write_toall_except(buf, blen, con);
 }
 
 static int sapsrv_setup()
@@ -571,7 +738,7 @@ static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sap
         syslog(LOG_INFO, "SAP: discovered (payload %d): %s", payloadlen, ostr);
 
         mlen = snprintf((char*)msg, sizeof(msg), "%s %d %s\n",
-                        AES67_SAPD_MSGU_DISCVRD,
+                        AES67_SAPD_MSGU_NEW,
                         payloadlen,
                         ostr
                         );

@@ -141,6 +141,7 @@ struct aes67_sdp_originator {
     AES67_STRING(AES67_SDP_MAXADDRESS) address;
 };
 
+
 /**
  * Data of connection options
  */
@@ -333,6 +334,15 @@ void aes67_sdp_origin_init(struct aes67_sdp_originator * origin);
  * @param sdp
  */
 void aes67_sdp_init(struct aes67_sdp * sdp);
+
+inline u16_t aes67_sdp_origin_size(struct aes67_sdp_originator * origin)
+{
+#if 0 < AES67_SDP_MAXUSERNAME
+    return sizeof("o=   IN IP4 \n") + (origin->username.length ? origin->username.length : 1) + origin->session_id.length + origin->session_version.length +  + origin->address.length;
+#else
+    return sizeof("o=-   IN IP4 \n") + origin->session_id.length + origin->session_version.length +  + origin->address.length;
+#endif
+}
 
 /**
  * Comfort getter for (RAVENNA) ptpdomain  attribute

@@ -39,18 +39,21 @@ extern "C" {
 #define AES67_SAPD_LOCAL_LISTEN_BACKLOG    3
 #define AES67_SAPD_LOCAL_MAX_CONNECTIONS   10
 
-#define AES67_SAPD_ERROR            0
+#define AES67_SAPD_ERR              0
 #define AES67_SAPD_ERR_UNRECOGNIZED 1
 #define AES67_SAPD_ERR_MISSING      2
 #define AES67_SAPD_ERR_SYNTAX       3
+#define AES67_SAPD_ERR_UNKNOWN      4
+#define AES67_SAPD_ERR_TOOBIG       5
+#define AES67_SAPD_ERR_INVALID      6
 
 #define AES67_SAPD_MSG_OK           "OK"
 #define AES67_SAPD_MSG_ERR          "ERR"
 #define AES67_SAPD_MSG_ERR_FMT      "ERR %d %s"
 
 #define AES67_SAPD_MSGU             "+MSG"
-#define AES67_SAPD_MSGU_DISCVRD     "+NEW"
-#define AES67_SAPD_MSGU_DISCVRD_FMT "+NEW %d o=%s %s %s IN IP%d %s"
+#define AES67_SAPD_MSGU_NEW         "+NEW"
+#define AES67_SAPD_MSGU_NEW_FMT     "+NEW %d o=%s %s %s IN IP%d %s"
 #define AES67_SAPD_MSGU_UPDATED     "+UPD"
 #define AES67_SAPD_MSGU_UPDATED_FMT "+UPD %d o=%s %s %s IN IP%d %s"
 #define AES67_SAPD_MSGU_DELETED     "+DEL"
@@ -58,7 +61,7 @@ extern "C" {
 #define AES67_SAPD_MSGU_TIMEOUT     "+TMT"
 #define AES67_SAPD_MSGU_TIMEOUT_FMT "+TMT o=%s %s %s IN IP%d %s"
 
-#define AES67_SAPD_CMD_HELP         "help"
+//#define AES67_SAPD_CMD_HELP         "help"
 #define AES67_SAPD_CMD_LIST         "ls"
 #define AES67_SAPD_CMD_LIST_FMT     "ls %d %d"
 #define AES67_SAPD_CMD_SET          "set"

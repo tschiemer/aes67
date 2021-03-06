@@ -50,7 +50,8 @@ extern "C" {
 #define AES67_SAPSRV_SCOPES_HAS(x) (((x) & 0x73))
 #define AES67_SAPSRV_SCOPES_ISVALID(x) (((x) & 0x73) == (x))
 
-#define AES67_SAPSRV_RX_BUFLEN                  1024
+#define AES67_SAPSRV_SDP_MAXLEN                  1024
+
 
 typedef void * aes67_sapsrv_t;
 typedef void * aes67_sapsrv_session_t;

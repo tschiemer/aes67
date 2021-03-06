@@ -594,19 +594,19 @@ void aes67_sapsrv_process(aes67_sapsrv_t sapserver)
 
     sapsrv_t * server = sapserver;
 
-    u8_t buf[AES67_SAPSRV_RX_BUFLEN];
+    u8_t buf[AES67_SAPSRV_SDP_MAXLEN+20]; // 20 for SAP header
     ssize_t rlen;
 
     if (server->sockfd4 != -1){
         if ( (rlen = recv(server->sockfd4, buf, sizeof(buf), 0)) > 0){
-//            printf("recv4 %zd\n", rlen);
+            syslog(LOG_DEBUG, "ipv4 rx %zd", rlen);
             aes67_sap_service_handle(&server->service, buf, rlen, server);
         }
     }
 
     if (server->sockfd6 != -1){
         if ( (rlen = recv(server->sockfd6, buf, sizeof(buf), 0)) > 0){
-//            printf("recv6 %zd\n", rlen);
+            syslog(LOG_DEBUG, "ipv6 rx %zd", rlen);
             aes67_sap_service_handle(&server->service, buf, rlen, server);
         }
     }
@@ -616,15 +616,18 @@ void aes67_sapsrv_process(aes67_sapsrv_t sapserver)
 
 aes67_sapsrv_session_t aes67_sapsrv_session_add(aes67_sapsrv_t sapserver, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t * ip, const u8_t * payload, const u16_t payloadlen)
 {
+    assert(payloadlen <= AES67_SAPSRV_SDP_MAXLEN);
     sapsrv_session_t * session = NULL;//session_new(sapserver, hash, ipver, ip, payload, payloadlen);
 
     //TODO announce
 
-    return session;
+    return 1;
 }
 
 void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session, const u8_t * payload, const u16_t payloadlen)
 {
+    assert( payloadlen <= AES67_SAPSRV_SDP_MAXLEN);
+
     sapsrv_session_t * sess = session_update(sapserver, session, payload, payloadlen);
 
     //TODO announce
