@@ -564,7 +564,9 @@ static void write_list_entry(struct connection_st * con, aes67_sapsrv_session_t 
 static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len)
 {
     bool return_payload = false;
-    if (len == sizeof(AES67_SAPD_CMD_LIST)+1){
+
+    // check wether payload should be returned
+    if (len >= sizeof(AES67_SAPD_CMD_LIST " 0")-1){
         if (cmdline[sizeof(AES67_SAPD_CMD_LIST)] == '1'){
             return_payload = true;
         } else if (cmdline[sizeof(AES67_SAPD_CMD_LIST)] == '0'){
@@ -574,9 +576,24 @@ static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len)
             return;
         }
     }
-    else if (len != sizeof(AES67_SAPD_CMD_LIST)-1){
-         write_error(con, AES67_SAPD_ERR_SYNTAX, NULL);
-         return;
+
+    // if a session was specified, just return this one
+    if (len >= sizeof(AES67_SAPD_CMD_LIST " 0 o")-1){
+        u8_t * o = &cmdline[sizeof(AES67_SAPD_CMD_LIST " 0 o")-2];
+        struct aes67_sdp_originator origin;
+        if (aes67_sdp_origin_fromstr(&origin, o, len - (o - cmdline)) == AES67_SDP_ERROR){
+            write_error(con, AES67_SAPD_ERR_INVALID, NULL);
+            return;
+        }
+        aes67_sapsrv_session_t session = aes67_sapsrv_session_by_origin(sapsrv, &origin);
+        if (session == NULL){
+            write_error(con, AES67_SAPD_ERR_UNKNOWN, NULL);
+            return;
+        }
+
+        write_list_entry(con, session, return_payload);
+        write_ok(con);
+        return;
     }
 
     aes67_sapsrv_session_t session = aes67_sapsrv_session_first(sapsrv);
