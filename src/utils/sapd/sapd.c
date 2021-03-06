@@ -411,6 +411,9 @@ static void local_process()
                     if (cmd == NULL){
                         write_error(con, AES67_SAPD_ERR_UNRECOGNIZED, NULL);
                     } else {
+                        cmdline[len-1] = '\0';
+                        syslog(LOG_DEBUG, "command: %s", cmdline);
+
                         cmd->handler(con, cmdline, len);
                     }
 
@@ -668,13 +671,23 @@ static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len)
         u16_t hash = atoi((char*)origin.session_id.data);
         session = aes67_sapsrv_session_add(sapsrv, hash, addr.ipver, addr.addr, sdp, sdplen);
     } else {
-        aes67_sapsrv_session_update(sapsrv, session, sdp, sdplen);
+        // make sure it is a newer version.
+        struct aes67_sdp_originator * sorigin = aes67_sapsrv_session_get_origin(session);
+        if (aes67_sdp_origin_cmpversion(sorigin, &origin) == -1){
+            aes67_sapsrv_session_update(sapsrv, session, sdp, sdplen);
+        } else {
+            write_error(con, AES67_SAPD_ERR, "session version is not newer");
+            return;
+        }
     }
 
     if (session == NULL){
         write_error(con, AES67_SAPD_ERR, "internal");
         return;
     }
+
+//    o[aes67_sdp_origin_size(&origin)-2] = '\0';
+//    syslog(LOG_INFO, "set %s", o);
 
     write_ok(con);
 

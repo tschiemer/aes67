@@ -71,6 +71,17 @@ static sapserver_t sapserver_singleton;
 static u8_t initialized = false;
 #endif
 
+static sapsrv_session_t * session_new(sapsrv_t *server, u8_t managed_by, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t *ip, const struct aes67_sdp_originator *origin, const u8_t *payload, const u16_t payloadlen);
+static sapsrv_session_t * session_update(sapsrv_t *  sapserver, sapsrv_session_t * session, const struct aes67_sdp_originator *origin, const u8_t * payload, const u16_t payloadlen);
+static void session_delete(sapsrv_t * server, sapsrv_session_t * session);
+
+static int join_mcast_groups(sapsrv_t * server, u32_t scopes);
+static int leave_mcast_groups(sapsrv_t * server, u32_t scopes);
+
+static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt);
+
+
+
 static sapsrv_session_t * session_new(sapsrv_t *server, u8_t managed_by, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t *ip, const struct aes67_sdp_originator *origin, const u8_t *payload, const u16_t payloadlen)
 {
     sapsrv_session_t * session = malloc(sizeof(sapsrv_session_t));
@@ -98,9 +109,12 @@ static sapsrv_session_t * session_new(sapsrv_t *server, u8_t managed_by, const u
     return session;
 }
 
-static sapsrv_session_t * session_update(sapsrv_t *  sapserver, sapsrv_session_t * session, const u8_t * payload, const u16_t payloadlen)
+static sapsrv_session_t * session_update(sapsrv_t *  sapserver, sapsrv_session_t * session, const struct aes67_sdp_originator *origin, const u8_t * payload, const u16_t payloadlen)
 {
     //TODO should use a lock here really
+
+    memcpy(&session->origin.session_version.data, origin->session_version.data, origin->session_version.length);
+    session->origin.session_version.length = origin->session_version.length;
 
     u8_t * changed = malloc(payloadlen);
     memcpy(changed, payload, payloadlen);
@@ -228,27 +242,27 @@ int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope)
 static int join_mcast_groups(sapsrv_t * server, u32_t scopes)
 {
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && aes67_sapsrv_join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL)){
-//        perror("4gl");
+        perror("4gl");
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && aes67_sapsrv_join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED)){
-//        perror("4al");
+        perror("4al");
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)){
-//        perror("6ll");
+        perror("6ll");
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_IPv4) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_IPv4)){
-//        perror("6al");
+        perror("6al");
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL)){
-//        perror("6al");
+        perror("6al");
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL)){
-//        perror("6sl");
+        perror("6sl");
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
@@ -328,7 +342,7 @@ static int leave_mcast_groups(sapsrv_t * server, u32_t scopes)
     return EXIT_SUCCESS;
 }
 
-static int set_sock_requse(int sockfd)
+int set_sock_reuse(int sockfd)
 {
     // set addr/port reuse
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
@@ -376,6 +390,86 @@ int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state)
 
 
     return EXIT_SUCCESS;
+}
+
+static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
+{
+    assert(server != NULL);
+    assert(session != NULL);
+    assert(AES67_NET_IPVER_ISVALID(session->ip.ipver));
+
+    u8_t sap[AES67_SAPSRV_SDP_MAXLEN+60];
+
+    u16_t saplen = aes67_sap_service_msg(&server->service, sap, sizeof(sap), opt, session->hash, session->ip.ipver, session->ip.addr, session->payload, session->payloadlen, server);
+
+    if (saplen == 0){
+        syslog(LOG_ERR, "failed to generate SAP msg");
+        return;
+    }
+
+    struct sockaddr_in addr_in;
+    struct sockaddr_in6 addr_in6;
+
+    addr_in.sin_len = sizeof(struct sockaddr_in);
+    addr_in.sin_family = AF_INET;
+    addr_in.sin_port = htons(server->port);
+
+    addr_in6.sin6_len = sizeof(struct sockaddr_in6);
+    addr_in6.sin6_family = AF_INET6;
+    addr_in6.sin6_port = htons(server->port);
+
+    ssize_t s;
+
+    if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL)){
+        memcpy(&addr_in.sin_addr, (u8_t[])AES67_SAP_IPv4_GLOBAL, 4);
+        if ( (s = sendto(server->sockfd4, sap, saplen, 0, (struct sockaddr*)&addr_in, addr_in.sin_len)) != saplen){
+            syslog(LOG_ERR, "ipv4-g tx failed (%zd)", s);
+        } else {
+            syslog(LOG_DEBUG, "ipv4-g tx %zd", s);
+        }
+    }
+    if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED)){
+        memcpy(&addr_in.sin_addr, (u8_t[])AES67_SAP_IPv4_ADMIN, 4);
+        if ( (s = sendto(server->sockfd4, sap, saplen, 0, (struct sockaddr*)&addr_in, addr_in.sin_len)) != saplen){
+            syslog(LOG_ERR, "ipv4-a tx failed (%zd)", s);
+        } else {
+            syslog(LOG_DEBUG, "ipv4-a tx %zd", s);
+        }
+    }
+    if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)){
+        memcpy(&addr_in6.sin6_addr, (u8_t[])AES67_SAP_IPv6_LL, 16);
+        if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, addr_in6.sin6_len)) != saplen){
+            syslog(LOG_ERR, "ipv6-ll tx failed (%zd)", s);
+        } else {
+            syslog(LOG_DEBUG, "ipv6-ll tx %zd", s);
+        }
+    }
+    if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL)){
+        memcpy(&addr_in6.sin6_addr, (u8_t[])AES67_SAP_IPv6_AL, 16);
+        if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, addr_in6.sin6_len)) != saplen){
+            syslog(LOG_ERR, "ipv6-al tx failed (%zd)", s);
+        } else {
+            syslog(LOG_DEBUG, "ipv6-al tx %zd", s);
+        }
+    }
+    if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv6_IPv4)){
+        memcpy(&addr_in6.sin6_addr, (u8_t[])AES67_SAP_IPv6_IP4, 16);
+        if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, addr_in6.sin6_len)) != saplen){
+            syslog(LOG_ERR, "ipv6-v4 tx failed (%zd)", s);
+        } else {
+            syslog(LOG_DEBUG, "ipv6-v4 tx %zd", s);
+        }
+    }
+    if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL)){
+        memcpy(&addr_in6.sin6_addr, (u8_t[])AES67_SAP_IPv6_SL, 16);
+        if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, addr_in6.sin6_len)) != saplen){
+            syslog(LOG_ERR, "ipv6-sl tx failed (%zd)", s);
+        } else {
+            syslog(LOG_DEBUG, "ipv6-sl tx %zd", s);
+        }
+    }
+
+    session->last_activity = time(NULL);
 }
 
 void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event event, u16_t hash,
@@ -506,7 +600,7 @@ aes67_sapsrv_start(u32_t listen_scopes, u32_t send_scopes, u16_t port, aes67_sap
             return NULL;
         }
 
-        if (set_sock_requse(server->sockfd4)){
+        if (set_sock_reuse(server->sockfd4)){
             close(server->sockfd4);
             free(server);
             return NULL;
@@ -535,7 +629,7 @@ aes67_sapsrv_start(u32_t listen_scopes, u32_t send_scopes, u16_t port, aes67_sap
             return NULL;
         }
 
-        if (set_sock_requse(server->sockfd4)){
+        if (set_sock_reuse(server->sockfd4)){
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
             }
@@ -637,21 +731,31 @@ aes67_sapsrv_session_t aes67_sapsrv_session_add(aes67_sapsrv_t sapserver, const 
     sapsrv_t * server = (sapsrv_t*)sapserver;
     sapsrv_session_t * session = session_new(server, AES67_SAPSRV_MANAGEDBY_LOCAL, hash, ipver, ip, &origin, payload, payloadlen);
 
-    //TODO announce
+    sap_send(server, session, AES67_SAP_STATUS_MSGTYPE_ANNOUNCE);
 
     return session;
 }
 
 void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, const u8_t * payload, const u16_t payloadlen)
 {
-    assert( payloadlen <= AES67_SAPSRV_SDP_MAXLEN);
+    assert(payload != NULL);
+    assert(payloadlen <= AES67_SAPSRV_SDP_MAXLEN);
+
+    u8_t * o = (u8_t*)&payload[(payload[sizeof("v=0\n")] == 'o') ? sizeof("v=0\n") : sizeof("v=0\r\n")];
+
+    struct aes67_sdp_originator origin;
+    if (aes67_sdp_origin_fromstr(&origin, o, payloadlen - (o - payload)) == AES67_SDP_ERROR){
+        printf("invalid origin\n");
+        return;
+    }
 
     sapsrv_t * server = (sapsrv_t*)sapserver;
 
     sapsrv_session_t * session = (sapsrv_session_t *)sapsession;
-    //session_update(server, session, payload, payloadlen);
 
-    //TODO announce
+    session_update(server, session, &origin, payload, payloadlen);
+
+    sap_send(server, session, AES67_SAP_STATUS_MSGTYPE_ANNOUNCE);
 }
 
 void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session)

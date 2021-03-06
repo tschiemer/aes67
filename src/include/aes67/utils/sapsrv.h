@@ -84,12 +84,14 @@ aes67_sapsrv_start(u32_t listen_scopes, u32_t send_scopes, u16_t port, aes67_sap
                    void *user_data);
 void aes67_sapsrv_stop(aes67_sapsrv_t sapserver);
 
-int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state);
 
 void aes67_sapsrv_process(aes67_sapsrv_t sapserver);
 
+int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state);
+
 int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope);
 int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope);
+int set_sock_reuse(int sockfd);
 
 aes67_sapsrv_session_t aes67_sapsrv_session_add(aes67_sapsrv_t sapserver, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t * ip, const u8_t * payload, const u16_t payloadlen);
 void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session, const u8_t * payload, const u16_t payloadlen);
