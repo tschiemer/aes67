@@ -40,11 +40,12 @@ extern "C" {
 #define AES67_SAPSRV_SCOPE_IPv4_GLOBAL        0x1
 #define AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED  0x2
 #define AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL     0x10
-#define AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL    0x20
-#define AES67_SAPSRV_SCOPE_IPv6_SITELOCAL     0x40
+#define AES67_SAPSRV_SCOPE_IPv6_IPv4          0x20
+#define AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL    0x40
+#define AES67_SAPSRV_SCOPE_IPv6_SITELOCAL     0x80
 
 #define AES67_SAPSRV_SCOPE_IPv4               0x3
-#define AES67_SAPSRV_SCOPE_IPv6               0x70
+#define AES67_SAPSRV_SCOPE_IPv6               0xF0
 
 #define AES67_SAPSRV_SCOPES_HAS(x) (((x) & 0x73))
 #define AES67_SAPSRV_SCOPES_ISVALID(x) (((x) & 0x73) == (x))
@@ -79,6 +80,9 @@ void aes67_sapsrv_stop(aes67_sapsrv_t sapserver);
 int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state);
 
 void aes67_sapsrv_process(aes67_sapsrv_t sapserver);
+
+int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope);
+int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope);
 
 aes67_sapsrv_session_t aes67_sapsrv_session_add(aes67_sapsrv_t sapserver, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t * ip, const u8_t * payload, const u16_t payloadlen);
 void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session, const u8_t * payload, const u16_t payloadlen);

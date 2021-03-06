@@ -160,7 +160,7 @@ static void help(FILE * fd)
              "\t\t\t\t 4g\t IPv4 SAP global (" AES67_SAP_IPv4_GLOBAL_STR ")\n"
              "\t\t\t\t 4a\t IPv4 SAP administered (" AES67_SAP_IPv4_ADMIN_STR ")\n"
              "\t\t\t\t 6ll\t IPv6 SAP link local (" AES67_SAP_IPv6_LL_STR ")\n"
-//             "\t\t\t\t 6ip4\t IPv6 SAP ip4 scope local (" AES67_SAP_IPv6_IP4_STR ")\n"
+             "\t\t\t\t 6ip4\t IPv6 SAP ip4 scope local (" AES67_SAP_IPv6_IP4_STR ")\n"
             "\t\t\t\t 6al\t IPv6 SAP admin local (" AES67_SAP_IPv6_AL_STR ")\n"
             "\t\t\t\t 6sl\t IPv6 SAP site local (" AES67_SAP_IPv6_SL_STR ")\n"
             "\t\t\t Default listen: 4g + 4a + 6ll\n"
@@ -649,12 +649,14 @@ int main(int argc, char * argv[]){
                 {"l4a", no_argument, 0, 2},
                 {"l6ll", no_argument, 0, 3},
                 {"l6al", no_argument, 0, 4},
-                {"l6sl", no_argument, 0, 5},
-                {"s4g", no_argument, 0, 6},
-                {"s4a", no_argument, 0, 7},
-                {"s6ll", no_argument, 0, 8},
-                {"s6al", no_argument, 0, 9},
-                {"s6sl", no_argument, 0, 10},
+                {"l6ip4", no_argument, 0, 5},
+                {"l6sl", no_argument, 0, 6},
+                {"s4g", no_argument, 0, 7},
+                {"s4a", no_argument, 0, 8},
+                {"s6ll", no_argument, 0, 9},
+                {"s6ip4", no_argument, 0, 10},
+                {"s6al", no_argument, 0, 11},
+                {"s6sl", no_argument, 0, 12},
                 {"port", required_argument, 0, 'p'},
                 {0,         0,                 0,  0 }
         };
@@ -678,31 +680,39 @@ int main(int argc, char * argv[]){
                 opts.listen_scopes |= AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL;
                 break;
 
-            case 4: // --l6al
+            case 4: // --l6ip4
+                opts.listen_scopes |= AES67_SAPSRV_SCOPE_IPv6_IPv4;
+                break;
+
+            case 5: // --l6al
                 opts.listen_scopes |= AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL;
                 break;
 
-            case 5: // --l6sl
+            case 6: // --l6sl
                 opts.listen_scopes |= AES67_SAPSRV_SCOPE_IPv6_SITELOCAL;
                 break;
 
-            case 6: // --l4gl
+            case 7: // --l4gl
                 opts.send_scopes |= AES67_SAPSRV_SCOPE_IPv4_GLOBAL;
                 break;
 
-            case 7: // --l4al
+            case 8: // --l4al
                 opts.send_scopes |= AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED;
                 break;
 
-            case 8: // --l6ll
+            case 9: // --l6ll
                 opts.send_scopes |= AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL;
                 break;
 
-            case 9: // --l6al
+            case 10: // --l6ip4
+                opts.send_scopes |= AES67_SAPSRV_SCOPE_IPv6_IPv4;
+                break;
+
+            case 11: // --l6al
                 opts.send_scopes |= AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL;
                 break;
 
-            case 10: // --l6sl
+            case 12: // --l6sl
                 opts.send_scopes |= AES67_SAPSRV_SCOPE_IPv6_SITELOCAL;
                 break;
 

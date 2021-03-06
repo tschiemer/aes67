@@ -173,7 +173,7 @@ static void session_delete(sapsrv_t * server, sapsrv_session_t * session)
 //}
 
 
-static int join_mcast_group(int sockfd, u32_t scope)
+int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope)
 {
     int proto;
     int optname;
@@ -199,9 +199,11 @@ static int join_mcast_group(int sockfd, u32_t scope)
         optname = IPV6_JOIN_GROUP;
         if (scope & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_LL, 16);
+        } else if (scope & AES67_SAPSRV_SCOPE_IPv6_IPv4){
+            memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_IP4, 16);
         } else if (scope & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_AL, 16);
-        } else if (scope & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL){
+        } else if (scope & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_SL, 16);
         }
         mreq.v6.ipv6mr_interface = 0; // default interface // get_ifindex(&server->iface_addr);
@@ -220,31 +222,38 @@ static int join_mcast_group(int sockfd, u32_t scope)
 
 static int join_mcast_groups(sapsrv_t * server, u32_t scopes)
 {
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && aes67_sapsrv_join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL)){
 //        perror("4gl");
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && aes67_sapsrv_join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED)){
 //        perror("4al");
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)){
 //        perror("6ll");
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_IPv4) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_IPv4)){
 //        perror("6al");
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL)){
+//        perror("6al");
+        return EXIT_FAILURE;
+    }
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL)){
 //        perror("6sl");
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
 }
 
-static int leave_mcast_group(int sockfd, u32_t scope)
+int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope)
 {
+    // only
+    assert( ((scope & AES67_SAPSRV_SCOPE_IPv4) == AES67_SAPSRV_SCOPE_IPv4) + ((scope & AES67_SAPSRV_SCOPE_IPv6) == AES67_SAPSRV_SCOPE_IPv6) == 1);
+
     int proto;
     int optname;
     union {
@@ -269,9 +278,11 @@ static int leave_mcast_group(int sockfd, u32_t scope)
         optname = IPV6_LEAVE_GROUP;
         if (scope & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_LL, 16);
+        } else if (scope & AES67_SAPSRV_SCOPE_IPv6_IPv4){
+            memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_IP4, 16);
         } else if (scope & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_AL, 16);
-        } else if (scope & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL){
+        } else if (scope & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_SL, 16);
         }
         mreq.v6.ipv6mr_interface = 0; // default interface // get_ifindex(&server->iface_addr);
@@ -291,19 +302,22 @@ static int leave_mcast_group(int sockfd, u32_t scope)
 
 static int leave_mcast_groups(sapsrv_t * server, u32_t scopes)
 {
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && leave_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && aes67_sapsrv_leave_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL)){
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && leave_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && aes67_sapsrv_leave_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED)){
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && aes67_sapsrv_leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)){
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && aes67_sapsrv_leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL)){
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_IPv4) && aes67_sapsrv_leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_IPv4)){
+        return EXIT_FAILURE;
+    }
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && aes67_sapsrv_leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL)){
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
