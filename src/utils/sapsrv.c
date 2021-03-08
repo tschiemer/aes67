@@ -494,7 +494,7 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
 
     syslog(LOG_DEBUG, "sap evt=%d hash=%hu plen=%d", event, hash, payloadlen);
 
-    // announcement requests get special treatement
+    // announcement requests get special treatement (because they're triggered by the local stack and no origin is provided)
     if (event == aes67_sap_event_announcement_request){
 
         sapsrv_session_t * session = aes67_sapsrv_session_by_id(server, hash, ipver, ip);
@@ -505,6 +505,24 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
         }
 
         sap_send(server, session, AES67_SAP_STATUS_MSGTYPE_ANNOUNCE);
+
+        return;
+    }
+
+    // timeouts also get special treatment (because they're triggered by the local stack and no origin is provided)
+    if (event == aes67_sap_event_timeout){
+
+        sapsrv_session_t * session = aes67_sapsrv_session_by_id(server, hash, ipver, ip);
+
+        // should not occur
+        if (session == NULL){
+            return;
+        }
+
+        // publish
+        server->event_handler(server, session, aes67_sapsrv_event_timeout, &session->origin, session->payload, session->payloadlen, server->user_data);
+
+        session_delete(server, session);
 
         return;
     }
@@ -569,17 +587,15 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
         server->event_handler(server, session, evt, &session->origin, session->payload, session->payloadlen, server->user_data);
 
 
-    } else if (event == aes67_sap_event_deleted || event == aes67_sap_event_timeout){
+    } else if (event == aes67_sap_event_deleted){
         // if event was not known before, there is no reason telling the client about (?)
         if (session == NULL){
             // nothing to be done
             return;
         }
 
-        enum aes67_sapsrv_event evt = event == aes67_sap_event_deleted ? aes67_sapsrv_event_deleted : aes67_sapsrv_event_timeout;
-
         // publish
-        server->event_handler(server, session, evt, &session->origin, session->payload, session->payloadlen, server->user_data);
+        server->event_handler(server, session, aes67_sapsrv_event_deleted, &session->origin, session->payload, session->payloadlen, server->user_data);
 
         session_delete(server, session);
     }
