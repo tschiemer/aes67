@@ -54,7 +54,10 @@ static void help(FILE * fd)
     fprintf( fd,
              "Usage: %s [-h?] | [-v] [-s|--sessions] [-d|--devices] [--receivers] [--senders] [--filter (disco|term)] [-n]\n"
              "Outputs any found session, receivers or senders as found per mDNS requests to STDOUT.\n"
-             "One result per line: <fullname> <host> <port> [<txt>]\n"
+             "One result per line:\n"
+             "\tsession: rtsp://<host>:<port>/by-name/<session-name>\n"
+             "\tsenders: rtsp://<host>:<port>\n"
+             "\treceivers: http://<host>:<port>\n"
              "If neither type is explicitly requested, looks for sessions only.\n"
              "Options:\n"
              "\t -h,-?\t\t Outputs this info\n"

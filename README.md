@@ -362,7 +362,10 @@ Note that there is also a quick and dirty script for this, although it is less r
 ```
 Usage: ./rav-lookup [-h?] | [-v] [-s|--sessions] [-d|--devices] [--receivers] [--senders] [--filter (disco|term)] [-n]
 Outputs any found session, receivers or senders as found per mDNS requests to STDOUT.
-One result per line: <fullname> <host> <port> [<txt>]
+One result per line:
+	session: rtsp://<host>:<port>/by-name/<session-name>
+	senders: rtsp://<host>:<port>
+	receivers: http://<host>:<port>
 If neither type is explicitly requested, looks for sessions only.
 Options:
 	 -h,-?		 Outputs this info
