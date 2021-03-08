@@ -33,6 +33,7 @@
 extern "C" {
 #endif
 
+typedef void * aes67_mdns_context_t;
 typedef void * aes67_mdns_resource_t;
 
 enum aes67_mdns_result {
@@ -44,19 +45,26 @@ typedef void (*aes67_mdns_browse_callback)(aes67_mdns_resource_t res, enum aes67
 typedef void (*aes67_mdns_resolve_callback)(aes67_mdns_resource_t res, enum aes67_mdns_result result, const u8_t * fullname, const u8_t * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context);
 
 
-s32_t aes67_mdns_init(void);
-void aes67_mdns_deinit(void);
+aes67_mdns_context_t  aes67_mdns_new(void);
+void aes67_mdns_delete(aes67_mdns_context_t ctx);
 
 
-aes67_mdns_resource_t aes67_mdns_browse_start(const u8_t * type, const u8_t * subtype, const u8_t * domain, aes67_mdns_browse_callback callback, void * context);
-aes67_mdns_resource_t aes67_mdns_resolve_start(const u8_t * name, const u8_t * type, const u8_t * domain, aes67_mdns_resolve_callback callback, void * context);
+aes67_mdns_resource_t
+aes67_mdns_browse_start(aes67_mdns_context_t ctx, const u8_t *type, const u8_t *subtype, const u8_t *domain,
+                        aes67_mdns_browse_callback callback, void *user_data);
+aes67_mdns_resource_t
+aes67_mdns_resolve_start(aes67_mdns_context_t ctx, const u8_t *name, const u8_t *type, const u8_t *domain,
+                         aes67_mdns_resolve_callback callback, void *user_data);
 
-aes67_mdns_resource_t aes67_mdns_lookup_start(const u8_t * type, const u8_t * subtype, const u8_t * domain, aes67_mdns_resolve_callback callback, void * context);
+aes67_mdns_resource_t
+aes67_mdns_lookup_start(aes67_mdns_context_t ctx, const u8_t *type, const u8_t *subtype, const u8_t *domain,
+                        aes67_mdns_resolve_callback callback, void *user_data);
 
 void aes67_mdns_stop(aes67_mdns_resource_t res);
 
-void aes67_mdns_process(u32_t timeout_usec);
+void aes67_mdns_process(aes67_mdns_context_t ctx, struct timeval *timeout);
 
+void aes67_mdns_getsockfds(aes67_mdns_context_t ctx, int *fds, int *nfds);
 
 
 #ifdef __cplusplus

@@ -19,8 +19,6 @@
 /**
  * TODOs
  *
- * - use a single shared connection? -> kDNSServiceFlagsShareConnection
- *    -> use for two-step lookup (only)?
  * - what happens when a device explicitly invalidates its records?
  */
 
@@ -45,71 +43,86 @@ enum restype {
     (x) == restype_lookup_resolve \
 )
 
-struct resource {
+struct resource_st;
+
+typedef struct context_st {
+    DNSServiceRef sharedRef;
+    struct resource_st * first_resource;
+} context_t;
+
+typedef struct resource_st {
+    context_t * ctx;
     enum restype type;
     DNSServiceRef serviceRef;
     aes67_mdns_browse_callback callback;
-    void * context;
-    struct resource * next;
-    struct resource * parent;
-};
+    void * user_data;
+    struct resource_st * next;
+    struct resource_st * parent;
+} resource_t;
 
 
-static struct resource * first_resource = NULL;
+//static struct resource * first_resource = NULL;
 
-static struct resource *new_resource(enum restype restype, void *callback, void *context, struct resource *parent);
-static void link_resource(struct resource * res);
-static void delete_resource(struct resource * res);
+static resource_t *resource_new(context_t * ctx, enum restype restype, void *callback, void *context, resource_t *parent);
+static void resource_link(resource_t *res);
+static void resource_delete(resource_t *res);
 
 static ssize_t to_regtype(char * regtype, size_t maxlen, const u8_t * type, const u8_t * subtype);
 
 static void browse_callback(DNSServiceRef ref, DNSServiceFlags flags, u32_t interfaceIndex, DNSServiceErrorType errorCode, const char * serviceName, const char * regtype, const char * replyDomain, void * context);
-static aes67_mdns_resource_t browse_start(struct resource * res, const u8_t * type, const u8_t * subtype, const u8_t * domain);
+static aes67_mdns_resource_t browse_start(resource_t * res, const u8_t * type, const u8_t * subtype, const u8_t * domain);
 
 static void resolve_callback(DNSServiceRef ref, DNSServiceFlags flags, u32_t interfaceIndex, DNSServiceErrorType errorCode, const char * fullname, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context);
-static aes67_mdns_resource_t resolve_start(struct resource * res, const u8_t * name, const u8_t * type, const u8_t * domain);
+static aes67_mdns_resource_t resolve_start(resource_t * res, const u8_t * name, const u8_t * type, const u8_t * domain);
 
-struct resource *new_resource(enum restype restype, void *callback, void *context, struct resource *parent)
+static resource_t * resource_new(context_t * ctx, enum restype restype, void *callback, void *context, resource_t *parent)
 {
+    assert(ctx != NULL);
     assert(restype_isvalid(restype));
 
-    struct resource * res = malloc(sizeof(struct resource));
+    resource_t * res = malloc(sizeof(resource_t));
 
+    res->ctx = ctx;
     res->type = restype;
     res->serviceRef = NULL;
     res->callback = callback;
-    res->context = context;
+    res->user_data = context;
 
     return res;
 }
 
-void link_resource(struct resource * res)
+static void resource_link(resource_t *res)
 {
     assert(res != NULL);
 
-    res->next = first_resource;
-    first_resource = res;
+    context_t * ctx = res->ctx;
+
+    res->next = ctx->first_resource;
+    ctx->first_resource = res;
 }
 
-void delete_resource(struct resource * res)
+static void resource_delete(resource_t *res)
 {
     assert(res != NULL);
+    assert(res->ctx != NULL);
 
-    if (first_resource == res){
-        first_resource = res->next;
+    context_t * ctx = res->ctx;
+
+    if (ctx->first_resource == res){
+        ctx->first_resource = res->next;
     } else {
         // if resource has generated childen, delete them aswell (only if first resource)
-        while (first_resource->parent == res){
-            delete_resource(first_resource);
+        while (ctx->first_resource->parent == res){
+            resource_delete(ctx->first_resource);
         }
 
-        struct resource * next = first_resource;
+        resource_t * next = ctx->first_resource;
         while (next != NULL){
             // if resource has generated childen, delete
             if (next->parent == res){
-                struct resource * child = next;
+                resource_t * child = next;
                 next = next->next;
-                delete_resource(child);
+                resource_delete(child);
             }
             else if (next->next == res){
                 next->next = res->next;
@@ -127,7 +140,7 @@ void delete_resource(struct resource * res)
     free(res);
 }
 
-ssize_t to_regtype(char * regtype, size_t maxlen, const u8_t * type, const u8_t * subtype)
+static ssize_t to_regtype(char * regtype, size_t maxlen, const u8_t * type, const u8_t * subtype)
 {
     u32_t l = strlen((char*)type);
     u32_t ls = subtype == NULL ? 0 : strlen((char*)subtype);
@@ -147,126 +160,149 @@ ssize_t to_regtype(char * regtype, size_t maxlen, const u8_t * type, const u8_t 
     return l;
 }
 
-s32_t aes67_mdns_init(void)
+aes67_mdns_context_t aes67_mdns_new(void)
 {
-    if (first_resource != NULL) {
-        aes67_mdns_deinit();
+
+    context_t * ctx = calloc(1, sizeof(context_t));
+
+    if (ctx == NULL){
+        return NULL;
     }
 
-    return EXIT_SUCCESS;
+    DNSServiceErrorType error = DNSServiceCreateConnection(&ctx->sharedRef);
+    if (error){
+        free(ctx);
+        return NULL;
+    }
+
+    return ctx;
 }
 
-void aes67_mdns_deinit(void)
+void aes67_mdns_delete(aes67_mdns_context_t ctx)
 {
-    while(first_resource != NULL){
-        aes67_mdns_stop(first_resource);
+    context_t * __ctx = ctx;
+
+    while(__ctx->first_resource != NULL){
+        aes67_mdns_stop(__ctx->first_resource);
     }
 }
 
 
-void browse_callback(DNSServiceRef ref, DNSServiceFlags flags, u32_t interfaceIndex, DNSServiceErrorType errorCode, const char * serviceName, const char * regtype, const char * replyDomain, void * context)
+static void browse_callback(DNSServiceRef ref, DNSServiceFlags flags, u32_t interfaceIndex, DNSServiceErrorType errorCode, const char * serviceName, const char * regtype, const char * replyDomain, void * context)
 {
 //    printf("%d %s %s.%s\n", errorCode, regtype, serviceName, replyDomain);
 
-    struct resource * res = (struct resource*)context;
+    resource_t * res = (resource_t*)context;
 
     assert(res->type == restype_browse || res->type == restype_lookup_browse);
 
     if (res->type == restype_browse){
-        ((aes67_mdns_browse_callback)res->callback)(res, errorCode, (const u8_t*)regtype, (const u8_t*)serviceName, (const u8_t*)replyDomain, res->context);
+        ((aes67_mdns_browse_callback)res->callback)(res, errorCode, (const u8_t*)regtype, (const u8_t*)serviceName, (const u8_t*)replyDomain, res->user_data);
 
     } else if (res->type == restype_lookup_browse){
 
         if (errorCode != kDNSServiceErr_NoError){
-            ((aes67_mdns_resolve_callback)res->callback)(res, errorCode, NULL, NULL, 0, 0, NULL, res->context);
+            ((aes67_mdns_resolve_callback)res->callback)(res, errorCode, NULL, NULL, 0, 0, NULL, res->user_data);
             return;
         }
 
-        struct resource * res2 = new_resource(restype_lookup_resolve, res->callback, res->context, res);
+        resource_t * res2 = resource_new(res->ctx, restype_lookup_resolve, res->callback, res->user_data, res);
         resolve_start(res2, (const u8_t*)serviceName, (const u8_t*)regtype, (const u8_t*)replyDomain);
     }
 
 
 }
 
-aes67_mdns_resource_t browse_start(struct resource * res, const u8_t * type, const u8_t * subtype, const u8_t * domain)
+static aes67_mdns_resource_t browse_start(resource_t * res, const u8_t * type, const u8_t * subtype, const u8_t * domain)
 {
     assert(res != NULL);
     assert(type != NULL);
 
-    DNSServiceFlags flags = 0; // reserved for future use
+    DNSServiceFlags flags = kDNSServiceFlagsShareConnection;
     u32_t interfaceIndex = 0; // all possible interfaces
 
     char regtype[256];
     to_regtype(regtype, sizeof(regtype), type, subtype);
 
+    res->serviceRef = res->ctx->sharedRef;
+
     DNSServiceErrorType errorCode = DNSServiceBrowse(&res->serviceRef, flags, interfaceIndex, regtype,
                                                      (const char *) domain, browse_callback, res);
     if (errorCode != kDNSServiceErr_NoError){
-        delete_resource(res);
+        resource_delete(res);
         return NULL;
     }
 
-    link_resource(res);
+    resource_link(res);
 
     return res;
 }
 
-aes67_mdns_resource_t aes67_mdns_browse_start(const u8_t * type, const u8_t * subtype, const u8_t * domain, aes67_mdns_browse_callback callback, void * context)
+aes67_mdns_resource_t
+aes67_mdns_browse_start(aes67_mdns_context_t ctx, const u8_t *type, const u8_t *subtype, const u8_t *domain,
+                        aes67_mdns_browse_callback callback, void *user_data)
 {
-    struct resource * res = new_resource(restype_browse, callback, context, NULL);
+    resource_t * res = resource_new(ctx, restype_browse, callback, user_data, NULL);
     return browse_start(res, type, subtype, domain);
 }
 
-aes67_mdns_resource_t aes67_mdns_lookup_start(const u8_t * type, const u8_t * subtype, const u8_t * domain, aes67_mdns_resolve_callback callback, void * context)
+aes67_mdns_resource_t
+aes67_mdns_lookup_start(aes67_mdns_context_t ctx, const u8_t *type, const u8_t *subtype, const u8_t *domain,
+                        aes67_mdns_resolve_callback callback, void *user_data)
 {
-    struct resource * res = new_resource(restype_lookup_browse, callback, context, NULL);
+    resource_t * res = resource_new(ctx, restype_lookup_browse, callback, user_data, NULL);
     return browse_start(res, type, subtype, domain);
 }
 
-void resolve_callback(DNSServiceRef ref, DNSServiceFlags flags, u32_t interfaceIndex, DNSServiceErrorType errorCode, const char * fullname, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context)
+static void resolve_callback(DNSServiceRef ref, DNSServiceFlags flags, u32_t interfaceIndex, DNSServiceErrorType errorCode, const char * fullname, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context)
 {
-    struct resource * res = (struct resource*)context;
+    resource_t * res = (resource_t*)context;
 
     assert(res->type == restype_resolve || res->type == restype_lookup_resolve);
 
 //    if (res->type == restype_browse) {
-        ((aes67_mdns_resolve_callback)res->callback)(res, errorCode, (const u8_t*)fullname, (const u8_t*)hosttarget, ntohs(port), txtlen, (const u8_t*)txt, res->context);
+        ((aes67_mdns_resolve_callback)res->callback)(res, errorCode, (const u8_t*)fullname, (const u8_t*)hosttarget, ntohs(port), txtlen, (const u8_t*)txt, res->user_data);
 //    }
 
 
     if (res->type == restype_lookup_resolve){
-        delete_resource(res);
+        resource_delete(res);
     }
 
 }
 
-aes67_mdns_resource_t resolve_start(struct resource * res, const u8_t * name, const u8_t * type, const u8_t * domain)
+static aes67_mdns_resource_t resolve_start(resource_t * res, const u8_t * name, const u8_t * type, const u8_t * domain)
 {
     assert(res != NULL);
     assert(type != NULL);
 
-    DNSServiceFlags flags = 0; // reserved for future use
+    DNSServiceFlags flags = kDNSServiceFlagsShareConnection;
     u32_t interfaceIndex = 0; // all possible interfaces
 
     char * domain_ = domain == NULL ? "local." : (char*)domain;
+
+    res->serviceRef = res->ctx->sharedRef;
 
     DNSServiceErrorType errorCode = DNSServiceResolve(&res->serviceRef, flags, interfaceIndex, (const char *)name, ( char*)type,
                                                       (const char *) domain_, resolve_callback, res);
     if (errorCode != kDNSServiceErr_NoError){
 //        printf("%d\n", errorCode);
-        delete_resource(res);
+        resource_delete(res);
         return NULL;
     }
 
-    link_resource(res);
+    resource_link(res);
 
     return res;
 }
 
-aes67_mdns_resource_t aes67_mdns_resolve_start(const u8_t * name, const u8_t * type, const u8_t * domain, aes67_mdns_resolve_callback callback, void * context)
+aes67_mdns_resource_t
+aes67_mdns_resolve_start(aes67_mdns_context_t ctx, const u8_t *name, const u8_t *type, const u8_t *domain,
+                         aes67_mdns_resolve_callback callback, void *user_data)
 {
-    struct resource * res = new_resource(restype_resolve, callback, context, NULL);
+    assert(ctx != NULL);
+
+    resource_t * res = resource_new(ctx, restype_resolve, callback, user_data, NULL);
     return resolve_start(res, name, type, domain);
 }
 
@@ -276,41 +312,41 @@ void aes67_mdns_stop(aes67_mdns_resource_t res)
 {
     assert(res != NULL);
 
-    delete_resource(res);
+    resource_delete(res);
 }
 
 
 
-void aes67_mdns_process(u32_t timeout_usec)
+void aes67_mdns_process(aes67_mdns_context_t ctx, struct timeval *timeout)
 {
-    struct resource * res = first_resource;
+    assert(ctx != NULL);
 
-    while (res != NULL){
+    context_t * __ctx = (context_t*)ctx;
 
-        if (res->serviceRef != NULL){
-            dnssd_sock_t dns_sd_fd = DNSServiceRefSockFD(res->serviceRef);
+    dnssd_sock_t dns_sd_fd = DNSServiceRefSockFD(__ctx->sharedRef);
 
+    int nfds = dns_sd_fd + 1;
+    struct fd_set fds;
 
-            int nfds      = dns_sd_fd + 1;
-            fd_set readfds;
+    FD_ZERO(&fds);
+    FD_SET(dns_sd_fd, &fds);
 
-            FD_ZERO(&readfds);
-            FD_SET(dns_sd_fd, &readfds);
+    int retval = select(nfds, &fds, NULL, &fds, timeout);
+    if (retval > 0){
+        DNSServiceProcessResult(__ctx->sharedRef);
+    }
+}
 
-            struct timeval tv;
-            tv.tv_sec = 0;
-            tv.tv_usec = timeout_usec;
+void aes67_mdns_getsockfds(aes67_mdns_context_t ctx, int fds[], int *nfds)
+{
+    assert(ctx != NULL);
+    assert(fds != NULL);
+    assert(nfds != NULL);
 
-            int retval = select(nfds, &readfds, NULL, NULL, &tv);
-            if (retval == -1){
-                perror("select()");
-            } else if (retval) {
-                DNSServiceProcessResult(res->serviceRef);
-            } else {
-                // timeout
-            }
-        }
+    context_t * __ctx = ctx;
 
-        res = res->next;
+    if (__ctx->sharedRef){
+        fds[0] = DNSServiceRefSockFD(__ctx->sharedRef);
+        *nfds = 1;
     }
 }

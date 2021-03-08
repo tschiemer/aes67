@@ -30,6 +30,8 @@
 
 static char * argv0;
 
+static volatile bool keep_running;
+
 static struct {
     bool sessions;
     bool receivers;
@@ -56,6 +58,11 @@ static void help(FILE * fd)
             , argv0);
 }
 
+
+static void sig_int(int sig)
+{
+    keep_running = false;
+}
 //void browse_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const u8_t * type, const u8_t * name, const u8_t * domain, void * context)
 //{
 //    printf("%d %s.%s%s\n", result, name, type, domain);
@@ -259,38 +266,40 @@ int main(int argc, char * argv[])
         opts.sessions = true;
     }
 
-    aes67_mdns_init();
-    atexit(aes67_mdns_deinit);
+    aes67_mdns_context_t * ctx = aes67_mdns_new();
+
+    if (ctx == NULL){
+        fprintf(stderr, "could not create mdns context\n");
+        return EXIT_FAILURE;
+    }
 
     if (opts.sessions){
-        if (aes67_mdns_lookup_start((u8_t *) AES67_RAV_MDNS_TYPE_SENDER, (u8_t *) AES67_RAV_MDNS_SUBTYPE_SESSION, NULL, session_resolve_callback, NULL) == NULL){
+        if (aes67_mdns_lookup_start(ctx, (u8_t *) AES67_RAV_MDNS_TYPE_SENDER, (u8_t *) AES67_RAV_MDNS_SUBTYPE_SESSION,
+                                    NULL, session_resolve_callback, NULL) == NULL){
             return EXIT_FAILURE;
         }
     }
     if (opts.receivers){
-        if (aes67_mdns_lookup_start((u8_t *) AES67_RAV_MDNS_TYPE_RECEIVER, (u8_t *) AES67_RAV_MDNS_SUBTYPE_DEVICE, NULL, receiver_resolve_callback, NULL) == NULL){
+        if (aes67_mdns_lookup_start(ctx, (u8_t *) AES67_RAV_MDNS_TYPE_RECEIVER, (u8_t *) AES67_RAV_MDNS_SUBTYPE_DEVICE,
+                                    NULL, receiver_resolve_callback, NULL) == NULL){
             return EXIT_FAILURE;
         }
     }
     if (opts.senders){
-        if (aes67_mdns_lookup_start((u8_t *) AES67_RAV_MDNS_TYPE_SENDER, (u8_t *) AES67_RAV_MDNS_SUBTYPE_DEVICE, NULL, sender_resolve_callback, NULL) == NULL){
+        if (aes67_mdns_lookup_start(ctx, (u8_t *) AES67_RAV_MDNS_TYPE_SENDER, (u8_t *) AES67_RAV_MDNS_SUBTYPE_DEVICE,
+                                    NULL, sender_resolve_callback, NULL) == NULL){
             return EXIT_FAILURE;
         }
     }
 
 
-    // set non-blocking stdin
-    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-    if (fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK) == -1){
-        fprintf(stderr, "Couldn't nonblock stdin\n");
-        return 1;
+    signal(SIGINT, sig_int);
+    keep_running = true;
+    while(keep_running){
+        aes67_mdns_process(ctx, NULL);
     }
 
-    ssize_t c;
-    char buf[1];
-    while( (c = read(STDIN_FILENO, buf, 1)) != 0 ){
-        aes67_mdns_process(1000);
-    }
+    aes67_mdns_delete(ctx);
 
     return EXIT_SUCCESS;
 }
