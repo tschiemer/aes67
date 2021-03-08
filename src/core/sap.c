@@ -182,7 +182,6 @@ struct aes67_sap_session * aes67_sap_service_register(struct aes67_sap_service *
     session->hash = hash;
     session->src.ipver = ipver;
     aes67_memcpy(session->src.addr, ip, AES67_NET_IPVER_SIZE(ipver));
-    session->next = NULL;
 
     // never let overflow
     if ((src & AES67_SAP_SESSION_STAT_SRC) == AES67_SAP_SESSION_STAT_SRC_IS_SELF) {
@@ -195,9 +194,13 @@ struct aes67_sap_session * aes67_sap_service_register(struct aes67_sap_service *
         }
     }
 
+#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+    session->next = NULL;
+
     // insert at beginning of linked list
     session->next = sap->first_session;
     sap->first_session = session;
+#endif
 
     return session;
 
@@ -337,7 +340,7 @@ u32_t get_timeout_sec(struct aes67_sap_service *sap, u16_t stat, u32_t timeout_a
 
 #endif
 
-    return (timeout_after_sec - oldest + 1);
+    return (timeout_after_sec - oldest)/1000;
 }
 
 

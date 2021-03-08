@@ -58,7 +58,7 @@ void aes67_timer_set(struct aes67_timer *timer, u32_t millisec)
 {
     aes67_timer_unset(timer);
 
-    // if to trigger now, trigger right away
+    // if to trigger now, trigger right away (?)
 //    if (millisec == 0){
 //        timer->state = aes67_timer_state_expired;
 //        raise(SIGALRM);

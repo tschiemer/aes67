@@ -1033,19 +1033,18 @@ TEST(SAP_TestGroup, sap_announcement_timer)
 
     len = aes67_sap_service_msg_sdp(&sap, data, sizeof(data), p1.status, p1.msg_id_hash, &p1.ip, &sdp, gl_user_data);
 
-    CHECK_EQUAL(len, sap.announcement_size);
-
-    CHECK_FALSE(aes67_sap_service_announcement_timer_state(&sap));
-
     // the module assumes a packet is sent after creating it
-    // thus the announcement time has changed (when times have been updates)
 
+    CHECK_EQUAL(len, sap.announcement_size);
+    CHECK_EQUAL(1, sap.no_of_ads_self);
+
+    CHECK_EQUAL(aes67_timer_state_unset, aes67_sap_service_announcement_timer_state(&sap));
 
     // this should trigger the timer to be called as soon as possible.
     aes67_sap_service_set_announcement_timer(&sap);
 
     CHECK_EQUAL(aes67_timer_state_set, aes67_timer_getstate(&sap.announcement_timer));
-    CHECK_COMPARE(0 , <, timer_gettimeout(&sap.announcement_timer));
+    CHECK_EQUAL(0 , timer_gettimeout(&sap.announcement_timer));
 
     aes67_sap_service_announcement_check(&sap, gl_user_data);
 
@@ -1196,6 +1195,8 @@ TEST(SAP_TestGroup, sap_timeouts)
     len = packet2mem(data, p2);
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
+    aes67_sap_service_set_timeout_timer(&sap);
+
     CHECK_EQUAL(2, sap.no_of_ads_other);
 
     sap_event_reset();
@@ -1206,6 +1207,7 @@ TEST(SAP_TestGroup, sap_timeouts)
 
     // step another half a timeout into the future
     time_add_now_ms(500*sap.timeout_sec);
+    timer_expire(&sap.timeout_timer);
 
     // and
     sap_event_reset();
@@ -1221,6 +1223,7 @@ TEST(SAP_TestGroup, sap_timeouts)
 
     // step another half a timeout into the future
     time_add_now_ms(500*sap.timeout_sec);
+    timer_expire(&sap.timeout_timer);
 
     // and
     sap_event_reset();

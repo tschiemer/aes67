@@ -79,6 +79,7 @@ void aes67_timer_set(struct aes67_timer * timer, u32_t millisec)
     timer->state = aes67_timer_state_set;
 
     timer->timeout_ms = millisec;
+
     aes67_time_now( &timer->started );
 }
 
