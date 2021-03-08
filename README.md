@@ -252,11 +252,12 @@ Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about upda
 specified SDPs on network.
 Communicates through local port (/var/run/sapd.sock)
 Logs to syslog (identity sapd)
+
 Options:
 	 -h,-?		 Prints this info.
-	 -d,--daemonize	 Daemonize bwahahaha (and print to syslog if -v)
-	 -p,--port <port>	 Listen on this port (default 9875)
+	 -d,--daemonize	 Daemonize
 	 -v		 Also print syslog to STDERR
+	 -p,--port <port>	 Listen on this port (default 9875)
 	 --l<mcast-scope>, --s<mcast-scope>
 			 Listens, sends respectively on these IPv4/6 multicast scopes (multiple possible). Scopes:
 				 4g	 IPv4 SAP global (224.2.127.254)
@@ -268,8 +269,13 @@ Options:
 			 Default listen: 4g + 4a + 6ll
 			 Default send: 4a
 	 --ipv6-if	 IPv6 interface to listen on (default interface can fail)
+
+Compile time options (see aes67opts.h):
+	 AES67_SAP_MIN_INTERVAL_SEC 30 	 // +- announce time, depends on SAP traffic
+	 AES67_SAP_MIN_TIMEOUT_SEC 600
+
 Examples:
-sudo ./sapd sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:/var/run/sapd.sock,keepalive
+sudo ./sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:/var/run/sapd.sock,keepalive
 ```
 (note: AES67-2018 is specified for IPv4 primarily, consider IPv6 a proof of concept and for other purposes..)
 

@@ -165,11 +165,11 @@ static void help(FILE * fd)
              "specified SDPs on network.\n"
              "Communicates through local port (" AES67_SAPD_LOCAL_SOCK ")\n"
              "Logs to syslog (identity " AES67_SAPD_SYSLOG_IDENT ")\n"
-             "Options:\n"
+             "\nOptions:\n"
              "\t -h,-?\t\t Prints this info.\n"
-             "\t -d,--daemonize\t Daemonize bwahahaha (and print to syslog if -v)\n"
-             "\t -p,--port <port>\t Listen on this port (default %hu)\n"
+             "\t -d,--daemonize\t Daemonize\n"
              "\t -v\t\t Also print syslog to STDERR\n"
+             "\t -p,--port <port>\t Listen on this port (default %hu)\n"
              "\t --l<mcast-scope>, --s<mcast-scope>\n"
              "\t\t\t Listens, sends respectively on these IPv4/6 multicast scopes (multiple possible). Scopes:\n"
              "\t\t\t\t 4g\t IPv4 SAP global (" AES67_SAP_IPv4_GLOBAL_STR ")\n"
@@ -181,9 +181,12 @@ static void help(FILE * fd)
             "\t\t\t Default listen: 4g + 4a + 6ll\n"
             "\t\t\t Default send: 4a\n"
             "\t --ipv6-if\t IPv6 interface to listen on (default interface can fail)\n"
-             "Examples:\n"
-             "sudo %s sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
-            , argv0, (u16_t)AES67_SAP_PORT, argv0);
+            "\nCompile time options (see aes67opts.h):\n"
+            "\t AES67_SAP_MIN_INTERVAL_SEC %d \t // +- announce time, depends on SAP traffic\n"
+            "\t AES67_SAP_MIN_TIMEOUT_SEC %d \n"
+             "\nExamples:\n"
+             "sudo %s -v --ipv6-if en7 & socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
+            , argv0, (u16_t)AES67_SAP_PORT, AES67_SAP_MIN_INTERVAL_SEC, AES67_SAP_MIN_TIMEOUT_SEC, argv0);
 }
 
 static void sig_int(int sig)
