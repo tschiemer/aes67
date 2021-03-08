@@ -54,7 +54,11 @@ typedef struct resource_st {
     context_t * ctx;
     enum restype type;
     DNSServiceRef serviceRef;
+    enum aes67_mdns_result result;
+    u8_t * serviceName;
+    u8_t * regType;
     aes67_mdns_browse_callback callback;
+    DNSServiceErrorType errorCode;
     void * user_data;
     struct resource_st * next;
     struct resource_st * parent;
@@ -85,6 +89,8 @@ static resource_t * resource_new(context_t * ctx, enum restype restype, void *ca
     res->ctx = ctx;
     res->type = restype;
     res->serviceRef = NULL;
+    res->serviceName = NULL;
+    res->regType = NULL;
     res->callback = callback;
     res->user_data = context;
 
@@ -135,6 +141,14 @@ static void resource_delete(resource_t *res)
 
     if (res->serviceRef != NULL){
         DNSServiceRefDeallocate( res->serviceRef );
+    }
+    if (res->serviceName != NULL){
+        free(res->serviceName);
+        res->serviceName = NULL;
+    }
+    if (res->regType != NULL){
+        free(res->regType);
+        res->regType = NULL;
     }
 
     free(res);
@@ -190,23 +204,48 @@ void aes67_mdns_delete(aes67_mdns_context_t ctx)
 
 static void browse_callback(DNSServiceRef ref, DNSServiceFlags flags, u32_t interfaceIndex, DNSServiceErrorType errorCode, const char * serviceName, const char * regtype, const char * replyDomain, void * context)
 {
-//    printf("%d %s %s.%s\n", errorCode, regtype, serviceName, replyDomain);
+//    printf("browse: flags=%d if=%d err=%d %s %s.%s\n", flags, interfaceIndex, errorCode, regtype, serviceName, replyDomain);
 
     resource_t * res = (resource_t*)context;
 
     assert(res->type == restype_browse || res->type == restype_lookup_browse);
 
+
+    enum aes67_mdns_result result;
+
+    if (errorCode!= kDNSServiceErr_NoError){
+        result = aes67_mdns_result_error;
+    } else if (flags & kDNSServiceFlagsAdd){
+        result = aes67_mdns_result_discovered;
+    } else {
+        result = aes67_mdns_result_terminated;
+    }
+
+    res->errorCode = errorCode;
+
     if (res->type == restype_browse){
-        ((aes67_mdns_browse_callback)res->callback)(res, errorCode, (const u8_t*)regtype, (const u8_t*)serviceName, (const u8_t*)replyDomain, res->user_data);
+        ((aes67_mdns_browse_callback)res->callback)(res, result, (const u8_t*)regtype, (const u8_t*)serviceName, (const u8_t*)replyDomain, res->user_data);
 
     } else if (res->type == restype_lookup_browse){
 
         if (errorCode != kDNSServiceErr_NoError){
-            ((aes67_mdns_resolve_callback)res->callback)(res, errorCode, NULL, NULL, 0, 0, NULL, res->user_data);
+            ((aes67_mdns_lookup_callback)res->callback)(res, aes67_mdns_result_error, NULL, NULL, NULL, 0, 0, NULL, res->user_data);
             return;
         }
 
         resource_t * res2 = resource_new(res->ctx, restype_lookup_resolve, res->callback, res->user_data, res);
+
+        res2->result = result;
+
+        if (regtype != NULL){
+            res2->regType = calloc(1, strlen(regtype)+1);
+            strcpy((char*)res2->regType, regtype);
+        }
+        if (serviceName != NULL){
+            res2->serviceName = calloc(1, strlen(serviceName)+1);
+            strcpy((char*)res2->serviceName, serviceName);
+        }
+
         resolve_start(res2, (const u8_t*)serviceName, (const u8_t*)regtype, (const u8_t*)replyDomain);
     }
 
@@ -248,7 +287,7 @@ aes67_mdns_browse_start(aes67_mdns_context_t ctx, const u8_t *type, const u8_t *
 
 aes67_mdns_resource_t
 aes67_mdns_lookup_start(aes67_mdns_context_t ctx, const u8_t *type, const u8_t *subtype, const u8_t *domain,
-                        aes67_mdns_resolve_callback callback, void *user_data)
+                        aes67_mdns_lookup_callback callback, void *user_data)
 {
     resource_t * res = resource_new(ctx, restype_lookup_browse, callback, user_data, NULL);
     return browse_start(res, type, subtype, domain);
@@ -256,13 +295,34 @@ aes67_mdns_lookup_start(aes67_mdns_context_t ctx, const u8_t *type, const u8_t *
 
 static void resolve_callback(DNSServiceRef ref, DNSServiceFlags flags, u32_t interfaceIndex, DNSServiceErrorType errorCode, const char * fullname, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context)
 {
+//    printf("resolve: flags=%d if=%d err=%d %s %s\n", flags, interfaceIndex, errorCode, fullname, hosttarget);
+
     resource_t * res = (resource_t*)context;
 
     assert(res->type == restype_resolve || res->type == restype_lookup_resolve);
 
-//    if (res->type == restype_browse) {
-        ((aes67_mdns_resolve_callback)res->callback)(res, errorCode, (const u8_t*)fullname, (const u8_t*)hosttarget, ntohs(port), txtlen, (const u8_t*)txt, res->user_data);
-//    }
+    enum aes67_mdns_result result;
+
+    if (errorCode != kDNSServiceErr_NoError){
+        result = aes67_mdns_result_error;
+    } else if (flags & kDNSServiceFlagsAdd){
+        result = aes67_mdns_result_discovered;
+    } else {
+        result = aes67_mdns_result_terminated;
+    }
+
+    res->errorCode = errorCode;
+
+    if (res->type == restype_resolve) {
+        ((aes67_mdns_resolve_callback)res->callback)(res, result, (const u8_t*)fullname, (const u8_t*)hosttarget, ntohs(port), txtlen, (const u8_t*)txt, res->user_data);
+    } else if (res->type == restype_lookup_resolve){
+
+        if (result != aes67_mdns_result_error){
+            result = res->result;
+        }
+
+        ((aes67_mdns_lookup_callback)res->callback)(res, result, (const u8_t*)res->regType, (const u8_t*)res->serviceName, (const u8_t*)hosttarget, ntohs(port), txtlen, (const u8_t*)txt, res->user_data);
+    }
 
 
     if (res->type == restype_lookup_resolve){
@@ -349,4 +409,13 @@ void aes67_mdns_getsockfds(aes67_mdns_context_t ctx, int fds[], int *nfds)
         fds[0] = DNSServiceRefSockFD(__ctx->sharedRef);
         *nfds = 1;
     }
+}
+
+int aes67_mdns_geterrcode(aes67_mdns_resource_t res)
+{
+    assert(res != NULL);
+
+    resource_t * __res = res;
+
+    return __res->errorCode;
 }
