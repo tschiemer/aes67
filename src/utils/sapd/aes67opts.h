@@ -22,11 +22,16 @@
 #include <memory.h>
 #include <time.h>
 
-// this implicitly disables timer functionality (ie no initialization needed)
-#define AES67_SAP_MEMORY        AES67_MEMORY_DYNAMIC
+#define AES67_SAP_MEMORY                AES67_MEMORY_DYNAMIC
+#define AES67_SAP_FREE(x)               free(x)
+#define AES67_SAP_MALLOC(x)             malloc(x)
 
-#define AES67_SAP_FREE(x)       free(x)
-#define AES67_SAP_MALLOC(x)     malloc(x)
+// Note: this should be a meaningful limit of total memory consumption possible through packets served over the network
+// ie 1024 sessions * 1024 bytes
+#define AES67_SAP_MEMORY_HARD_LIMIT     1
+#define AES67_SAP_MEMORY_MAX_SESSIONS   1024
+#define AES67_SAPSRV_SDP_MAXLEN         1024
+
 
 // roughly all 30 sec announcement
 #define AES67_SAP_MIN_INTERVAL_SEC 30
@@ -34,7 +39,10 @@
 // 10 minutes?
 #define AES67_SAP_MIN_TIMEOUT_SEC 600
 
+// only interested in SDP
 #define AES67_SAP_FILTER_SDP    1
+
+// do not prefilter payloads, have trust in proper SAP versioning (...)
 #define AES67_SAP_FILTER_XOR8    0
 
 #define aes67_sapsrv_time_t time_t

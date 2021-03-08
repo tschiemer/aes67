@@ -685,12 +685,20 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
 
             session = aes67_sap_service_register(sap, hash, ipver, &msg[4], AES67_SAP_SESSION_STAT_SRC_IS_OTHER);
 
+#if AES67_SAP_MEMORY_HARD_LIMIT == 1
+            // if no session was gotten, the session limit was reached, ignore any unknown SAP messages
+            // primarily makes sense with high enough limits, thus trying to limit memory usage by potential attackers
+            if (session == NULL){
+                return;
+            }
+#endif
             event = aes67_sap_event_new;
 
         } else {
 
             event = aes67_sap_event_updated;
         }
+
 
         // safety guard
         if (session != NULL){
@@ -720,6 +728,14 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
     } else {
 
         event = aes67_sap_event_deleted;
+
+#if AES67_SAP_MEMORY_HARD_LIMIT == 1
+        // if no session was gotten, the session limit was reached before, ignore any unknown SAP messages
+            // primarily makes sense with high enough limits, thus trying to limit memory usage by potential attackers
+            if (session == NULL){
+                return;
+            }
+#endif
     }
 
     // publish event

@@ -50,7 +50,9 @@ extern "C" {
 #define AES67_SAPSRV_SCOPES_HAS(x) (((x) & 0xF3))
 #define AES67_SAPSRV_SCOPES_ISVALID(x) (((x) & 0xF3) == (x))
 
+#ifndef AES67_SAPSRV_SDP_MAXLEN
 #define AES67_SAPSRV_SDP_MAXLEN                  1024
+#endif
 
 #ifndef aes67_sapsrv_time_t
 #define u32_t aes67_sapsrv_time_t;
