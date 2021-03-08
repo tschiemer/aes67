@@ -80,8 +80,8 @@ enum aes67_sapsrv_event {
 typedef void (*aes67_sapsrv_event_handler)(aes67_sapsrv_t server, aes67_sapsrv_session_t session, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
 
 aes67_sapsrv_t
-aes67_sapsrv_start(u32_t listen_scopes, u32_t send_scopes, u16_t port, aes67_sapsrv_event_handler event_handler,
-                   void *user_data);
+aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned int ipv6_if,
+                   aes67_sapsrv_event_handler event_handler, void *user_data);
 void aes67_sapsrv_stop(aes67_sapsrv_t sapserver);
 
 
@@ -91,8 +91,8 @@ void aes67_sapsrv_getsockfds(aes67_sapsrv_t sapserver, int fds[2], size_t * coun
 
 int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state);
 
-int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope);
-int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope);
+int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if);
+int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if);
 int set_sock_reuse(int sockfd);
 
 aes67_sapsrv_session_t aes67_sapsrv_session_add(aes67_sapsrv_t sapserver, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t * ip, const u8_t * payload, const u16_t payloadlen);

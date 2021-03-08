@@ -27,6 +27,7 @@
 #include <signal.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#include <net/if.h>
 #include <assert.h>
 
 //#define BUFSIZE 1024
@@ -123,16 +124,18 @@ static struct {
     u32_t listen_scopes;
     u32_t send_scopes;
     s32_t port;
+    unsigned int ipv6_if;
 
 } opts = {
     .daemonize = false,
     .verbose = false,
     .listen_scopes = 0,
     .send_scopes = 0,
-    .port = AES67_SAP_PORT
+    .port = AES67_SAP_PORT,
+    .ipv6_if = 0
 };
 
-#define DEFAULT_LISTEN_SCOPES   (AES67_SAPSRV_SCOPE_IPv4)
+#define DEFAULT_LISTEN_SCOPES   (AES67_SAPSRV_SCOPE_IPv4 | AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)
 #define DEFAULT_SEND_SCOPES     AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED
 
 static char * argv0;
@@ -157,12 +160,11 @@ aes67_sapsrv_t * sapsrv = NULL;
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s [-h|-?] | [-d] [-p<port>] [--l<mcast-scope>] [--s<mcast-scope>]\n"
+             "Usage: %s [-h|-?] | [-d] [-p <port>] [--l <mcast-scope>] [--s <mcast-scope>] [--ipv6-if <ifname>]\n"
              "Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and keeps announcing\n"
              "specified SDPs on network.\n"
              "Communicates through local port (" AES67_SAPD_LOCAL_SOCK ")\n"
              "Logs to syslog (identity " AES67_SAPD_SYSLOG_IDENT ")\n"
-             "Note: this is NOT a hardened server.\n"
              "Options:\n"
              "\t -h,-?\t\t Prints this info.\n"
              "\t -d,--daemonize\t Daemonize bwahahaha (and print to syslog if -v)\n"
@@ -178,8 +180,9 @@ static void help(FILE * fd)
             "\t\t\t\t 6sl\t IPv6 SAP site local (" AES67_SAP_IPv6_SL_STR ")\n"
             "\t\t\t Default listen: 4g + 4a + 6ll\n"
             "\t\t\t Default send: 4a\n"
+            "\t --ipv6-if\t IPv6 interface to listen on (default interface can fail)\n"
              "Examples:\n"
-             "%s -v --l4a & socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
+             "%s sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
             , argv0, (u16_t)AES67_SAP_PORT, argv0);
 }
 
@@ -791,7 +794,7 @@ static int sapsrv_setup()
     aes67_time_init_system();
     aes67_timer_init_system();
 
-    sapsrv = aes67_sapsrv_start(opts.listen_scopes, opts.send_scopes, opts.port, sapsrv_callback, NULL);
+    sapsrv = aes67_sapsrv_start(opts.send_scopes, opts.port, opts.listen_scopes, opts.ipv6_if, sapsrv_callback, NULL);
 
     if (sapsrv == NULL){
         syslog(LOG_ERR, "Failed to start sapsrv ..");
@@ -947,16 +950,15 @@ static void block_until_event()
         }
     }
 
-    if (sigprocmask(SIG_SETMASK, NULL, &sigmask)){
-        fprintf(stderr, "get sigmask failed\n");
-        exit(EXIT_FAILURE);
-    }
+//    if (sigprocmask(SIG_SETMASK, NULL, &sigmask)){
+//        fprintf(stderr, "get sigmask failed\n");
+//        exit(EXIT_FAILURE);
+//    }
 
     nfds++;
 
-    int r = select(nfds, &fds, NULL, &fds, NULL);
-//    int r = pselect(nfds, &rfds, NULL, NULL, NULL, &sigmask);
-//    printf("select %d\n", r);
+    // just wait until something interesting happens
+    select(nfds, &fds, NULL, &fds, NULL);
 }
 
 int main(int argc, char * argv[]){
@@ -983,6 +985,7 @@ int main(int argc, char * argv[]){
                 {"s6al", no_argument, 0, 11},
                 {"s6sl", no_argument, 0, 12},
                 {"port", required_argument, 0, 'p'},
+                {"ipv6-if", required_argument, 0, 13},
                 {0,         0,                 0,  0 }
         };
 
@@ -1039,6 +1042,10 @@ int main(int argc, char * argv[]){
 
             case 12: // --l6sl
                 opts.send_scopes |= AES67_SAPSRV_SCOPE_IPv6_SITELOCAL;
+                break;
+
+            case 13: // ipv6-if
+                opts.ipv6_if = if_nametoindex(optarg);
                 break;
 
             case 'd':

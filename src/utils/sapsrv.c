@@ -24,8 +24,8 @@
 
 #include "assert.h"
 #include <sys/socket.h>
-#include <arpa/inet.h>
-#include <netinet/in.h>
+//#include <arpa/inet.h>
+//#include <netinet/in.h>
 //#include <netinet/in6.h>
 #include <netdb.h>
 #include <libproc.h>
@@ -63,6 +63,7 @@ typedef struct {
 
     int sockfd6;
     struct sockaddr_in6 addr6;
+    unsigned int ipv6_if;
 } sapsrv_t;
 
 
@@ -192,7 +193,7 @@ static void session_delete(sapsrv_t * server, sapsrv_session_t * session)
 //}
 
 
-int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope)
+int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if)
 {
     int proto;
     int optname;
@@ -231,7 +232,13 @@ int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope)
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_SL, 16);
             syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv6_SL_STR);
         }
-        mreq.v6.ipv6mr_interface = 0; // default interface // get_ifindex(&server->iface_addr);
+//        printf("%08x:%08x:%08x:%08x\n",
+//               ntohl(((struct in6_addr*)&mreq.v6.ipv6mr_multiaddr)->__u6_addr.__u6_addr32[0]),
+//               ntohl(((struct in6_addr*)&mreq.v6.ipv6mr_multiaddr)->__u6_addr.__u6_addr32[1]),
+//                       ntohl(((struct in6_addr*)&mreq.v6.ipv6mr_multiaddr)->__u6_addr.__u6_addr32[2]),
+//               ntohl(((struct in6_addr*)&mreq.v6.ipv6mr_multiaddr)->__u6_addr.__u6_addr32[3])
+//       );
+        mreq.v6.ipv6mr_interface = ipv6_if; // default interface // get_ifindex(&server->iface_addr);
         optlen = sizeof(struct ipv6_mreq);
     } else {
         return EXIT_FAILURE;
@@ -248,34 +255,34 @@ int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope)
 
 static int join_mcast_groups(sapsrv_t * server, u32_t scopes)
 {
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && aes67_sapsrv_join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && aes67_sapsrv_join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL, server->ipv6_if)){
         perror("4gl");
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && aes67_sapsrv_join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && aes67_sapsrv_join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED, server->ipv6_if)){
         perror("4al");
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL, server->ipv6_if)){
         perror("6ll");
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_IPv4) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_IPv4)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_IPv4) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_IPv4, server->ipv6_if)){
         perror("6al");
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL, server->ipv6_if)){
         perror("6al");
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL, server->ipv6_if)){
         perror("6sl");
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
 }
 
-int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope)
+int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if)
 {
     // only
     assert( ((scope & AES67_SAPSRV_SCOPE_IPv4) == AES67_SAPSRV_SCOPE_IPv4) + ((scope & AES67_SAPSRV_SCOPE_IPv6) == AES67_SAPSRV_SCOPE_IPv6) == 1);
@@ -311,7 +318,7 @@ int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope)
         } else if (scope & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_SL, 16);
         }
-        mreq.v6.ipv6mr_interface = 0; // default interface // get_ifindex(&server->iface_addr);
+        mreq.v6.ipv6mr_interface = ipv6_if; // default interface // get_ifindex(&server->iface_addr);
         optlen = sizeof(mreq.v6);
     } else {
         return EXIT_FAILURE;
@@ -328,22 +335,22 @@ int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope)
 
 static int leave_mcast_groups(sapsrv_t * server, u32_t scopes)
 {
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && aes67_sapsrv_leave_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && aes67_sapsrv_leave_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL, server->ipv6_if)){
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && aes67_sapsrv_leave_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && aes67_sapsrv_leave_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED, server->ipv6_if)){
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && aes67_sapsrv_leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && aes67_sapsrv_leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL, server->ipv6_if)){
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && aes67_sapsrv_leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && aes67_sapsrv_leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL, server->ipv6_if)){
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_IPv4) && aes67_sapsrv_leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_IPv4)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_IPv4) && aes67_sapsrv_leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_IPv4, server->ipv6_if)){
         return EXIT_FAILURE;
     }
-    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && aes67_sapsrv_leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL)){
+    if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && aes67_sapsrv_leave_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL, server->ipv6_if)){
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
@@ -583,8 +590,8 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
 }
 
 aes67_sapsrv_t
-aes67_sapsrv_start(u32_t listen_scopes, u32_t send_scopes, u16_t port, aes67_sapsrv_event_handler event_handler,
-                   void *user_data)
+aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned int ipv6_if,
+                   aes67_sapsrv_event_handler event_handler, void *user_data)
 {
     assert(AES67_SAPSRV_SCOPES_HAS(listen_scopes));
     assert(AES67_SAPSRV_SCOPES_HAS(send_scopes));
@@ -608,6 +615,7 @@ aes67_sapsrv_start(u32_t listen_scopes, u32_t send_scopes, u16_t port, aes67_sap
     server->listen_scopes = listen_scopes;
     server->send_scopes = send_scopes;
     server->port = port;
+    server->ipv6_if = ipv6_if;
     server->event_handler = event_handler;
     server->user_data = user_data;
 
