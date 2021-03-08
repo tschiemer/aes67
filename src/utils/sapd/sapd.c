@@ -83,6 +83,8 @@ static void write_error(struct connection_st * con, const u32_t code, const char
 static void write_ok(struct connection_st * con);
 static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * except);
 
+static void block_until_event();
+
 //static void cmd_help(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len);
@@ -130,7 +132,7 @@ static struct {
     .port = AES67_SAP_PORT
 };
 
-#define DEFAULT_LISTEN_SCOPES   (AES67_SAPSRV_SCOPE_IPv4 | AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)
+#define DEFAULT_LISTEN_SCOPES   (AES67_SAPSRV_SCOPE_IPv4)
 #define DEFAULT_SEND_SCOPES     AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED
 
 static char * argv0;
@@ -269,13 +271,13 @@ static int sock_nonblock(int sockfd){
 static int local_setup(const char * fname)
 {
     if( access( fname, F_OK ) == 0 ){
-        syslog(LOG_ERR, "local sock already exists: %s", fname );
+        syslog(LOG_ERR, "AF_LOCAL already exists: %s", fname );
         return EXIT_FAILURE;
     }
 
     local.sockfd = socket (AF_UNIX, SOCK_STREAM, 0);
     if (local.sockfd < 0){
-        perror ("local.socket().failed");
+        perror ("socket(AF_LOCAL).failed");
         return EXIT_FAILURE;
     }
     local.fname = fname;
@@ -309,7 +311,7 @@ static int local_setup(const char * fname)
     local.nconnections = 0;
     local.first_connection = NULL;
 
-    syslog(LOG_NOTICE, "listening on local sock: %s", fname);
+    syslog(LOG_NOTICE, "listen(AF_LOCAL): %s", fname);
 
     return EXIT_SUCCESS;
 }
@@ -411,7 +413,7 @@ static void local_process()
                     if (cmd == NULL){
                         write_error(con, AES67_SAPD_ERR_UNRECOGNIZED, NULL);
                     } else {
-                        cmdline[len-1] = '\0';
+                        cmdline[len] = '\0';
                         syslog(LOG_DEBUG, "command: %s", cmdline);
 
                         cmd->handler(con, cmdline, len);
@@ -815,7 +817,7 @@ static int sapsrv_setup()
 //    iface_str[iface_len] = '\0';
 //
 //    syslog(LOG_NOTICE, "SAP listening on %s (if %s)", listen_str, iface_len ? (char*)iface_str : "default" );
-syslog(LOG_NOTICE, "SAP listening...");
+//    syslog(LOG_NOTICE, "SAP listening...");
 
     return EXIT_SUCCESS;
 }
@@ -913,6 +915,48 @@ static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sap
     else {
         syslog(LOG_INFO, "SAP: ???: %s", ostr);
     }
+}
+
+static void block_until_event()
+{
+    int nfds = 0;
+    struct fd_set fds;
+    sigset_t sigmask;
+
+    FD_ZERO(&fds);
+
+    // set all AF_LOCAL sockets
+    FD_SET(local.sockfd, &fds);
+    nfds = local.sockfd;
+
+    struct connection_st * con = local.first_connection;
+    for(;con != NULL; con = con->next){
+        FD_SET(con->sockfd, &fds);
+        if (con->sockfd > nfds){
+            nfds = con->sockfd;
+        }
+    }
+
+    int srvsockfds[2];
+    size_t srvsocknfds = 0;
+    aes67_sapsrv_getsockfds(sapsrv, srvsockfds, &srvsocknfds);
+    for(size_t i = 0; i < srvsocknfds; i++){
+        FD_SET(srvsockfds[i], &fds);
+        if (srvsockfds[i] > nfds){
+            nfds = srvsockfds[i];
+        }
+    }
+
+    if (sigprocmask(SIG_SETMASK, NULL, &sigmask)){
+        fprintf(stderr, "get sigmask failed\n");
+        exit(EXIT_FAILURE);
+    }
+
+    nfds++;
+
+    int r = select(nfds, &fds, NULL, &fds, NULL);
+//    int r = pselect(nfds, &rfds, NULL, NULL, NULL, &sigmask);
+//    printf("select %d\n", r);
 }
 
 int main(int argc, char * argv[]){
@@ -1049,7 +1093,7 @@ int main(int argc, char * argv[]){
     syslog(LOG_INFO, "starting");
 
     if (local_setup(AES67_SAPD_LOCAL_SOCK)){
-        syslog(LOG_ERR, "Failed to open local sock: " AES67_SAPD_LOCAL_SOCK);
+        syslog(LOG_ERR, "Failed to open AF_LOCAL sock: " AES67_SAPD_LOCAL_SOCK);
         return EXIT_FAILURE;
     }
 
@@ -1063,6 +1107,8 @@ int main(int argc, char * argv[]){
     signal(SIGINT, sig_int);
     keep_running = true;
     while(keep_running){
+        block_until_event();
+
         local_process();
         aes67_sapsrv_process(sapsrv);
     }

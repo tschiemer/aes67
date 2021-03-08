@@ -47,8 +47,8 @@ extern "C" {
 #define AES67_SAPSRV_SCOPE_IPv4               0x3
 #define AES67_SAPSRV_SCOPE_IPv6               0xF0
 
-#define AES67_SAPSRV_SCOPES_HAS(x) (((x) & 0x73))
-#define AES67_SAPSRV_SCOPES_ISVALID(x) (((x) & 0x73) == (x))
+#define AES67_SAPSRV_SCOPES_HAS(x) (((x) & 0xF3))
+#define AES67_SAPSRV_SCOPES_ISVALID(x) (((x) & 0xF3) == (x))
 
 #define AES67_SAPSRV_SDP_MAXLEN                  1024
 
@@ -86,6 +86,8 @@ void aes67_sapsrv_stop(aes67_sapsrv_t sapserver);
 
 
 void aes67_sapsrv_process(aes67_sapsrv_t sapserver);
+
+void aes67_sapsrv_getsockfds(aes67_sapsrv_t sapserver, int fds[2], size_t * count);
 
 int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state);
 

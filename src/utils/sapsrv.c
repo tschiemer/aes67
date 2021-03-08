@@ -208,8 +208,10 @@ int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope)
         optname = IP_ADD_MEMBERSHIP;
         if (scope & AES67_SAPSRV_SCOPE_IPv4_GLOBAL){
             memcpy(&mreq.v4.imr_multiaddr.s_addr, (u8_t[])AES67_SAP_IPv4_GLOBAL, 4);
+            syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv4_GLOBAL_STR);
         } else if (scope & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED){
             memcpy(&mreq.v4.imr_multiaddr.s_addr, (u8_t[])AES67_SAP_IPv4_ADMIN, 4);
+            syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv4_ADMIN_STR);
         }
         mreq.v4.imr_interface.s_addr = htonl(INADDR_ANY);//*(in_addr_t*)server->iface_addr.addr;
         optlen = sizeof(struct ip_mreq);
@@ -218,12 +220,16 @@ int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope)
         optname = IPV6_JOIN_GROUP;
         if (scope & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_LL, 16);
+            syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv6_LL_STR);
         } else if (scope & AES67_SAPSRV_SCOPE_IPv6_IPv4){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_IP4, 16);
+            syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv6_IP4_STR);
         } else if (scope & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_AL, 16);
+            syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv6_AL_STR);
         } else if (scope & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_SL, 16);
+            syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv6_SL_STR);
         }
         mreq.v6.ipv6mr_interface = 0; // default interface // get_ifindex(&server->iface_addr);
         optlen = sizeof(struct ipv6_mreq);
@@ -232,7 +238,8 @@ int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope)
     }
 
     if (setsockopt(sockfd, proto, optname, &mreq, optlen) < 0){
-        perror("setsockopt(IP_ADD_MEMBERSHIP/IPV6_JOIN_GROUP) failed");
+        perror("setsockopt(IP_ADD_MEMBERSHIP/IPV6_JOIN_GROUP) failed (scope)");
+        syslog(LOG_ERR, "failed joining mcast");
         return EXIT_FAILURE;
     }
 
@@ -358,6 +365,25 @@ int set_sock_reuse(int sockfd)
 #endif
 
     return EXIT_SUCCESS;
+}
+void aes67_sapsrv_getsockfds(aes67_sapsrv_t sapserver, int fds[2], size_t * count)
+{
+    assert(sapserver != NULL);
+    assert(fds != NULL);
+    assert(count != NULL);
+
+    sapsrv_t * server = sapserver;
+
+    size_t c = 0;
+
+    if (server->sockfd4 != -1){
+        fds[c++] = server->sockfd4;
+    }
+    if (server->sockfd6 != -1){
+        fds[c++] = server->sockfd6;
+    }
+
+    *count = c;
 }
 
 int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state)
@@ -588,7 +614,7 @@ aes67_sapsrv_start(u32_t listen_scopes, u32_t send_scopes, u16_t port, aes67_sap
     server->first_session = NULL;
 
 
-    if (listen_scopes & AES67_SAPSRV_SCOPE_IPv4){
+    if ((listen_scopes | send_scopes) & AES67_SAPSRV_SCOPE_IPv4){
         server->addr4.sin_len = sizeof(struct sockaddr_in);
         server->addr4.sin_family = AF_INET;
         server->addr4.sin_port = htons(port);
@@ -608,13 +634,15 @@ aes67_sapsrv_start(u32_t listen_scopes, u32_t send_scopes, u16_t port, aes67_sap
 
         if (bind(server->sockfd4, (struct sockaddr*)&server->addr4, server->addr4.sin_len) == -1){
             perror("bind() failed");
-            close(server->sockfd4);
+            if (server->sockfd4 != -1){
+                close(server->sockfd4);
+            }
             free(server);
             return NULL;
         }
     }
 
-    if (listen_scopes & AES67_SAPSRV_SCOPE_IPv6){
+    if ((listen_scopes | send_scopes) & AES67_SAPSRV_SCOPE_IPv6){
         server->addr6.sin6_len = sizeof(struct sockaddr_in6);
         server->addr6.sin6_family = AF_INET6;
         server->addr6.sin6_port = htons(port);
