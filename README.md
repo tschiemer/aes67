@@ -360,18 +360,20 @@ Note that there is also a quick and dirty script for this, although it is less r
 
 ### `rav-lookup`
 ```
-Usage: ./rav-lookup [-h?] | [-v] [-s|--sessions] [-d|--devices] [--receivers] [--senders] [--raw]
+Usage: ./rav-lookup [-h?] | [-v] [-s|--sessions] [-d|--devices] [--receivers] [--senders] [--filter (disco|term)] [-n]
 Outputs any found session, receivers or senders as found per mDNS requests to STDOUT.
 One result per line: <fullname> <host> <port> [<txt>]
 If neither type is explicitly requested, looks for sessions only.
 Options:
 	 -h,-?		 Outputs this info
-	 -v		 Some verbose output to STDERR
+	 -v		 Some status output to STDERR
 	 -s,--sessions	 Browse for sessions
 	 --receivers	 Browse for receiving devices
 	 --senders	 Browse for sending devices
 	 -d,--devices	 Browse for senders and receivers (shortcut for --receivers --senders)
-	 -r, --raw	 Output raw mDNS results
+	 -f,--filter (disco|term)
+			 Show discovered or terminated services only (default disco)
+	 -n, --no-enc	 Do not perform unreliable urlencode (print as is)
 ```
 Just a comfort utility, using `dns-sd` you could also discover services:
 

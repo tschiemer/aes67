@@ -39,18 +39,20 @@ static struct {
 //    bool raw;
     bool verbose;
     enum aes67_mdns_result result_filter;
+    bool no_encode;
 } opts = {
     .sessions = false,
     .receivers = false,
     .senders = false,
     .result_filter = aes67_mdns_result_discovered,
+    .no_encode = false,
     .verbose = false
 };
 
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s [-h?] | [-v] [-s|--sessions] [-d|--devices] [--receivers] [--senders] [--filter (disco|term)]\n"
+             "Usage: %s [-h?] | [-v] [-s|--sessions] [-d|--devices] [--receivers] [--senders] [--filter (disco|term)] [-n]\n"
              "Outputs any found session, receivers or senders as found per mDNS requests to STDOUT.\n"
              "One result per line: <fullname> <host> <port> [<txt>]\n"
              "If neither type is explicitly requested, looks for sessions only.\n"
@@ -61,7 +63,9 @@ static void help(FILE * fd)
              "\t --receivers\t Browse for receiving devices\n"
              "\t --senders\t Browse for sending devices\n"
              "\t -d,--devices\t Browse for senders and receivers (shortcut for --receivers --senders)\n"
-             "\t -f,--filter (disco|term) \t Show discovered or terminated services only (default disco)\n"
+             "\t -f,--filter (disco|term)\n"
+             "\t\t\t Show discovered or terminated services only (default disco)\n"
+             "\t -n, --no-enc\t Do not perform unreliable urlencode (print as is)\n"
 //             "\t -r, --raw\t Output raw mDNS results\n"
             , argv0);
 }
@@ -114,14 +118,16 @@ void session_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result r
 
             // TODO do actual url encode....
 
-            for (int i = 0; i < namelen; i++){
-                if (name_enc[i] == ' '){
+            if (!opts.no_encode){
+                for (int i = 0; i < namelen; i++){
+                    if (name_enc[i] == ' '){
 //                    printf("SP @ %d\n",i);
-                    memmove(&name_enc[i+3], &name_enc[i+1], namelen - i);
-                    name_enc[i] = '%';
-                    name_enc[i+1] = '2';
-                    name_enc[i+2] = '0';
-                    namelen += 2;
+                        memmove(&name_enc[i+3], &name_enc[i+1], namelen - i);
+                        name_enc[i] = '%';
+                        name_enc[i+1] = '2';
+                        name_enc[i+2] = '0';
+                        namelen += 2;
+                    }
                 }
             }
 
@@ -221,10 +227,11 @@ int main(int argc, char * argv[])
                 {"senders",  no_argument,       0,  3 },
                 {"devices",  no_argument,       0,  'd' },
                 {"filter",  required_argument,       0,  'f' },
+                {"no-enc",  no_argument,       0,  'n' },
                 {0,         0,                 0,  0 }
         };
 
-        c = getopt_long(argc, argv, "?hsdvf:",
+        c = getopt_long(argc, argv, "?hsdvf:n",
                         long_options, &option_index);
         if (c == -1)
             break;
@@ -265,6 +272,10 @@ int main(int argc, char * argv[])
                     fprintf(stderr, "Invalid filter option\n");
                     return EXIT_FAILURE;
                 }
+                break;
+
+            case 'n':
+                opts.no_encode = true;
                 break;
 
             case '?':
