@@ -551,6 +551,9 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
 
             // if previous session is not older, just skip (because is just a SAP message to prevent timeout)
             if (aes67_sdp_origin_cmpversion(&session->origin, &origin) != -1){
+
+                session->last_activity = time(NULL);
+
                 return;
             }
 
