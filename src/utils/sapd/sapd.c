@@ -789,10 +789,17 @@ static void cmd_unset(struct connection_st * con, u8_t * cmdline, size_t len)
     write_toall_except(buf, blen, con);
 }
 
+static void sigalrm_donothing(int sig){
+
+}
+
 static int sapsrv_setup()
 {
     aes67_time_init_system();
     aes67_timer_init_system();
+
+    // set SIGALRM handler (triggered by timer)
+    signal(SIGALRM, sigalrm_donothing);
 
     sapsrv = aes67_sapsrv_start(opts.send_scopes, opts.port, opts.listen_scopes, opts.ipv6_if, sapsrv_callback, NULL);
 
@@ -924,7 +931,7 @@ static void block_until_event()
 {
     int nfds = 0;
     struct fd_set fds;
-    sigset_t sigmask;
+//    sigset_t sigmask;
 
     FD_ZERO(&fds);
 

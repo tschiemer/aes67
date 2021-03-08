@@ -85,6 +85,14 @@ extern "C" {
 #define AES67_SAP_BANDWITH  4000
 #endif
 
+#ifndef AES67_SAP_MIN_INTERVAL_SEC
+#define AES67_SAP_MIN_INTERVAL_SEC 300
+#endif
+
+#ifndef AES67_SAP_MIN_TIMEOUT_SEC
+#define AES67_SAP_MIN_TIMEOUT_SEC 3600
+#endif
+
 #define AES67_SAP_STATUS                    0
 #define AES67_SAP_AUTH_LEN                  1
 #define AES67_SAP_MSG_ID_HASH               2
@@ -158,11 +166,18 @@ enum aes67_sap_event {
 
 // internal status bits
 #define AES67_SAP_SESSION_STAT_CLEAR        0
+#define AES67_SAP_SESSION_STAT_SRC          0x6000
 
 #define AES67_SAP_SESSION_STAT_SET          0x1000
 #define AES67_SAP_SESSION_STAT_SRC_IS_SELF  0x2000
+#define AES67_SAP_SESSION_STAT_SRC_IS_OTHER 0x4000
 
 #define AES67_SAP_SESSION_STAT_XOR8_HASH    0x00ff
+
+#define AES67_SAP_SESSION_STAT_SRC_ISVALID(x) ( \
+    (x) == AES67_SAP_SESSION_STAT_SRC_IS_SELF ||  \
+    (x) == AES67_SAP_SESSION_STAT_SRC_IS_OTHER \
+)
 
 /**
  * Structure of internal session data
@@ -223,7 +238,8 @@ struct aes67_sap_service {
      * Counter of active packets
      * used for interval computation but also interesting otherwise
      */
-    u16_t no_of_ads; //
+    u16_t no_of_ads_other;
+    u16_t no_of_ads_self;
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL && 0 < AES67_SAP_MEMORY_MAX_SESSIONS
     struct aes67_sap_session sessions[AES67_SAP_MEMORY_MAX_SESSIONS];
@@ -255,6 +271,11 @@ struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap
 #else
 #define aes67_sap_service_find(sap, hash, ipver, ip) NULL
 #endif
+
+inline u16_t aes67_sap_no_of_ads(struct aes67_sap_service * sap)
+{
+    return sap->no_of_ads_other + sap->no_of_ads_self;
+}
 
 /**
  * Computes announcement and timeout time (in sec)

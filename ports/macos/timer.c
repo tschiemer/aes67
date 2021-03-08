@@ -19,6 +19,7 @@
 #include "aes67/host/timer.h"
 
 #include <assert.h>
+#include <signal.h>
 
 static dispatch_queue_t queue;
 
@@ -26,10 +27,13 @@ static void timer_event_handler(struct aes67_timer * timer)
 {
     assert(timer);
 
+    raise(SIGALRM);
+
     dispatch_source_cancel(timer->dispatchSource);
 
     timer->state = aes67_timer_state_expired;
 }
+
 
 void aes67_timer_init_system(void)
 {
@@ -54,6 +58,13 @@ void aes67_timer_set(struct aes67_timer *timer, u32_t millisec)
 {
     aes67_timer_unset(timer);
 
+    // if to trigger now, trigger right away
+//    if (millisec == 0){
+//        timer->state = aes67_timer_state_expired;
+//        raise(SIGALRM);
+//        return;
+//    }
+
     timer->dispatchSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
 
     dispatch_source_set_event_handler_f(timer->dispatchSource, (dispatch_function_t)timer_event_handler);
@@ -74,11 +85,13 @@ void aes67_timer_set(struct aes67_timer *timer, u32_t millisec)
 
 void aes67_timer_unset(struct aes67_timer *timer)
 {
-    if (timer->state != aes67_timer_state_set){
+    if (timer->state == aes67_timer_state_unset){
         return;
     }
 
-    dispatch_source_cancel(timer->dispatchSource);
+    if (timer->state == aes67_timer_state_set){
+        dispatch_source_cancel(timer->dispatchSource);
+    }
 
     if (timer->dispatchSource){
         // generates SIGILL...

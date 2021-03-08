@@ -31,7 +31,8 @@
  * the total announcement count).
  */
 #if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
-static struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
+static struct aes67_sap_session *
+aes67_sap_service_register(struct aes67_sap_service *sap, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u16_t src);
 #else
 #define aes67_sap_service_register(sap, hash, ipver, ip) NULL
 #endif
@@ -66,7 +67,7 @@ void aes67_sap_service_init(struct aes67_sap_service *sap)
     aes67_timer_init(&sap->announcement_timer);
     aes67_timer_init(&sap->timeout_timer);
 
-    sap->no_of_ads = 0;
+    sap->no_of_ads_other = 0;
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL && 0 < AES67_SAP_MEMORY_MAX_SESSIONS
     aes67_memset(sap->sessions, 0, sizeof(sap->sessions));
@@ -125,40 +126,16 @@ struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap
     return NULL;
 }
 
-struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service * sap, u16_t hash, enum aes67_net_ipver ipver, u8_t * ip)
+struct aes67_sap_session * aes67_sap_service_register(struct aes67_sap_service *sap, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u16_t src)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
     AES67_ASSERT("hash != 0", hash != 0);
     AES67_ASSERT("AES67_NET_IPVER_ISVALID(ipver)", AES67_NET_IPVER_ISVALID(ipver));
     AES67_ASSERT("ip != NULL", ip != NULL);
+    AES67_ASSERT("AES67_SAP_SESSION_STAT_SRC_ISVALID(src)", AES67_SAP_SESSION_STAT_SRC_ISVALID(src));
 
-#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
-
-    for(u16_t i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
-        if (sap->sessions[i].stat == AES67_SAP_SESSION_STAT_CLEAR){
-            sap->sessions[i].stat = AES67_SAP_SESSION_STAT_SET;
-            sap->sessions[i].hash = hash;
-            sap->sessions[i].src.ipver = ipver;
-            aes67_memcpy(sap->sessions[i].src.addr, ip, AES67_NET_IPVER_SIZE(ipver));
-
-            // never let overflow
-            if (sap->no_of_ads < AES67_SAP_MEMORY_MAX_SESSIONS){
-                sap->no_of_ads++;
-            }
-
-            return &sap->sessions[i];
-        }
-    }
-
-    // should only reach here if we've run out of memory (ie, table entries)
-
-    return NULL;
-
-#else //AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
-
-// if equal 0, no limit
 #if 0 < AES67_SAP_MEMORY_MAX_SESSIONS
-    if (sap->no_of_ads >= AES67_SAP_MEMORY_MAX_SESSIONS){
+    if (sap->no_of_ads_other + sap->no_of_ads_self >= AES67_SAP_MEMORY_MAX_SESSIONS){
 
         // TODO we've run out of (allowed) memory
 
@@ -166,17 +143,56 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
     }
 #endif
 
+#if AES67_SAP_MEMORY == AES67_MEMORY_POOL
+
+    struct aes67_sap_session * session = NULL;
+
+    for(u16_t i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
+        if (sap->sessions[i].stat == AES67_SAP_SESSION_STAT_CLEAR){
+
+            session = &sap->sessions[i];
+//            sap->sessions[i].stat = AES67_SAP_SESSION_STAT_SET;
+//            sap->sessions[i].hash = hash;
+//            sap->sessions[i].src.ipver = ipver;
+//            aes67_memcpy(sap->sessions[i].src.addr, ip, AES67_NET_IPVER_SIZE(ipver));
+//
+//            // never let overflow
+//            if (sap->no_of_ads_other + sap->no_of_ads_self < AES67_SAP_MEMORY_MAX_SESSIONS){
+//                sap->no_of_ads++;
+//            }
+//
+//            return &sap->sessions[i];
+        }
+    }
+
+#else //AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
+
+// if equal 0, no limit
+
     struct aes67_sap_session * session = (struct aes67_sap_session *)AES67_SAP_MALLOC(sizeof(struct aes67_sap_session));
 
-    session->stat = AES67_SAP_SESSION_STAT_SET;
+#endif
+
+    // shouldn't happen,technically speaking
+    if (session == NULL){
+        return NULL;
+    }
+
+    session->stat = AES67_SAP_SESSION_STAT_SET | (src & AES67_SAP_SESSION_STAT_SRC);
     session->hash = hash;
     session->src.ipver = ipver;
     aes67_memcpy(session->src.addr, ip, AES67_NET_IPVER_SIZE(ipver));
     session->next = NULL;
 
     // never let overflow
-    if (sap->no_of_ads < UINT16_MAX){
-        sap->no_of_ads++;
+    if ((src & AES67_SAP_SESSION_STAT_SRC) == AES67_SAP_SESSION_STAT_SRC_IS_SELF) {
+        if (sap->no_of_ads_self < UINT16_MAX){
+            sap->no_of_ads_self++;
+        }
+    } else {
+        if (sap->no_of_ads_other < UINT16_MAX){
+            sap->no_of_ads_other++;
+        }
     }
 
     // insert at beginning of linked list
@@ -185,16 +201,22 @@ struct aes67_sap_session *  aes67_sap_service_register(struct aes67_sap_service 
 
     return session;
 
-#endif
 }
 
 void aes67_sap_service_unregister(struct aes67_sap_service * sap, struct aes67_sap_session * session)
 {
     AES67_ASSERT("session != NULL", session!=NULL);
 
+    session->stat = AES67_SAP_SESSION_STAT_CLEAR;
+
+    if ((session->stat & AES67_SAP_SESSION_STAT_SRC) == AES67_SAP_SESSION_STAT_SRC_IS_SELF){
+        sap->no_of_ads_self--;
+    } else {
+        sap->no_of_ads_other--;
+    }
+
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
 
-    session->stat = AES67_SAP_SESSION_STAT_CLEAR;
 
 #else //AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC
 
@@ -216,11 +238,6 @@ void aes67_sap_service_unregister(struct aes67_sap_service * sap, struct aes67_s
     AES67_SAP_FREE(session);
 
 #endif
-
-    // never let underflow
-    if (sap->no_of_ads > 0){
-        sap->no_of_ads--;
-    }
 }
 #endif //AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
 
@@ -236,7 +253,7 @@ void aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_t
 
         if (timeout_sec != NULL) {
             // max(3600, 10 * ad_interval)
-            *timeout_sec = (u32_t)3600;
+            *timeout_sec = (u32_t)AES67_SAP_MIN_TIMEOUT_SEC;
         }
 
         return;
@@ -244,9 +261,9 @@ void aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_t
 
     s32_t i = (8 * announcement_size * no_of_ads) / AES67_SAP_BANDWITH;
 
-    s32_t interval_sec = i > 300 ? i : 300;
+    s32_t interval_sec = i > AES67_SAP_MIN_INTERVAL_SEC ? i : AES67_SAP_MIN_INTERVAL_SEC;
 
-    s32_t offset_sec = (AES67_RAND() % (2*interval_sec/3) ) - interval_sec/3;
+    s32_t offset_sec = (AES67_RAND() % ((2*interval_sec)/3) ) - interval_sec/3;
 
     u32_t next_tx = interval_sec + offset_sec;
 
@@ -256,7 +273,8 @@ void aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_t
 
     if (timeout_sec != NULL) {
         // max(3600, 10 * ad_interval)
-        *timeout_sec = (u32_t)(10 * (interval_sec > 360 ? interval_sec : 360));
+        interval_sec *= 10;
+        *timeout_sec = (u32_t)(interval_sec > AES67_SAP_MIN_TIMEOUT_SEC ? interval_sec : AES67_SAP_MIN_TIMEOUT_SEC);
     }
 }
 
@@ -301,7 +319,7 @@ u32_t get_timeout_sec(struct aes67_sap_service *sap, u16_t stat, u32_t timeout_a
     for(;current != NULL; current = current->next){
 
         // only check session not coming from this service
-        if ((current->stat & AES67_SAP_SESSION_STAT_SET) && (current->stat & AES67_SAP_SESSION_STAT_SRC_IS_SELF) != AES67_SAP_SESSION_STAT_SRC_IS_SELF){
+        if ((current->stat & AES67_SAP_SESSION_STAT_SET) && (current->stat & AES67_SAP_SESSION_STAT_SRC) == (stat & AES67_SAP_SESSION_STAT_SRC)){
 
             u32_t age = aes67_time_diffmsec(&now, &current->last_announcement);
 
@@ -311,8 +329,6 @@ u32_t get_timeout_sec(struct aes67_sap_service *sap, u16_t stat, u32_t timeout_a
                 // in case there is at least one that has timed out already,
                 // set timer and stop further processing
                 if (oldest > timeout_after_sec){
-//                    aes67_timer_set(&sap->timeout_timer, AES67_TIMER_NOW);
-
                     return AES67_TIMER_NOW;
                 }
             }
@@ -329,23 +345,25 @@ void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
 
-    // if the timer is set, do not set again.
+    // do NOT set timer if there are not sessions registered in the first place
+    if (sap->no_of_ads_self == 0 || sap->announcement_size == 0) {
+        return;
+    }
+
+    // if the timer is set, do not set again. (note: when expired should be handled first)
     if (aes67_timer_getstate(&sap->announcement_timer) != aes67_timer_state_unset) {
         return;
     }
 
-    // do NOT set timer if there are not sessions registered in the first place
-    if (sap->no_of_ads == 0 || sap->announcement_size == 0) {
-        return;
-    }
 
-    aes67_sap_compute_times_sec(sap->no_of_ads, sap->announcement_size, &sap->announcement_sec, NULL);
+    aes67_sap_compute_times_sec(sap->no_of_ads_other+sap->no_of_ads_self, sap->announcement_size, &sap->announcement_sec, NULL);
 
     u32_t timeout_after_sec = sap->announcement_sec;
 
-    timeout_after_sec = get_timeout_sec(sap, !AES67_SAP_SESSION_STAT_SRC_IS_SELF, timeout_after_sec);
+    timeout_after_sec = get_timeout_sec(sap, AES67_SAP_SESSION_STAT_SRC_IS_SELF, timeout_after_sec);
 
     // actually set timer
+//    printf("atimer = %d\n", timeout_after_sec);
     aes67_timer_set(&sap->announcement_timer, 1000 * timeout_after_sec);
 }
 
@@ -353,6 +371,11 @@ void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap)
 void aes67_sap_service_announcement_check(struct aes67_sap_service *sap, void *user_data)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
+
+    // don't act if not expired
+    if (aes67_timer_getstate(&sap->announcement_timer) != aes67_timer_state_expired) {
+        return;
+    }
 
     aes67_time_t now;
 
@@ -400,10 +423,7 @@ void aes67_sap_service_announcement_check(struct aes67_sap_service *sap, void *u
 
 #endif
 
-    // make sure to reset/unset timer state
-    if (aes67_timer_getstate(&sap->announcement_timer) == aes67_timer_state_expired) {
-        aes67_timer_unset(&sap->announcement_timer);
-    }
+    aes67_timer_unset(&sap->announcement_timer);
 }
 
 
@@ -411,29 +431,36 @@ void aes67_sap_service_set_timeout_timer(struct aes67_sap_service * sap)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
 
+    // do NOT set timer if there are not sessions registered in the first place
+    if (sap->no_of_ads_other == 0) {
+        return;
+    }
+
     // if the timer is set, do not set again.
     if (aes67_timer_getstate(&sap->timeout_timer) != aes67_timer_state_unset) {
         return;
     }
 
-    // do NOT set timer if there are not sessions registered in the first place
-    if (sap->no_of_ads == 0) {
-        return;
-    }
 
-    aes67_sap_compute_times_sec(sap->no_of_ads, sap->announcement_size, NULL, &sap->timeout_sec);
+    aes67_sap_compute_times_sec(sap->no_of_ads_other+sap->no_of_ads_self, sap->announcement_size, NULL, &sap->timeout_sec);
 
     // max(3600, 10 * ad_interval)
     u32_t timeout_after_sec = 1000 * sap->timeout_sec;
 
-    timeout_after_sec = get_timeout_sec(sap, !AES67_SAP_SESSION_STAT_SRC_IS_SELF, timeout_after_sec);
+    timeout_after_sec = get_timeout_sec(sap, AES67_SAP_SESSION_STAT_SRC_IS_OTHER, timeout_after_sec);
 
+//    printf("ttimer = %d\n", timeout_after_sec);
     aes67_timer_set(&sap->timeout_timer, 1000*timeout_after_sec);
 }
 
 void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service *sap, void *user_data)
 {
     AES67_ASSERT("sap != NULL", sap != NULL);
+
+    // don't act if not expired
+    if (aes67_timer_getstate(&sap->timeout_timer) != aes67_timer_state_expired) {
+        return;
+    }
 
     aes67_time_t now;
 
@@ -485,32 +512,19 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service *sap, void *use
 #endif
 
     // make sure to reset/unset timer state
-    if (aes67_timer_getstate(&sap->timeout_timer) == aes67_timer_state_expired) {
-        aes67_timer_unset(&sap->timeout_timer);
-    }
+    aes67_timer_unset(&sap->timeout_timer);
 }
 
 
 void aes67_sap_service_process(struct aes67_sap_service *sap, void * user_data)
 {
-    enum aes67_timer_state timerState;
+    aes67_sap_service_timeouts_cleanup(sap, user_data);
+    // set timer AFTER handling of expired to set directly again if necessary
+    aes67_sap_service_set_timeout_timer(sap);
 
-    timerState = aes67_sap_service_timeout_timer_state(sap);
-
-    if (timerState == aes67_timer_state_unset) {
-        aes67_sap_service_set_timeout_timer(sap);
-    } else if (timerState == aes67_timer_state_expired) {
-        aes67_sap_service_timeouts_cleanup(sap, user_data);
-    }
-
-
-    timerState = aes67_sap_service_announcement_timer_state(sap);
-
-    if (timerState == aes67_timer_state_unset){
-        aes67_sap_service_set_announcement_timer(sap);
-    } else if (timerState == aes67_timer_state_expired){
-        aes67_sap_service_announcement_check(sap, user_data);
-    }
+    aes67_sap_service_announcement_check(sap, user_data);
+    // set timer AFTER handling of expired to set directly again if necessary
+    aes67_sap_service_set_announcement_timer(sap);
 }
 #endif //#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
 
@@ -565,6 +579,10 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
 
     struct aes67_sap_session * session = aes67_sap_service_find(sap, hash, ipver, &msg[AES67_SAP_ORIGIN_SRC]);
 
+    // ignore if it is a message sent by us
+    if (session != NULL && (session->stat & AES67_SAP_SESSION_STAT_SRC_IS_SELF) == AES67_SAP_SESSION_STAT_SRC_IS_SELF){
+        return;
+    }
 
 #if AES67_SAP_AUTH_ENABLED == 1
 
@@ -659,7 +677,7 @@ void aes67_sap_service_handle(struct aes67_sap_service *sap, u8_t *msg, u16_t ms
 
         if (session == NULL){
 
-            session = aes67_sap_service_register(sap, hash, ipver, &msg[4]);
+            session = aes67_sap_service_register(sap, hash, ipver, &msg[4], AES67_SAP_SESSION_STAT_SRC_IS_OTHER);
 
             event = aes67_sap_event_new;
 
@@ -783,11 +801,7 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service *sap, u8_t *msg, u16_t maxl
     if ( (opt & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE  && session == NULL){
 
         // if own session was not registered prior, register now
-        session = aes67_sap_service_register(sap, hash, ipver, ip);
-
-        if (session != NULL){
-            session->stat |= AES67_SAP_SESSION_STAT_SRC_IS_SELF;
-        }
+        session = aes67_sap_service_register(sap, hash, ipver, ip, AES67_SAP_SESSION_STAT_SRC_IS_SELF);
 
     } else if ( (opt & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_DELETE  && session != NULL) {
 
@@ -798,7 +812,7 @@ u16_t aes67_sap_service_msg(struct aes67_sap_service *sap, u8_t *msg, u16_t maxl
     }
 
     // so, if this service's session exists and it is being announced, update the timestamp
-    if ( (opt & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE  && session != NULL){
+    if ( (opt & AES67_SAP_STATUS_MSGTYPE_MASK) == AES67_SAP_STATUS_MSGTYPE_ANNOUNCE && session != NULL){
         aes67_time_now(&session->last_announcement);
     }
 

@@ -28,6 +28,12 @@
 #define AES67_SAP_FREE(x)       free(x)
 #define AES67_SAP_MALLOC(x)     malloc(x)
 
+// roughly all 30 sec announcement
+#define AES67_SAP_MIN_INTERVAL_SEC 30
+
+// 10 minutes?
+#define AES67_SAP_MIN_TIMEOUT_SEC 600
+
 #define AES67_SAP_FILTER_SDP    1
 #define AES67_SAP_FILTER_XOR8    0
 

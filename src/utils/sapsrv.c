@@ -76,6 +76,8 @@ static sapsrv_session_t * session_new(sapsrv_t *server, u8_t managed_by, const u
 static sapsrv_session_t * session_update(sapsrv_t *  sapserver, sapsrv_session_t * session, const struct aes67_sdp_originator *origin, const u8_t * payload, const u16_t payloadlen);
 static void session_delete(sapsrv_t * server, sapsrv_session_t * session);
 
+static sapsrv_session_t * aes67_sapsrv_session_by_id(aes67_sapsrv_t sapserver, const u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
+
 static int join_mcast_groups(sapsrv_t * server, u32_t scopes);
 static int leave_mcast_groups(sapsrv_t * server, u32_t scopes);
 
@@ -151,46 +153,24 @@ static void session_delete(sapsrv_t * server, sapsrv_session_t * session)
     free(session);
 }
 
-//static int get_ifindex(struct aes67_net_addr * addr)
-//{
-//    if (addr->ipver == aes67_net_ipver_undefined){
-//        return 0;
-//    }
-//
-//    struct ifaddrs* ifaddr;
-//    struct ifaddrs* ifa;
-//
-//    int iface = 0;
-//
-//    int family = addr->ipver == aes67_net_ipver_4 ? AF_INET : AF_INET6;
-//
-//    getifaddrs(&ifaddr);
-//
-//    for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next)
-//    {
-//        if (!ifa->ifa_addr) continue;
-//        if (!ifa->ifa_name) continue;
-//        if (ifa->ifa_addr->sa_family != family) continue;
-//
-//        if (family == AF_INET){
-//            struct sockaddr_in* inaddr = (struct sockaddr_in*)ifa->ifa_addr;
-//            if (inaddr->sin_addr.s_addr == *(u32_t*)(addr->addr)){
-//                iface = if_nametoindex(ifa->ifa_name);
-//                break;
-//            }
-//        } else {
-//            struct sockaddr_in6* inaddr = (struct sockaddr_in6*)ifa->ifa_addr;
-//            if (memcmp(&inaddr->sin6_addr, addr->addr, AES67_NET_IPVER_SIZE(addr->ipver)) == 0){
-//                iface = if_nametoindex(ifa->ifa_name);
-//                break;
-//            }
-//        }
-//    }
-//
-//    freeifaddrs(ifaddr);
-//
-//    return iface;
-//}
+static sapsrv_session_t * aes67_sapsrv_session_by_id(aes67_sapsrv_t sapserver, const u16_t hash, enum aes67_net_ipver ipver, u8_t * ip)
+{
+    assert( sapserver != NULL );
+    assert(AES67_NET_IPVER_ISVALID(ipver));
+    assert( ip != NULL );
+
+    sapsrv_t * server = sapserver;
+
+    sapsrv_session_t * current = server->first_session;
+
+    for(; current != NULL; current = current->next ){
+        if (current->hash == hash && current->ip.ipver == ipver && memcmp(current->ip.addr, ip, AES67_NET_IPVER_SIZE(ipver)) == 0){
+            return current;
+        }
+    }
+
+    return NULL;
+}
 
 
 int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if)
@@ -512,9 +492,22 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
     assert(user_data != NULL);
     sapsrv_t * server = (sapsrv_t*)user_data;
 
-    syslog(LOG_DEBUG, "sap evt=%d plen=%d", event, payloadlen);
+    syslog(LOG_DEBUG, "sap evt=%d hash=%hu plen=%d", event, hash, payloadlen);
 
-//    printf("sap service %d (plen %d)\n", event, payloadlen);
+    // announcement requests get special treatement
+    if (event == aes67_sap_event_announcement_request){
+
+        sapsrv_session_t * session = aes67_sapsrv_session_by_id(server, hash, ipver, ip);
+
+        // should not occur
+        if (session == NULL){
+            return;
+        }
+
+        sap_send(server, session, AES67_SAP_STATUS_MSGTYPE_ANNOUNCE);
+
+        return;
+    }
 
     // because we require sdp payload types, don't check payload type (see AES67_SAP_FILTER_SDP)
 

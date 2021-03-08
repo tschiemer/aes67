@@ -292,7 +292,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
 #else
-    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(1, sap.no_of_ads_other);
 #if AES67_SAP_AUTH_ENABLED
 //    CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
 #endif
@@ -319,7 +319,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
     CHECK_EQUAL(0, sap.no_of_ads);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
 #else
-    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(1, sap.no_of_ads_other);
     CHECK_EQUAL(aes67_sap_event_updated, sap_event.event); // different event
 #endif
 #endif// AES67_SAP_HASH_CHECK == 0
@@ -342,7 +342,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL(0, sap.no_of_ads);
+    CHECK_EQUAL(0, sap.no_of_ads_other);
     CHECK_EQUAL(aes67_sap_event_deleted, sap_event.event); // different event
     CHECK_EQUAL(0, sap_event.payloadtypelen);
     CHECK_EQUAL(NULL, sap_event.payloadtype);
@@ -402,7 +402,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL(0, sap.no_of_ads);
 #else
-    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(1, sap.no_of_ads_other);
 #if AES67_SAP_AUTH_ENABLED
 //    CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
 #endif
@@ -428,7 +428,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     CHECK_EQUAL(0, sap.no_of_ads);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
 #else
-    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(1, sap.no_of_ads_other);
     CHECK_EQUAL(aes67_sap_event_updated, sap_event.event); // different event
 #endif
 #endif // AES67_SAP_HASH_CHECK == 1
@@ -451,7 +451,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL(0, sap.no_of_ads);
+    CHECK_EQUAL(0, sap.no_of_ads_other);
     CHECK_EQUAL(aes67_sap_event_deleted, sap_event.event); // different event
     CHECK_EQUAL(0, sap_event.payloadtypelen);
     CHECK_EQUAL(NULL, sap_event.payloadtype);
@@ -488,7 +488,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL(0, sap.no_of_ads);
+    CHECK_EQUAL(0, sap.no_of_ads_other);
     CHECK_EQUAL(aes67_sap_event_deleted, sap_event.event); // different event
     CHECK_EQUAL(0, sap_event.payloadtypelen);
     CHECK_EQUAL(NULL, sap_event.payloadtype);
@@ -550,7 +550,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
     };
 
-    CHECK_EQUAL(0, sap.no_of_ads);
+    CHECK_EQUAL(0, sap.no_of_ads_other);
 
     // fill pool with quasi-identical session_data (hashes 1 - POOL_SIZE)
     for(int i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
@@ -561,10 +561,10 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
         aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
         CHECK_TRUE(sap_event.isset);
-        CHECK_EQUAL(i+1, sap.no_of_ads);
+        CHECK_EQUAL(i+1, sap.no_of_ads_other);
     }
 
-    CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads);
+    CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads_other);
 
     // send another (unique) announce message
     p1.msg_id_hash++;
@@ -574,7 +574,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads);
+    CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads_other);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
 
     // resend previous announce message again
@@ -582,7 +582,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads);
+    CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS, sap.no_of_ads_other);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event); // note: event != refreshed
 
     // delete
@@ -608,10 +608,10 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
         aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
         CHECK_TRUE(sap_event.isset);
-        CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS-i-1, sap.no_of_ads);
+        CHECK_EQUAL(AES67_SAP_MEMORY_MAX_SESSIONS-i-1, sap.no_of_ads_other);
     }
 
-    CHECK_EQUAL(0, sap.no_of_ads);
+    CHECK_EQUAL(0, sap.no_of_ads_other);
 
 
     // add a new session_data to make sure it's still possible
@@ -625,7 +625,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
 #if AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL( 0, sap.no_of_ads);
 #else
-    CHECK_EQUAL( 1, sap.no_of_ads);
+    CHECK_EQUAL( 1, sap.no_of_ads_other);
 #if AES67_SAP_AUTH_ENABLED
 //    CHECK_EQUAL(aes67_sap_auth_result_not_ok, sap_event.session_data.authenticated);
 #endif
@@ -646,7 +646,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
     CHECK_EQUAL( 0, sap.no_of_ads);
     CHECK_EQUAL(aes67_sap_event_new, sap_event.event);
 #else
-    CHECK_EQUAL( 1, sap.no_of_ads);
+    CHECK_EQUAL( 1, sap.no_of_ads_other);
     CHECK_EQUAL(aes67_sap_event_updated, sap_event.event);
 #endif
 #endif// AES67_SAP_HASH_CHECK == 0
@@ -733,7 +733,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL && AES67_SAP_MEMORY_MAX_SESSIONS == 0
     CHECK_EQUAL(0, sap.no_of_ads);
 #else
-    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(1, sap.no_of_ads_other);
 #endif
 
 
@@ -1118,7 +1118,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     aes67_time_now(&t1a);
 
     CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(1, sap.no_of_ads_other);
     // t1a < p1.last_announcement < t1b
 //    CHECK_COMPARE(0, <, aes67_time_diffmsec(&t1b, &sap_event.session_data.last_announcement));
 //    CHECK_COMPARE(0, <, aes67_time_diffmsec(&sap_event.session_data.last_announcement, &t1a));
@@ -1145,7 +1145,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     aes67_time_now(&t2a);
 
     CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL(2, sap.no_of_ads);
+    CHECK_EQUAL(2, sap.no_of_ads_other);
 
     // t1b < t2b < p2.last_announcement < t2a
     CHECK_COMPARE(0, <, aes67_time_diffmsec(&t1a, &t2b));
@@ -1166,7 +1166,7 @@ TEST(SAP_TestGroup, sap_timeouts)
 
     CHECK_EQUAL(aes67_timer_state_set, aes67_sap_service_timeout_timer_state(&sap));
     CHECK_FALSE(sap_event.isset);
-    CHECK_EQUAL(2, sap.no_of_ads);
+    CHECK_EQUAL(2, sap.no_of_ads_other);
 
     // let time go beyond timeout
     time_add_now_ms(1000*sap.timeout_sec);
@@ -1178,7 +1178,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     aes67_sap_service_timeouts_cleanup(&sap, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL( 0, sap.no_of_ads);
+    CHECK_EQUAL( 0, sap.no_of_ads_other);
     CHECK_EQUAL(aes67_sap_event_timeout, sap_event.event);
 
 
@@ -1191,18 +1191,18 @@ TEST(SAP_TestGroup, sap_timeouts)
     // step half a timeout into the future
     time_add_now_ms(500*sap.timeout_sec);
 
-    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(1, sap.no_of_ads_other);
 
     len = packet2mem(data, p2);
     aes67_sap_service_handle(&sap, data, len, gl_user_data);
 
-    CHECK_EQUAL(2, sap.no_of_ads);
+    CHECK_EQUAL(2, sap.no_of_ads_other);
 
     sap_event_reset();
     aes67_sap_service_timeouts_cleanup(&sap, gl_user_data);
 
     CHECK_FALSE(sap_event.isset);
-    CHECK_EQUAL(2, sap.no_of_ads);
+    CHECK_EQUAL(2, sap.no_of_ads_other);
 
     // step another half a timeout into the future
     time_add_now_ms(500*sap.timeout_sec);
@@ -1212,7 +1212,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     aes67_sap_service_timeouts_cleanup(&sap, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL(1, sap.no_of_ads);
+    CHECK_EQUAL(1, sap.no_of_ads_other);
     CHECK_EQUAL(aes67_sap_event_timeout, sap_event.event);
     CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver);
@@ -1227,7 +1227,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     aes67_sap_service_timeouts_cleanup(&sap, gl_user_data);
 
     CHECK_TRUE(sap_event.isset);
-    CHECK_EQUAL(0, sap.no_of_ads);
+    CHECK_EQUAL(0, sap.no_of_ads_other);
     CHECK_EQUAL(aes67_sap_event_timeout, sap_event.event);
     CHECK_EQUAL(p2.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p2.ip.ipver, sap_event.src.ipver);
