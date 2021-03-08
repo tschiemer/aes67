@@ -182,7 +182,7 @@ static void help(FILE * fd)
             "\t\t\t Default send: 4a\n"
             "\t --ipv6-if\t IPv6 interface to listen on (default interface can fail)\n"
              "Examples:\n"
-             "%s sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
+             "sudo %s sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
             , argv0, (u16_t)AES67_SAP_PORT, argv0);
 }
 
@@ -271,10 +271,10 @@ static int sock_nonblock(int sockfd){
     return EXIT_SUCCESS;
 }
 
-static int local_setup(const char * fname)
+static int local_setup()
 {
-    if( access( fname, F_OK ) == 0 ){
-        syslog(LOG_ERR, "AF_LOCAL already exists: %s", fname );
+    if( access( AES67_SAPD_LOCAL_SOCK, F_OK ) == 0 ){
+        syslog(LOG_ERR, "AF_LOCAL already exists: %s", AES67_SAPD_LOCAL_SOCK );
         return EXIT_FAILURE;
     }
 
@@ -283,10 +283,9 @@ static int local_setup(const char * fname)
         perror ("socket(AF_LOCAL).failed");
         return EXIT_FAILURE;
     }
-    local.fname = fname;
 
     local.addr.sun_family = AF_LOCAL;
-    strncpy (local.addr.sun_path, fname, sizeof (local.addr.sun_path));
+    strncpy (local.addr.sun_path, AES67_SAPD_LOCAL_SOCK, sizeof (local.addr.sun_path));
     local.addr.sun_path[sizeof (local.addr.sun_path) - 1] = '\0';
 
     local.addr.sun_len = (offsetof (struct sockaddr_un, sun_path)
@@ -314,7 +313,7 @@ static int local_setup(const char * fname)
     local.nconnections = 0;
     local.first_connection = NULL;
 
-    syslog(LOG_NOTICE, "listen(AF_LOCAL): %s", fname);
+    syslog(LOG_NOTICE, "listen(AF_LOCAL): %s", AES67_SAPD_LOCAL_SOCK);
 
     return EXIT_SUCCESS;
 }
@@ -326,11 +325,9 @@ static void local_teardown()
         local.sockfd = -1;
     }
 
-    if (local.fname != NULL){
-        if( access( local.fname, F_OK ) == 0 ){
-            //TODO is this generally safe??
-            remove(local.fname);
-        }
+    if( access(AES67_SAPD_LOCAL_SOCK, F_OK ) == 0 ){
+        //TODO is this generally safe??
+        remove(AES67_SAPD_LOCAL_SOCK);
     }
 }
 

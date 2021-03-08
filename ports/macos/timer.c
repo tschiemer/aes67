@@ -65,6 +65,10 @@ void aes67_timer_set(struct aes67_timer *timer, u32_t millisec)
 //        return;
 //    }
 
+    if (millisec == 0){
+        millisec = 1;
+    }
+
     timer->dispatchSource = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
 
     dispatch_source_set_event_handler_f(timer->dispatchSource, (dispatch_function_t)timer_event_handler);

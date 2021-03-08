@@ -247,12 +247,11 @@ socat -u UDP4-RECVFROM:9875,ip-add-membership=239.255.255.255:192.168.1.122,reus
 
 ### `sapd`
 ```
-Usage: ./sapd [-h|-?] | [-d] [-p<port>] [--l<mcast-scope>] [--s<mcast-scope>]
+Usage: ./sapd [-h|-?] | [-d] [-p <port>] [--l <mcast-scope>] [--s <mcast-scope>] [--ipv6-if <ifname>]
 Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and keeps announcing
 specified SDPs on network.
-Communicates through local port (sapd.sock)
+Communicates through local port (/var/run/sapd.sock)
 Logs to syslog (identity sapd)
-Note: this is NOT a hardened server.
 Options:
 	 -h,-?		 Prints this info.
 	 -d,--daemonize	 Daemonize bwahahaha (and print to syslog if -v)
@@ -263,17 +262,21 @@ Options:
 				 4g	 IPv4 SAP global (224.2.127.254)
 				 4a	 IPv4 SAP administered (239.255.255.255)
 				 6ll	 IPv6 SAP link local (FF02::2:7FFE)
+				 6ip4	 IPv6 SAP ip4 scope local (FF03::2:7FFE)
 				 6al	 IPv6 SAP admin local (FF04::2:7FFE)
 				 6sl	 IPv6 SAP site local (FF05::2:7FFE)
 			 Default listen: 4g + 4a + 6ll
 			 Default send: 4a
+	 --ipv6-if	 IPv6 interface to listen on (default interface can fail)
 Examples:
-./sapd -v --l4a & socat - UNIX-CONNECT:sapd.sock,keepalive
+sudo ./sapd sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:/var/run/sapd.sock,keepalive
 ```
-
-*work in progress*
-
 (note: AES67-2018 is specified for IPv4 primarily, consider IPv6 a proof of concept and for other purposes..)
+
+Essentially any connection to the AF_LOCAL socket is considered a subscription and will receive updates but allows also
+for registration and deletion of locally managed SDP files.
+
+For documentation of protocol/interface used through AF_LOCAL sockets, see [src/include/aes67/utils/sapd.h](src/include/aes67/utils/sapd.h).
 
 ### `sdp-parse`
 

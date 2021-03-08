@@ -285,6 +285,9 @@ void aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_t
 #if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
 u32_t get_timeout_sec(struct aes67_sap_service *sap, u16_t stat, u32_t timeout_after_sec)
 {
+    // we are comparing msec
+    timeout_after_sec *= 1000;
+
     aes67_time_t now;
 
     aes67_time_now(&now);
