@@ -25,6 +25,7 @@
 #include <stdlib.h>
 #include <getopt.h>
 #include <signal.h>
+#include <sys/stat.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <net/if.h>
@@ -274,10 +275,10 @@ static int sock_nonblock(int sockfd){
     return EXIT_SUCCESS;
 }
 
-static int local_setup()
+static int local_setup(const char * fname)
 {
     if( access( AES67_SAPD_LOCAL_SOCK, F_OK ) == 0 ){
-        syslog(LOG_ERR, "AF_LOCAL already exists: %s", AES67_SAPD_LOCAL_SOCK );
+        syslog(LOG_ERR, "AF_LOCAL already exists: " AES67_SAPD_LOCAL_SOCK );
         return EXIT_FAILURE;
     }
 
@@ -297,24 +298,37 @@ static int local_setup()
     if (bind (local.sockfd, (struct sockaddr *) &local.addr, local.addr.sun_len) < 0){
         close(local.sockfd);
         local.sockfd = -1;
-        perror ("local.bind()");
+        perror ("bind(AF_LOCAL)");
         return EXIT_FAILURE;
     }
 
     if (listen(local.sockfd, AES67_SAPD_LOCAL_LISTEN_BACKLOG) == -1){
         close(local.sockfd);
         local.sockfd = -1;
+        remove(AES67_SAPD_LOCAL_SOCK);
+        perror ("listen(AF_LOCAL)");
         return EXIT_FAILURE;
     }
 
     if (sock_nonblock(local.sockfd)){
         close(local.sockfd);
         local.sockfd = -1;
+        remove(AES67_SAPD_LOCAL_SOCK);
+        perror ("setsockopt(AF_LOCAL, nonblocking)");
         return EXIT_FAILURE;
     }
 
     local.nconnections = 0;
     local.first_connection = NULL;
+
+    // change sock access rights to allow for non-sudoer access (r/w by all)
+    if (chmod(AES67_SAPD_LOCAL_SOCK, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH)){
+        close(local.sockfd);
+        local.sockfd = -1;
+        remove(AES67_SAPD_LOCAL_SOCK);
+        perror ("fchmod(AF_LOCAL)");
+        return EXIT_FAILURE;
+    }
 
     syslog(LOG_NOTICE, "listen(AF_LOCAL): %s", AES67_SAPD_LOCAL_SOCK);
 
