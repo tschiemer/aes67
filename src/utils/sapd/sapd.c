@@ -21,6 +21,7 @@
 #include "aes67/utils/sapsrv.h"
 #include "aes67/utils/daemonize.h"
 #include "aes67/sap.h"
+#include "aes67/utils/mdns.h"
 
 #include <stdlib.h>
 #include <getopt.h>
@@ -33,6 +34,10 @@
 
 //#define BUFSIZE 1024
 #define MAX_CMDLINE 256
+
+#define DEFAULT_LISTEN_SCOPES   (AES67_SAPSRV_SCOPE_IPv4 | AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)
+#define DEFAULT_SEND_SCOPES     AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED
+
 
 #define MSG_VERSIONWELCOME         AES67_SAPD_MSGU_INFO " " AES67_SAPD_NAME_LONG
 
@@ -66,58 +71,44 @@ struct cmd_st {
 static void help(FILE * fd);
 
 static void sig_int(int sig);
+static void sig_alrm(int sig);
+
+static int sock_nonblock(int sockfd);
+
+static void block_until_event();
+
+static int sapsrv_setup();
+static void sapsrv_teardown();
+static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
+
+#if AES67_SAPD_WITH_RAV == 1
+static int rav_setup();
+static void rav_teardown();
+static void rav_browse_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * domain, void * context);
+static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context);
+#endif //AES67_SAPD_WITH_RAV == 1
 
 static struct connection_st * connection_new(int sockfd, struct sockaddr_un * addr, socklen_t socklen);
 static void connection_close(struct connection_st * con);
-
-static int sock_nonblock(int sockfd);
 
 static int local_setup(const char * fname);
 static void local_teardown();
 static void local_accept();
 static void local_process();
 
-static int sapsrv_setup();
-static void sapsrv_teardown();
-static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
-
 static void write_error(struct connection_st * con, const u32_t code, const char * str);
 static void write_ok(struct connection_st * con);
 static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * except);
-
-static void block_until_event();
 
 //static void cmd_help(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_unset(struct connection_st * con, u8_t * cmdline, size_t len);
 
-//const char cmd_help_str[] = AES67_SAPD_CMD_HELP;
-//const char cmd_list_str[] = AES67_SAPD_CMD_LIST;
-//const char cmd_set_str[] = AES67_SAPD_CMD_SET;
-//const char cmd_unset_str[] = AES67_SAPD_CMD_UNSET;
 
-static const struct cmd_st commands[] = {
-//        CMD_INIT(AES67_SAPD_CMD_HELP, cmd_help),
-        CMD_INIT(AES67_SAPD_CMD_LIST, cmd_list),
-        CMD_INIT(AES67_SAPD_CMD_SET, cmd_set),
-        CMD_INIT(AES67_SAPD_CMD_UNSET, cmd_unset)
-};
 
-#define COMMAND_COUNT (sizeof(commands) / sizeof(struct cmd_st))
 
-static const char * error_msg[] = {
-  "Generic error",          // AES67_SAPD_ERROR
-  "Unrecognized command",   // AES67_SAPD_ERR_UNRECOGNIZED
-  "Missing args",           // AES67_SAPD_ERR_MISSING
-  "Syntax error",           // AES67_SAPD_ERR_SYNTAX
-  "Unknown session",        // AES67_SAPD_ERR_UNKNOWN
-  "SDP too big",            // AES67_SAPD_ERR_TOOBIG
-  "Invalid..",                // AES67_SAPD_ERR_INVALID
-};
-
-#define ERROR_COUNT (sizeof(error_msg) / sizeof(char *))
-
+static char * argv0;
 
 static struct {
     bool daemonize;
@@ -128,20 +119,18 @@ static struct {
     unsigned int ipv6_if;
 
 } opts = {
-    .daemonize = false,
-    .verbose = false,
-    .listen_scopes = 0,
-    .send_scopes = 0,
-    .port = AES67_SAP_PORT,
-    .ipv6_if = 0
+        .daemonize = false,
+        .verbose = false,
+        .listen_scopes = 0,
+        .send_scopes = 0,
+        .port = AES67_SAP_PORT,
+        .ipv6_if = 0
 };
 
-#define DEFAULT_LISTEN_SCOPES   (AES67_SAPSRV_SCOPE_IPv4 | AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)
-#define DEFAULT_SEND_SCOPES     AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED
-
-static char * argv0;
-
 static volatile bool keep_running;
+
+aes67_sapsrv_t * sapsrv = NULL;
+
 
 static struct {
     const char * fname;
@@ -156,7 +145,27 @@ static struct {
     .sockfd = -1
 };
 
-aes67_sapsrv_t * sapsrv = NULL;
+
+static const struct cmd_st commands[] = {
+//        CMD_INIT(AES67_SAPD_CMD_HELP, cmd_help),
+        CMD_INIT(AES67_SAPD_CMD_LIST, cmd_list),
+        CMD_INIT(AES67_SAPD_CMD_SET, cmd_set),
+        CMD_INIT(AES67_SAPD_CMD_UNSET, cmd_unset)
+};
+
+#define COMMAND_COUNT (sizeof(commands) / sizeof(struct cmd_st))
+
+static const char * error_msg[] = {
+        "Generic error",          // AES67_SAPD_ERROR
+        "Unrecognized command",   // AES67_SAPD_ERR_UNRECOGNIZED
+        "Missing args",           // AES67_SAPD_ERR_MISSING
+        "Syntax error",           // AES67_SAPD_ERR_SYNTAX
+        "Unknown session",        // AES67_SAPD_ERR_UNKNOWN
+        "SDP too big",            // AES67_SAPD_ERR_TOOBIG
+        "Invalid..",                // AES67_SAPD_ERR_INVALID
+};
+
+#define ERROR_COUNT (sizeof(error_msg) / sizeof(char *))
 
 static void help(FILE * fd)
 {
@@ -194,6 +203,217 @@ static void sig_int(int sig)
 {
     keep_running = false;
 }
+
+static void sig_alrm(int sig){
+
+}
+
+static int sock_nonblock(int sockfd){
+    // set non-blocking
+    int flags = fcntl(sockfd, F_GETFL, 0);
+    if (fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) == -1){
+        fprintf(stderr, "local. Couldn't change non-/blocking\n");
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+static void block_until_event()
+{
+    int nfds = 0;
+    struct fd_set fds;
+//    sigset_t sigmask;
+
+    FD_ZERO(&fds);
+
+    // set all AF_LOCAL sockets
+    FD_SET(local.sockfd, &fds);
+    nfds = local.sockfd;
+
+    struct connection_st * con = local.first_connection;
+    for(;con != NULL; con = con->next){
+        FD_SET(con->sockfd, &fds);
+        if (con->sockfd > nfds){
+            nfds = con->sockfd;
+        }
+    }
+
+    int srvsockfds[2];
+    size_t srvsocknfds = 0;
+    aes67_sapsrv_getsockfds(sapsrv, srvsockfds, &srvsocknfds);
+    for(size_t i = 0; i < srvsocknfds; i++){
+        FD_SET(srvsockfds[i], &fds);
+        if (srvsockfds[i] > nfds){
+            nfds = srvsockfds[i];
+        }
+    }
+
+//    if (sigprocmask(SIG_SETMASK, NULL, &sigmask)){
+//        fprintf(stderr, "get sigmask failed\n");
+//        exit(EXIT_FAILURE);
+//    }
+
+    nfds++;
+
+    // just wait until something interesting happens
+    select(nfds, &fds, NULL, &fds, NULL);
+}
+
+static int sapsrv_setup()
+{
+    aes67_time_init_system();
+    aes67_timer_init_system();
+
+    // set SIGALRM handler (triggered by timer)
+    signal(SIGALRM, sig_alrm);
+
+    sapsrv = aes67_sapsrv_start(opts.send_scopes, opts.port, opts.listen_scopes, opts.ipv6_if, sapsrv_callback, NULL);
+
+    if (sapsrv == NULL){
+        syslog(LOG_ERR, "Failed to start sapsrv ..");
+
+        aes67_timer_deinit_system();
+        aes67_time_deinit_system();
+
+        return EXIT_FAILURE;
+    }
+
+    aes67_sapsrv_setblocking(sapsrv, false);
+
+    // pretty log message
+//    u8_t listen_str[64];
+//    u8_t iface_str[64];
+//
+//    u16_t listen_len = aes67_net_addr2str(listen_str, &opts.listen_addr);
+//    u16_t iface_len = aes67_net_addr2str(iface_str, &opts.iface_addr);
+//
+////    printf("%hu\n", opts.listen_addr.port);
+//
+//    listen_str[listen_len] = '\0';
+//    iface_str[iface_len] = '\0';
+//
+//    syslog(LOG_NOTICE, "SAP listening on %s (if %s)", listen_str, iface_len ? (char*)iface_str : "default" );
+//    syslog(LOG_NOTICE, "SAP listening...");
+
+    return EXIT_SUCCESS;
+}
+
+static void sapsrv_teardown()
+{
+    if (sapsrv == NULL){
+        aes67_sapsrv_stop(sapsrv);
+        sapsrv = NULL;
+    }
+
+    aes67_timer_deinit_system();
+    aes67_time_deinit_system();
+}
+
+static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data)
+{
+//    printf("asdf %d\n", event);
+
+    u8_t ostr[256];
+    s32_t olen = aes67_sdp_origin_tostr(ostr, sizeof(ostr)-1, (struct aes67_sdp_originator *)origin);
+
+    if (olen >= 0){
+        olen -= 2; // remove CRNL
+        ostr[olen] = '\0';
+    } else {
+        strncpy((char*)ostr, "internal error", sizeof(ostr));
+    }
+
+    u8_t msg[1500];
+    ssize_t mlen;
+
+    if (event == aes67_sapsrv_event_discovered){
+        syslog(LOG_INFO, "SAP: discovered (payload %d): %s", payloadlen, ostr);
+
+        mlen = snprintf((char*)msg, sizeof(msg), "%s %d %s\n",
+                        AES67_SAPD_MSGU_NEW,
+                        payloadlen,
+                        ostr
+        );
+
+        if (mlen + payloadlen + 1 >= sizeof(msg)){
+            syslog(LOG_ERR, "not enough memory");
+            return;
+        }
+
+        memcpy(&msg[mlen], payload, payloadlen);
+        mlen += payloadlen;
+
+//        msg[mlen++] = '\n'; // always add a newline?
+
+        write_toall_except(msg, mlen, NULL);
+    }
+    else if (event == aes67_sapsrv_event_updated){
+        syslog(LOG_INFO, "SAP: updated (payload %d): %s", payloadlen, ostr);
+
+        mlen = snprintf((char*)msg, sizeof(msg), "%s %d %s\n",
+                        AES67_SAPD_MSGU_UPDATED,
+                        payloadlen,
+                        ostr
+        );
+
+        if (mlen + payloadlen + 1 >= sizeof(msg)){
+            syslog(LOG_ERR, "not enough memory");
+            return;
+        }
+
+        memcpy(&msg[mlen], payload, payloadlen);
+        mlen += payloadlen;
+
+//        msg[mlen++] = '\n'; // always add a newline?
+
+        write_toall_except(msg, mlen, NULL);
+    }
+    else if (event == aes67_sapsrv_event_deleted){
+        syslog(LOG_INFO, "SAP: deleted: %s", ostr);
+
+        mlen = snprintf((char*)msg, sizeof(msg), "%s %s\n",
+                        AES67_SAPD_MSGU_DELETED,
+                        ostr
+        );
+
+        write_toall_except(msg, mlen, NULL);
+    }
+    else if (event == aes67_sapsrv_event_timeout){
+        syslog(LOG_INFO, "SAP: timeout: %s", ostr);
+
+        mlen = snprintf((char*)msg, sizeof(msg), "%s %s\n",
+                        AES67_SAPD_MSGU_TIMEOUT,
+                        ostr
+        );
+
+        write_toall_except(msg, mlen, NULL);
+    }
+    else {
+        syslog(LOG_INFO, "SAP: ???: %s", ostr);
+    }
+}
+
+#if AES67_SAPD_WITH_RAV == 1
+static int rav_setup()
+{
+    return EXIT_SUCCESS;
+}
+
+static void rav_teardown()
+{
+
+}
+
+static void rav_browse_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * domain, void * context)
+{
+
+}
+
+static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context)
+{
+
+}
+#endif //AES67_SAPD_WITH_RAV == 1
 
 static struct connection_st * connection_new(int sockfd, struct sockaddr_un * addr, socklen_t socklen)
 {
@@ -265,16 +485,6 @@ static void connection_close(struct connection_st * con)
     }
 }
 
-static int sock_nonblock(int sockfd){
-    // set non-blocking
-    int flags = fcntl(sockfd, F_GETFL, 0);
-    if (fcntl(sockfd, F_SETFL, flags | O_NONBLOCK) == -1){
-        fprintf(stderr, "local. Couldn't change non-/blocking\n");
-        return EXIT_FAILURE;
-    }
-    return EXIT_SUCCESS;
-}
-
 static int local_setup(const char * fname)
 {
     if( access( AES67_SAPD_LOCAL_SOCK, F_OK ) == 0 ){
@@ -293,7 +503,7 @@ static int local_setup(const char * fname)
     local.addr.sun_path[sizeof (local.addr.sun_path) - 1] = '\0';
 
     local.addr.sun_len = (offsetof (struct sockaddr_un, sun_path)
-                                 + strlen (local.addr.sun_path));
+                          + strlen (local.addr.sun_path));
 
     if (bind (local.sockfd, (struct sockaddr *) &local.addr, local.addr.sun_len) < 0){
         close(local.sockfd);
@@ -480,6 +690,7 @@ static void local_process()
         }
     }
 }
+
 static void write_error(struct connection_st * con, const u32_t code, const char * str)
 {
     char buf[256];
@@ -803,184 +1014,7 @@ static void cmd_unset(struct connection_st * con, u8_t * cmdline, size_t len)
     write_toall_except(buf, blen, con);
 }
 
-static void sigalrm_donothing(int sig){
 
-}
-
-static int sapsrv_setup()
-{
-    aes67_time_init_system();
-    aes67_timer_init_system();
-
-    // set SIGALRM handler (triggered by timer)
-    signal(SIGALRM, sigalrm_donothing);
-
-    sapsrv = aes67_sapsrv_start(opts.send_scopes, opts.port, opts.listen_scopes, opts.ipv6_if, sapsrv_callback, NULL);
-
-    if (sapsrv == NULL){
-        syslog(LOG_ERR, "Failed to start sapsrv ..");
-
-        aes67_timer_deinit_system();
-        aes67_time_deinit_system();
-
-        return EXIT_FAILURE;
-    }
-
-    aes67_sapsrv_setblocking(sapsrv, false);
-
-    // pretty log message
-//    u8_t listen_str[64];
-//    u8_t iface_str[64];
-//
-//    u16_t listen_len = aes67_net_addr2str(listen_str, &opts.listen_addr);
-//    u16_t iface_len = aes67_net_addr2str(iface_str, &opts.iface_addr);
-//
-////    printf("%hu\n", opts.listen_addr.port);
-//
-//    listen_str[listen_len] = '\0';
-//    iface_str[iface_len] = '\0';
-//
-//    syslog(LOG_NOTICE, "SAP listening on %s (if %s)", listen_str, iface_len ? (char*)iface_str : "default" );
-//    syslog(LOG_NOTICE, "SAP listening...");
-
-    return EXIT_SUCCESS;
-}
-
-static void sapsrv_teardown()
-{
-    if (sapsrv == NULL){
-        aes67_sapsrv_stop(sapsrv);
-        sapsrv = NULL;
-    }
-
-    aes67_timer_deinit_system();
-    aes67_time_deinit_system();
-}
-
-static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data)
-{
-//    printf("asdf %d\n", event);
-
-    u8_t ostr[256];
-    s32_t olen = aes67_sdp_origin_tostr(ostr, sizeof(ostr)-1, (struct aes67_sdp_originator *)origin);
-
-    if (olen >= 0){
-        olen -= 2; // remove CRNL
-        ostr[olen] = '\0';
-    } else {
-        strncpy((char*)ostr, "internal error", sizeof(ostr));
-    }
-
-    u8_t msg[1500];
-    ssize_t mlen;
-
-    if (event == aes67_sapsrv_event_discovered){
-        syslog(LOG_INFO, "SAP: discovered (payload %d): %s", payloadlen, ostr);
-
-        mlen = snprintf((char*)msg, sizeof(msg), "%s %d %s\n",
-                        AES67_SAPD_MSGU_NEW,
-                        payloadlen,
-                        ostr
-                        );
-
-        if (mlen + payloadlen + 1 >= sizeof(msg)){
-            syslog(LOG_ERR, "not enough memory");
-            return;
-        }
-
-        memcpy(&msg[mlen], payload, payloadlen);
-        mlen += payloadlen;
-
-//        msg[mlen++] = '\n'; // always add a newline?
-
-        write_toall_except(msg, mlen, NULL);
-    }
-    else if (event == aes67_sapsrv_event_updated){
-        syslog(LOG_INFO, "SAP: updated (payload %d): %s", payloadlen, ostr);
-
-        mlen = snprintf((char*)msg, sizeof(msg), "%s %d %s\n",
-                        AES67_SAPD_MSGU_UPDATED,
-                        payloadlen,
-                        ostr
-        );
-
-        if (mlen + payloadlen + 1 >= sizeof(msg)){
-            syslog(LOG_ERR, "not enough memory");
-            return;
-        }
-
-        memcpy(&msg[mlen], payload, payloadlen);
-        mlen += payloadlen;
-
-//        msg[mlen++] = '\n'; // always add a newline?
-
-        write_toall_except(msg, mlen, NULL);
-    }
-    else if (event == aes67_sapsrv_event_deleted){
-        syslog(LOG_INFO, "SAP: deleted: %s", ostr);
-
-        mlen = snprintf((char*)msg, sizeof(msg), "%s %s\n",
-                        AES67_SAPD_MSGU_DELETED,
-                        ostr
-        );
-
-        write_toall_except(msg, mlen, NULL);
-    }
-    else if (event == aes67_sapsrv_event_timeout){
-        syslog(LOG_INFO, "SAP: timeout: %s", ostr);
-
-        mlen = snprintf((char*)msg, sizeof(msg), "%s %s\n",
-                        AES67_SAPD_MSGU_TIMEOUT,
-                        ostr
-        );
-
-        write_toall_except(msg, mlen, NULL);
-    }
-    else {
-        syslog(LOG_INFO, "SAP: ???: %s", ostr);
-    }
-}
-
-static void block_until_event()
-{
-    int nfds = 0;
-    struct fd_set fds;
-//    sigset_t sigmask;
-
-    FD_ZERO(&fds);
-
-    // set all AF_LOCAL sockets
-    FD_SET(local.sockfd, &fds);
-    nfds = local.sockfd;
-
-    struct connection_st * con = local.first_connection;
-    for(;con != NULL; con = con->next){
-        FD_SET(con->sockfd, &fds);
-        if (con->sockfd > nfds){
-            nfds = con->sockfd;
-        }
-    }
-
-    int srvsockfds[2];
-    size_t srvsocknfds = 0;
-    aes67_sapsrv_getsockfds(sapsrv, srvsockfds, &srvsocknfds);
-    for(size_t i = 0; i < srvsocknfds; i++){
-        FD_SET(srvsockfds[i], &fds);
-        if (srvsockfds[i] > nfds){
-            nfds = srvsockfds[i];
-        }
-    }
-
-//    if (sigprocmask(SIG_SETMASK, NULL, &sigmask)){
-//        fprintf(stderr, "get sigmask failed\n");
-//        exit(EXIT_FAILURE);
-//    }
-
-    nfds++;
-
-    // just wait until something interesting happens
-    select(nfds, &fds, NULL, &fds, NULL);
-}
 
 int main(int argc, char * argv[]){
 
