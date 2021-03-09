@@ -18,6 +18,7 @@
 
 #include "aes67/utils/mdns.h"
 #include "aes67/rav.h"
+#include "dnmfarrell/URI-Encode-C/src/uri_encode.h"
 
 #include <getopt.h>
 #include <stdio.h>
@@ -68,8 +69,7 @@ static void help(FILE * fd)
              "\t -d,--devices\t Browse for senders and receivers (shortcut for --receivers --senders)\n"
              "\t -f,--filter (disco|term)\n"
              "\t\t\t Show discovered or terminated services only (default disco)\n"
-             "\t -n, --no-enc\t Do not perform unreliable urlencode (print as is)\n"
-//             "\t -r, --raw\t Output raw mDNS results\n"
+             "\t -n, --no-enc\t Do not urlencode (session name, ie print as is)\n"
             , argv0);
 }
 
@@ -113,28 +113,27 @@ void session_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result r
 
 
             char name_enc[256];
-            size_t namelen = strlen((char*)name);
+            ssize_t namelen = strlen((char*)name);
 
             assert(namelen < sizeof(name_enc));
 
-            memcpy(name_enc, name, namelen);
 
             // TODO do actual url encode....
 
-            if (!opts.no_encode){
-                for (int i = 0; i < namelen; i++){
-                    if (name_enc[i] == ' '){
-//                    printf("SP @ %d\n",i);
-                        memmove(&name_enc[i+3], &name_enc[i+1], namelen - i);
-                        name_enc[i] = '%';
-                        name_enc[i+1] = '2';
-                        name_enc[i+2] = '0';
-                        namelen += 2;
-                    }
+            if (opts.no_encode){
+
+                strncpy((char*)name_enc, (char*)name, sizeof(name_enc));
+
+            } else {
+
+                ssize_t r = uri_encode((char*)name, namelen, (char*)name_enc, sizeof(name_enc));
+                if (r == -1){
+                    fprintf(stderr, "name_enc[%lu] too short for url-encoded name\n", sizeof(name_enc));
+                    strncpy((char*)name_enc, (char*)name, sizeof(name_enc));
+                } else {
+                    namelen = r;
                 }
             }
-
-            name_enc[namelen] = '\0';
 
             printf("rtsp://%s:%hu/by-name/%s\n", host, port, name_enc);
             fflush(stdout);
@@ -261,10 +260,6 @@ int main(int argc, char * argv[])
             case 3:
                 opts.senders = true;
                 break;
-
-//            case 'r':
-//                opts.raw = true;
-//                break;
 
             case 'f':
                 if (strcmp(optarg, "disco") == 0){

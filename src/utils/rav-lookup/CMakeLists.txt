@@ -9,6 +9,8 @@ add_executable(rav-lookup
         aes67opts.h
         ${AES67_DIR}/src/include/aes67/utils/mdns.h
         ${AES67_DIR}/src/utils/mdns-${AES67_MDNS}.c
+        ${AES67_DIR}/src/third_party/dnmfarrell/URI-Encode-C/src/uri_encode.h
+        ${AES67_DIR}/src/third_party/dnmfarrell/URI-Encode-C/src/uri_encode.c
         ${AES67_INCLUDES}
         ${AES67_SOURCE_FILES}
         )
@@ -17,6 +19,7 @@ target_include_directories(rav-lookup
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${AES67_INCLUDE_DIRS}
         ${AES67_PORT_INCLUDE_DIRS}
+        ${AES67_THIRDPARTY_DIR}
         )
 target_link_libraries(rav-lookup "${AES67_PORT_LIB}")
 

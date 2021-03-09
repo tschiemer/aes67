@@ -14,6 +14,7 @@ set(AES67_MDNS "dnssd")
 
 set(AES67_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(AES67_INCLUDE_DIRS ${AES67_DIR}/src/include)
+set(AES67_THIRDPARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/third_party")
 
 set(CMAKE_C_FLAGS "-Wall -O")
 
@@ -95,7 +96,13 @@ add_subdirectory("${AES67_DIR}/test" EXCLUDE_FROM_ALL)
 
 add_subdirectory("${AES67_DIR}/src/utils" EXCLUDE_FROM_ALL)
 
-
+#list(APPEND AES67_TARGET_LIST mytest)
+#add_executable(mytest test.c)
+#target_include_directories(mytest PRIVATE
+#        ${AES67_DIR}
+#        ${AES67_PORT_INCLUDE_DIRS}
+#        )
+#target_link_libraries(mytest aes67 ${AES67_PORT_LIB})
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     foreach(TARGET IN LISTS AES67_TARGET_LIST)
@@ -111,6 +118,7 @@ install(TARGETS
         aes67
         sap-pack
         sap-unpack
+        sapd
         sdp-gen
         sdp-parse
         rtsp-describe
