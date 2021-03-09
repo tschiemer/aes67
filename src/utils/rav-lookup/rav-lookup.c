@@ -79,16 +79,21 @@ static void sig_int(int sig)
     keep_running = false;
 }
 
-void session_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const u8_t * type, const u8_t * name, const u8_t * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context)
+void session_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context)
 {
-//    printf("%d %s.%s @ %s:%hu\n", result, name, type, hosttarget, port);
+//    printf("%d %s.%s @ %s:%hu (%s %08x)\n", result, name, type, hosttarget, port, ipver == aes67_net_ipver_4 ? "ipv4" : "ipv6", *(u32_t*)ip);
 
     if (result == aes67_mdns_result_error){
         fprintf(stderr, "ERROR %d\n", aes67_mdns_geterrcode(res));
     } else {
+
         if (opts.verbose){
 
-            fprintf(stderr, "%s %s._session_ravenna._rtsp._tcp @ %s:%hu [%d](", result == aes67_mdns_result_discovered ? "DISCOVERED" : "TERMINATED", name, hosttarget, port, txtlen);
+            u8_t ipstr[64];
+            u16_t iplen = aes67_net_ip2str(ipstr, ipver, (u8_t*)ip, 0);
+            ipstr[iplen] = '\0';
+
+            fprintf(stderr, "%s %s._session_ravenna._sub._rtsp._tcp @ %s:%hu (%s) [%d](", result == aes67_mdns_result_discovered ? "DISCOVERED" : "TERMINATED", name, hosttarget, port, ipstr, txtlen);
 
             for (int i = 0; i < txtlen-1; i++){
                 if (isprint(txt[i])){
@@ -140,14 +145,19 @@ void session_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result r
         }
     }
 }
-void receiver_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const u8_t * type, const u8_t * name, const u8_t * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context)
+void receiver_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context)
 {
     if (result == aes67_mdns_result_error){
         fprintf(stderr, "ERROR %d\n", aes67_mdns_geterrcode(res));
     } else {
 
         if (opts.verbose){
-            fprintf(stderr, "DISCOVERED %s._ravenna._http._tcp @ %s:%hu [%d](", name, hosttarget, port, txtlen);
+
+            u8_t ipstr[64];
+            u16_t iplen = aes67_net_ip2str(ipstr, ipver, (u8_t*)ip, 0);
+            ipstr[iplen] = '\0';
+
+            fprintf(stderr, "DISCOVERED %s._ravenna._http._tcp @ %s:%hu (%s) [%d](", name, hosttarget, port, ipstr, txtlen);
 
             for (int i = 0; i < txtlen-1; i++){
                 if (isprint(txt[i])){
@@ -175,14 +185,19 @@ void receiver_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result 
     }
     fflush(stdout);
 }
-void sender_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const u8_t * type, const u8_t * name, const u8_t * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context)
+void sender_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context)
 {
     if (result == aes67_mdns_result_error){
         fprintf(stderr, "ERROR %d\n", aes67_mdns_geterrcode(res));
     } else {
 
         if (opts.verbose){
-            fprintf(stderr, "DISCOVERED %s._ravenna._rtsp._tcp @ %s:%hu [%d](", name, hosttarget, port, txtlen);
+
+            u8_t ipstr[64];
+            u16_t iplen = aes67_net_ip2str(ipstr, ipver, (u8_t*)ip, 0);
+            ipstr[iplen] = '\0';
+
+            fprintf(stderr, "DISCOVERED %s._ravenna._rtsp._tcp @ %s:%hu (%s) [%d](", name, hosttarget, port, ipstr, txtlen);
 
             for (int i = 0; i < txtlen-1; i++){
                 if (isprint(txt[i])){
@@ -303,20 +318,20 @@ int main(int argc, char * argv[])
         return EXIT_FAILURE;
     }
     if (opts.sessions){
-        if (aes67_mdns_lookup_start(ctx, (u8_t *) AES67_RAV_MDNS_TYPE_SENDER, (u8_t *) AES67_RAV_MDNS_SUBTYPE_SESSION,
-                                    NULL, session_lookup_callback, NULL) == NULL){
+        if (aes67_mdns_resolve2_start(ctx,  AES67_RAV_MDNS_SUBTYPE_SESSION "._sub." AES67_RAV_MDNS_TYPE_SENDER,
+                                      NULL, session_lookup_callback, NULL) == NULL){
             return EXIT_FAILURE;
         }
     }
     if (opts.receivers){
-        if (aes67_mdns_lookup_start(ctx, (u8_t *) AES67_RAV_MDNS_TYPE_RECEIVER, (u8_t *) AES67_RAV_MDNS_SUBTYPE_DEVICE,
-                                    NULL, session_lookup_callback, NULL) == NULL){
+        if (aes67_mdns_resolve2_start(ctx,  AES67_RAV_MDNS_SUBTYPE_DEVICE "._sub." AES67_RAV_MDNS_TYPE_RECEIVER,
+                                      NULL, receiver_lookup_callback, NULL) == NULL){
             return EXIT_FAILURE;
         }
     }
     if (opts.senders){
-        if (aes67_mdns_lookup_start(ctx, (u8_t *) AES67_RAV_MDNS_TYPE_SENDER, (u8_t *) AES67_RAV_MDNS_SUBTYPE_DEVICE,
-                                    NULL, session_lookup_callback, NULL) == NULL){
+        if (aes67_mdns_resolve2_start(ctx,  AES67_RAV_MDNS_SUBTYPE_DEVICE "._sub." AES67_RAV_MDNS_TYPE_SENDER,
+                                      NULL, sender_lookup_callback, NULL) == NULL){
             return EXIT_FAILURE;
         }
     }

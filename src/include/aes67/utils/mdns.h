@@ -28,6 +28,7 @@
 #define AES67_UTILS_MDNS_H
 
 #include "aes67/arch.h"
+#include "rtsp.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,14 +38,13 @@ typedef void * aes67_mdns_context_t;
 typedef void * aes67_mdns_resource_t;
 
 enum aes67_mdns_result {
+    aes67_mdns_result_error,
     aes67_mdns_result_discovered,
     aes67_mdns_result_terminated,
-    aes67_mdns_result_error
 };
 
-typedef void (*aes67_mdns_browse_callback)(aes67_mdns_resource_t res, enum aes67_mdns_result result, const u8_t * type, const u8_t * name, const u8_t * domain, void * context);
-typedef void (*aes67_mdns_resolve_callback)(aes67_mdns_resource_t res, enum aes67_mdns_result result, const u8_t * fullname, const u8_t * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context);
-typedef void (*aes67_mdns_lookup_callback)(aes67_mdns_resource_t res, enum aes67_mdns_result result, const u8_t * type, const u8_t * name, const u8_t * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, void * context);
+typedef void (*aes67_mdns_browse_callback)(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * domain, void * context);
+typedef void (*aes67_mdns_resolve_callback)(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context);
 
 
 aes67_mdns_context_t  aes67_mdns_new(void);
@@ -52,15 +52,15 @@ void aes67_mdns_delete(aes67_mdns_context_t ctx);
 
 
 aes67_mdns_resource_t
-aes67_mdns_browse_start(aes67_mdns_context_t ctx, const u8_t *type, const u8_t *subtype, const u8_t *domain,
+aes67_mdns_browse_start(aes67_mdns_context_t ctx, const char *type, const char *domain,
                         aes67_mdns_browse_callback callback, void *user_data);
 aes67_mdns_resource_t
-aes67_mdns_resolve_start(aes67_mdns_context_t ctx, const u8_t *name, const u8_t *type, const u8_t *domain,
+aes67_mdns_resolve_start(aes67_mdns_context_t ctx, const char *type, const char *name, const char *domain,
                          aes67_mdns_resolve_callback callback, void *user_data);
 
 aes67_mdns_resource_t
-aes67_mdns_lookup_start(aes67_mdns_context_t ctx, const u8_t *type, const u8_t *subtype, const u8_t *domain,
-                        aes67_mdns_lookup_callback callback, void *user_data);
+aes67_mdns_resolve2_start(aes67_mdns_context_t ctx, const char *type, const char *domain,
+                          aes67_mdns_resolve_callback callback, void *user_data);
 
 void aes67_mdns_stop(aes67_mdns_resource_t res);
 
