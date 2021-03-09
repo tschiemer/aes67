@@ -112,6 +112,7 @@ static resource_t * resource_new(context_t * ctx, enum restype restype, void *ca
     res->serviceRef = NULL;
     res->serviceName = NULL;
     res->regType = NULL;
+    res->hostTarget = NULL;
     res->port = 0;
     res->txtlen = 0;
     res->txt = NULL;
