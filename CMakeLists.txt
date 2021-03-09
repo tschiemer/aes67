@@ -12,6 +12,8 @@ set(AES67_PORT "macos")
 set(AES67_MDNS "dnssd")
 
 
+set(SAPD_WITH_RAV TRUE)
+
 set(AES67_DIR ${CMAKE_CURRENT_SOURCE_DIR})
 set(AES67_INCLUDE_DIRS ${AES67_DIR}/src/include)
 set(AES67_THIRDPARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/third_party")
@@ -73,6 +75,7 @@ target_include_directories(aes67 PRIVATE
 target_include_directories(aes67 PUBLIC
         ${AES67_INCLUDE_DIRS}
         )
+target_link_libraries(aes67 ${AES67_PORT_LIB})
 
 # Shared library
 #list(APPEND AES67_TARGET_LIST caes67)

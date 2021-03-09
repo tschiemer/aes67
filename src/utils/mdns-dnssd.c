@@ -55,6 +55,7 @@ struct resource_st;
 
 typedef struct context_st {
     DNSServiceRef sharedRef;
+    dnssd_sock_t sockfd;
     struct resource_st * first_resource;
 } context_t;
 
@@ -225,6 +226,8 @@ aes67_mdns_context_t aes67_mdns_new(void)
         return NULL;
     }
 
+    ctx->sockfd = DNSServiceRefSockFD(ctx->sharedRef);
+
     return ctx;
 }
 
@@ -351,7 +354,16 @@ static void resolve_callback(DNSServiceRef ref, DNSServiceFlags flags, u32_t int
     res->errorCode = errorCode;
 
     if (errorCode != kDNSServiceErr_NoError){
-        ((aes67_mdns_resolve_callback)res->callback)(res, result, res->regType, res->serviceName, NULL, 0, 0, NULL, aes67_net_ipver_undefined, NULL, 0, res->user_data);
+
+        resource_t * res2 = NULL;
+
+        if (res->type == restype_resolve_resolve){
+            res2 = res;
+        } else if (res->type == restype_resolve2_resolve) {
+            res2 = res->parent;
+        }
+
+        ((aes67_mdns_resolve_callback)res->callback)(res2, result, res->regType, res->serviceName, NULL, 0, 0, NULL, aes67_net_ipver_undefined, NULL, 0, res->user_data);
     } else {
 
         resource_t * res2;
@@ -389,7 +401,7 @@ static void resolve_callback(DNSServiceRef ref, DNSServiceFlags flags, u32_t int
         getaddr_start(res2, hosttarget);
     }
 
-    if (res->type == restype_resolve2_getaddr && (flags & kDNSServiceFlagsMoreComing) == 0){
+    if (res->type == restype_resolve2_resolve && ((flags & kDNSServiceFlagsMoreComing) == 0 || errorCode != kDNSServiceErr_NoError)){
         resource_delete(res);
     }
 }
@@ -476,7 +488,7 @@ static void getaddr_callback(DNSServiceRef sdRef, DNSServiceFlags flags, uint32_
     ((aes67_mdns_resolve_callback) res->callback)(res, result, res->regType, res->serviceName, res->hostTarget,
                                                   res->port, res->txtlen, res->txt, ipver, ip, ttl, res->user_data);
 
-    if (res->type == restype_resolve2_getaddr && (flags & kDNSServiceFlagsMoreComing) == 0) {
+    if (res->type == restype_resolve2_getaddr && ((flags & kDNSServiceFlagsMoreComing) == 0 || errorCode != kDNSServiceErr_NoError)) {
         resource_delete(res);
     }
 }
@@ -520,13 +532,11 @@ void aes67_mdns_process(aes67_mdns_context_t ctx, struct timeval *timeout)
 
     context_t * __ctx = (context_t*)ctx;
 
-    dnssd_sock_t dns_sd_fd = DNSServiceRefSockFD(__ctx->sharedRef);
-
-    int nfds = dns_sd_fd + 1;
+    int nfds = __ctx->sockfd + 1;
     struct fd_set fds;
 
     FD_ZERO(&fds);
-    FD_SET(dns_sd_fd, &fds);
+    FD_SET(__ctx->sockfd, &fds);
 
     int retval = select(nfds, &fds, NULL, &fds, timeout);
     if (retval > 0){
@@ -534,17 +544,19 @@ void aes67_mdns_process(aes67_mdns_context_t ctx, struct timeval *timeout)
     }
 }
 
-void aes67_mdns_getsockfds(aes67_mdns_context_t ctx, int fds[], int *nfds)
+void aes67_mdns_getsockfds(aes67_mdns_context_t ctx, int * fds[], size_t *count)
 {
     assert(ctx != NULL);
     assert(fds != NULL);
-    assert(nfds != NULL);
+    assert(count != NULL);
 
     context_t * __ctx = ctx;
 
-    if (__ctx->sharedRef){
-        fds[0] = DNSServiceRefSockFD(__ctx->sharedRef);
-        *nfds = 1;
+    if (__ctx->sockfd != -1){
+        *fds = &__ctx->sockfd;
+        *count = 1;
+    } else {
+        *count = 0;
     }
 }
 

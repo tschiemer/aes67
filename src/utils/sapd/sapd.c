@@ -21,9 +21,14 @@
 #include "aes67/utils/sapsrv.h"
 #include "aes67/utils/daemonize.h"
 #include "aes67/sap.h"
+
+#if AES67_SAPD_WITH_RAV == 1
 #include "aes67/utils/mdns.h"
+#include "aes67/rav.h"
+#endif
 
 #include <stdlib.h>
+#include <string.h>
 #include <getopt.h>
 #include <signal.h>
 #include <sys/stat.h>
@@ -41,6 +46,18 @@
 
 #define MSG_VERSIONWELCOME         AES67_SAPD_MSGU_INFO " " AES67_SAPD_NAME_LONG
 
+#if AES67_SAPD_WITH_RAV == 1
+struct rav_session_st {
+    char * name;
+    char * hosttarget;
+    struct aes67_net_addr addr;
+    u32_t ttl;
+
+    time_t last_activity;
+
+    struct rav_session_st * next;
+};
+#endif //AES67_SAPD_WITH_RAV == 1
 
 struct connection_st {
     int sockfd;
@@ -82,9 +99,13 @@ static void sapsrv_teardown();
 static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
 
 #if AES67_SAPD_WITH_RAV == 1
+static struct rav_session_st * rav_session_find(const char * name);
+static struct rav_session_st * rav_session_new(const char * name, const char * hosttarget, enum aes67_net_ipver ipver, const u8_t * ip, u16_t port, u32_t ttl);
+static void rav_session_delete(struct rav_session_st * session);
 static int rav_setup();
 static void rav_teardown();
-static void rav_browse_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * domain, void * context);
+static void rav_process();
+//static void rav_browse_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * domain, void * context);
 static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context);
 #endif //AES67_SAPD_WITH_RAV == 1
 
@@ -117,20 +138,33 @@ static struct {
     u32_t send_scopes;
     s32_t port;
     unsigned int ipv6_if;
-
+    bool rav_enabled;
 } opts = {
         .daemonize = false,
         .verbose = false,
         .listen_scopes = 0,
         .send_scopes = 0,
         .port = AES67_SAP_PORT,
-        .ipv6_if = 0
+        .ipv6_if = 0,
+        .rav_enabled = false
 };
 
 static volatile bool keep_running;
 
-aes67_sapsrv_t * sapsrv = NULL;
+static aes67_sapsrv_t * sapsrv = NULL;
 
+#if AES67_SAPD_WITH_RAV == 1
+static struct {
+    aes67_mdns_context_t mdns_context;
+    aes67_mdns_resource_t mdns_browse_res;
+    struct rav_session_st * first_session;
+} rav = {
+    .mdns_context = NULL,
+    .mdns_browse_res = NULL,
+    .first_session = NULL
+};
+
+#endif //AES67_SAPD_WITH_RAV == 1
 
 static struct {
     const char * fname;
@@ -191,12 +225,21 @@ static void help(FILE * fd)
             "\t\t\t Default listen: 4g + 4a + 6ll\n"
             "\t\t\t Default send: 4a\n"
             "\t --ipv6-if\t IPv6 interface to listen on (default interface can fail)\n"
+ #if AES67_SAPD_WITH_RAV == 1
+            "\t --rav\t\t Enable Ravenna session lookups\n"
+ #endif
             "\nCompile time options (see aes67opts.h):\n"
             "\t AES67_SAP_MIN_INTERVAL_SEC %d \t // +- announce time, depends on SAP traffic\n"
             "\t AES67_SAP_MIN_TIMEOUT_SEC %d \n"
+            "\t AES67_SAPD_WITH_RAV %d\n"
              "\nExamples:\n"
              "sudo %s -v --ipv6-if en7 & socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
-            , argv0, (u16_t)AES67_SAP_PORT, AES67_SAP_MIN_INTERVAL_SEC, AES67_SAP_MIN_TIMEOUT_SEC, argv0);
+            , argv0,
+            (u16_t)AES67_SAP_PORT,
+            AES67_SAP_MIN_INTERVAL_SEC,
+            AES67_SAP_MIN_TIMEOUT_SEC,
+             AES67_SAPD_WITH_RAV,
+             argv0);
 }
 
 static void sig_int(int sig)
@@ -204,8 +247,9 @@ static void sig_int(int sig)
     keep_running = false;
 }
 
-static void sig_alrm(int sig){
-
+static void sig_alrm(int sig)
+{
+    // do nothing, hurray!
 }
 
 static int sock_nonblock(int sockfd){
@@ -238,20 +282,29 @@ static void block_until_event()
         }
     }
 
-    int srvsockfds[2];
-    size_t srvsocknfds = 0;
-    aes67_sapsrv_getsockfds(sapsrv, srvsockfds, &srvsocknfds);
-    for(size_t i = 0; i < srvsocknfds; i++){
-        FD_SET(srvsockfds[i], &fds);
-        if (srvsockfds[i] > nfds){
-            nfds = srvsockfds[i];
+    int * sockfds;
+    size_t count = 0;
+    aes67_sapsrv_getsockfds(sapsrv, &sockfds, &count);
+    for(size_t i = 0; i < count; i++){
+        FD_SET(sockfds[i], &fds);
+        if (sockfds[i] > nfds){
+            nfds = sockfds[i];
         }
     }
 
-//    if (sigprocmask(SIG_SETMASK, NULL, &sigmask)){
-//        fprintf(stderr, "get sigmask failed\n");
-//        exit(EXIT_FAILURE);
-//    }
+#if AES67_SAPD_WITH_RAV == 1
+    if (opts.rav_enabled) {
+
+        aes67_mdns_getsockfds(rav.mdns_context, &sockfds, &count);
+        for (size_t i = 0; i < count; i++) {
+            FD_SET(sockfds[i], &fds);
+            if (sockfds[i] > nfds) {
+                nfds = sockfds[i];
+            }
+        }
+    }
+#endif //AES67_SAPD_WITH_RAV == 1
+
 
     nfds++;
 
@@ -394,24 +447,169 @@ static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sap
 }
 
 #if AES67_SAPD_WITH_RAV == 1
+
+static struct rav_session_st * rav_session_find(const char * name)
+{
+    struct rav_session_st * session = rav.first_session;
+
+    for(;session != NULL; session = session->next){
+        if (strcmp(session->name, name) == 0){
+            return session;
+        }
+    }
+
+    return NULL;
+}
+
+static struct rav_session_st * rav_session_new(const char * name, const char * hosttarget, enum aes67_net_ipver ipver, const u8_t * ip, u16_t port, u32_t ttl)
+{
+    assert(name != NULL);
+    assert(hosttarget != NULL);
+    assert(AES67_NET_IPVER_ISVALID(ipver));
+    assert(ip != NULL);
+
+    struct rav_session_st * session = malloc(sizeof(struct rav_session_st));
+
+    session->name = calloc(1, strlen(name)+1);
+    strcpy(session->name, name);
+
+    session->hosttarget = calloc(1, strlen(hosttarget)+1);
+    strcpy(session->hosttarget, hosttarget);
+
+    session->addr.ipver = ipver;
+    memcpy(session->addr.addr, ip, AES67_NET_IPVER_SIZE(ipver));
+    session->addr.port = port;
+
+    session->ttl = ttl;
+
+    session->last_activity = 0;
+
+    session->next = rav.first_session;
+    rav.first_session = session;
+
+    return session;
+}
+
+static void rav_session_delete(struct rav_session_st * session)
+{
+    assert(session != NULL);
+
+    if (session == rav.first_session){
+        rav.first_session = session->next;
+    } else {
+        struct rav_session_st * current = rav.first_session;
+        while(current != NULL){
+            if (current->next == session){
+                current->next = session->next;
+            }
+            current = current->next;
+        }
+    }
+
+    free(session->name);
+    free(session->hosttarget);
+    free(session);
+}
+
 static int rav_setup()
 {
+    rav.mdns_context = aes67_mdns_new();
+    if (rav.mdns_context == NULL){
+        return EXIT_FAILURE;
+    }
+
+    rav.mdns_browse_res = aes67_mdns_resolve2_start(rav.mdns_context, AES67_RAV_MDNS_SUBTYPE_SESSION "._sub." AES67_RAV_MDNS_TYPE_SENDER, NULL, rav_resolve_callback, NULL );
+    if (rav.mdns_browse_res == NULL){
+        return EXIT_FAILURE;
+    }
+
+    syslog(LOG_INFO, "Browsing for Ravenna sessions");
+
     return EXIT_SUCCESS;
 }
 
 static void rav_teardown()
 {
+    if (rav.mdns_context == NULL){
+        return;
+    }
 
+    aes67_mdns_delete(rav.mdns_context);
+    rav.mdns_context = NULL;
 }
 
-static void rav_browse_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * domain, void * context)
+static void rav_process()
 {
-
+    struct timeval tv = {
+            .tv_sec = 0,
+            .tv_usec = 0
+    };
+    // non-blocking processing
+    aes67_mdns_process(rav.mdns_context, &tv);
 }
+
+//static void rav_browse_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * domain, void * context)
+//{
+//
+//}
 
 static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context)
 {
+//    printf("rav_resolved %d\n", result);
 
+    // ignore (?) errors
+    if (result == aes67_mdns_result_error){
+        return;
+    }
+
+    // only mind ipv4
+    // TODO ipv6?
+    if (ipver != aes67_net_ipver_4){
+        return;
+    }
+
+    struct rav_session_st * session = rav_session_find(name);
+
+    if (result == aes67_mdns_result_discovered){
+
+        // if the session is known already, don't bother about it except for updating it's timestamp
+        if (session != NULL){
+            session->last_activity = time(NULL);
+            return;
+        }
+
+        session = rav_session_new(name, hosttarget, ipver, ip, port, ttl);
+
+        u8_t ipstr[64];
+
+        u16_t len = aes67_net_ip2str(ipstr, ipver, (u8_t*)ip, 0);
+        ipstr[len] = '\0';
+
+        u8_t msg[256];
+
+        len = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_RAV_NEW_FMT "\n", hosttarget, ipstr, port, name);
+
+        write_toall_except(msg, len, NULL);
+
+        syslog(LOG_INFO, "RAV session discovered: %s@%s:%hu", name, hosttarget, port);
+    }
+    else if (result == aes67_mdns_result_terminated){
+
+        // ignore unknown sessions
+        if (session == NULL){
+            return;
+        }
+
+        u8_t msg[256];
+
+        u16_t len = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_RAV_DEL_FMT "\n", session->name);
+
+        write_toall_except(msg, len, NULL);
+
+        rav_session_delete(session);
+
+        syslog(LOG_INFO, "RAV session terminated: %s@%s:%hu", name, hosttarget, port);
+    }
 }
 #endif //AES67_SAPD_WITH_RAV == 1
 
@@ -1041,6 +1239,9 @@ int main(int argc, char * argv[]){
                 {"s6sl", no_argument, 0, 12},
                 {"port", required_argument, 0, 'p'},
                 {"ipv6-if", required_argument, 0, 13},
+#if AES67_SAPD_WITH_RAV == 1
+                {"rav", no_argument, 0, 14},
+#endif
                 {0,         0,                 0,  0 }
         };
 
@@ -1103,6 +1304,11 @@ int main(int argc, char * argv[]){
                 opts.ipv6_if = if_nametoindex(optarg);
                 break;
 
+#if AES67_SAPD_WITH_RAV == 1
+            case 14: // --rav
+                opts.rav_enabled = true;
+                break;
+#endif
             case 'd':
                 opts.daemonize = true;
                 break;
@@ -1164,6 +1370,15 @@ int main(int argc, char * argv[]){
         return EXIT_FAILURE;
     }
 
+#if AES67_SAPD_WITH_RAV == 1
+    if (opts.rav_enabled && rav_setup()){
+        syslog(LOG_ERR, "Failed to start mdns resolver");
+        sapsrv_teardown();
+        local_teardown();
+        return EXIT_FAILURE;
+    }
+#endif //AES67_SAPD_WITH_RAV == 1
+
     syslog(LOG_INFO, "started");
 
     signal(SIGINT, sig_int);
@@ -1173,9 +1388,21 @@ int main(int argc, char * argv[]){
 
         local_process();
         aes67_sapsrv_process(sapsrv);
+
+#if AES67_SAPD_WITH_RAV == 1
+        if (opts.rav_enabled){
+            rav_process();
+        }
+#endif
     }
 
     syslog(LOG_INFO, "stopping");
+
+#if AES67_SAPD_WITH_RAV == 1
+    if (opts.rav_enabled){
+        rav_teardown();
+    }
+#endif
 
     sapsrv_teardown();
 

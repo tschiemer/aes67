@@ -53,10 +53,13 @@ typedef struct {
 
     bool blocking;
 
+//    int sockfd[2];
+//#define sockfd4 sockfd[0]
     int sockfd4;
     struct sockaddr_in addr4;
 
     int sockfd6;
+//#define sockfd6 sockfd[1]
     struct sockaddr_in6 addr6;
     unsigned int ipv6_if;
 } sapsrv_t;
@@ -73,6 +76,9 @@ static void session_delete(sapsrv_t * server, sapsrv_session_t * session);
 
 static sapsrv_session_t * aes67_sapsrv_session_by_id(aes67_sapsrv_t sapserver, const u16_t hash, enum aes67_net_ipver ipver, u8_t * ip);
 
+static int set_sock_reuse(int sockfd);
+static int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if);
+static int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if);
 static int join_mcast_groups(sapsrv_t * server, u32_t scopes);
 static int leave_mcast_groups(sapsrv_t * server, u32_t scopes);
 
@@ -331,7 +337,7 @@ static int leave_mcast_groups(sapsrv_t * server, u32_t scopes)
     return EXIT_SUCCESS;
 }
 
-int set_sock_reuse(int sockfd)
+static int set_sock_reuse(int sockfd)
 {
     // set addr/port reuse
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
@@ -348,7 +354,7 @@ int set_sock_reuse(int sockfd)
 
     return EXIT_SUCCESS;
 }
-void aes67_sapsrv_getsockfds(aes67_sapsrv_t sapserver, int fds[2], size_t * count)
+void aes67_sapsrv_getsockfds(aes67_sapsrv_t sapserver, int * fds[], size_t * count)
 {
     assert(sapserver != NULL);
     assert(fds != NULL);
@@ -358,12 +364,16 @@ void aes67_sapsrv_getsockfds(aes67_sapsrv_t sapserver, int fds[2], size_t * coun
 
     size_t c = 0;
 
+    static int __fds[2];
+
     if (server->sockfd4 != -1){
-        fds[c++] = server->sockfd4;
+        __fds[c++] = server->sockfd4;
     }
     if (server->sockfd6 != -1){
-        fds[c++] = server->sockfd6;
+        __fds[c++] = server->sockfd6;
     }
+
+    *fds = __fds;
 
     *count = c;
 }
@@ -608,7 +618,6 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
 
     server->first_session = NULL;
 
-
     if ((listen_scopes | send_scopes) & AES67_SAPSRV_SCOPE_IPv4){
         server->addr4.sin_len = sizeof(struct sockaddr_in);
         server->addr4.sin_family = AF_INET;
@@ -628,7 +637,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
         }
 
         if (bind(server->sockfd4, (struct sockaddr*)&server->addr4, server->addr4.sin_len) == -1){
-            perror("bind() failed");
+            perror("ipv4 bind() failed");
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
             }
@@ -639,7 +648,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
         // set non-blocking stdin
         int flags = fcntl(server->sockfd4, F_GETFL, 0);
         if (fcntl(server->sockfd4, F_SETFL, flags|O_NONBLOCK) == -1){
-            perror("fcntl(sockfd4,..,O_NONBLOCK)");
+            perror("ipv4 fcntl(sockfd4,..,O_NONBLOCK)");
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
             }
@@ -673,7 +682,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
         }
 
         if (bind(server->sockfd6, (struct sockaddr*)&server->addr6, server->addr6.sin6_len) == -1){
-            perror("bind() failed");
+            perror("ipv6 bind() failed");
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
             }

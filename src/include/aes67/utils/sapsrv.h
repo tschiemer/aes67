@@ -89,13 +89,13 @@ void aes67_sapsrv_stop(aes67_sapsrv_t sapserver);
 
 void aes67_sapsrv_process(aes67_sapsrv_t sapserver);
 
-void aes67_sapsrv_getsockfds(aes67_sapsrv_t sapserver, int fds[2], size_t * count);
+void aes67_sapsrv_getsockfds(aes67_sapsrv_t sapserver, int * fds[], size_t * count);
 
 int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state);
 
-int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if);
-int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if);
-int set_sock_reuse(int sockfd);
+//int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if);
+//int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if);
+//int set_sock_reuse(int sockfd);
 
 aes67_sapsrv_session_t aes67_sapsrv_session_add(aes67_sapsrv_t sapserver, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t * ip, const u8_t * payload, const u16_t payloadlen);
 void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session, const u8_t * payload, const u16_t payloadlen);

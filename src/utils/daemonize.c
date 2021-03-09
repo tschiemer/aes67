@@ -79,4 +79,5 @@ int aes67_daemonize()
 
     /* Open the log file */
 //    openlog ("rav2sap", LOG_PID, LOG_DAEMON);
+    return EXIT_SUCCESS;
 }

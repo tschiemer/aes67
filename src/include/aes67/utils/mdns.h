@@ -64,9 +64,10 @@ aes67_mdns_resolve2_start(aes67_mdns_context_t ctx, const char *type, const char
 
 void aes67_mdns_stop(aes67_mdns_resource_t res);
 
+
 void aes67_mdns_process(aes67_mdns_context_t ctx, struct timeval *timeout);
 
-void aes67_mdns_getsockfds(aes67_mdns_context_t ctx, int *fds, int *nfds);
+void aes67_mdns_getsockfds(aes67_mdns_context_t ctx, int * fds[], size_t *count);
 
 int aes67_mdns_geterrcode(aes67_mdns_resource_t res);
 

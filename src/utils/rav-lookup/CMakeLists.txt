@@ -4,6 +4,10 @@ set (CMAKE_CONFIGURATION_TYPES "Debug;Release")
 
 project(rav-lookup)
 
+if (NOT DEFINED AES67_MDNS)
+    message(FATAL_ERROR Please define an mDNS implementation.)
+endif()
+
 add_executable(rav-lookup
         rav-lookup.c
         aes67opts.h
