@@ -20,21 +20,14 @@
 
 #include "aes67/sap.h"
 #include "aes67/sdp.h"
-//#include "aes67/debug.h"
 
 #include "assert.h"
 #include <sys/socket.h>
-//#include <arpa/inet.h>
-//#include <netinet/in.h>
-//#include <netinet/in6.h>
 #include <netdb.h>
 #include <libproc.h>
 #include <ifaddrs.h>
 #include <syslog.h>
 
-//#if !defined(SYSLOG)
-//#define SYSLOG(priority, fmt, ...)
-//#endif
 
 typedef struct sapsrv_session_st {
     u8_t managed_by;
