@@ -58,6 +58,8 @@ typedef struct {
     u32_t send_scopes;
     u16_t port;
 
+    bool blocking;
+
     int sockfd4;
     struct sockaddr_in addr4;
 
@@ -379,28 +381,7 @@ int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state)
 
     sapsrv_t * server = sapserver;
 
-    if (server->sockfd4 != -1){
-
-        // set non-blocking stdin
-        int flags = fcntl(server->sockfd4, F_GETFL, 0);
-        flags = (flags & ~O_NONBLOCK) | (state ? 0 : O_NONBLOCK);
-        if (fcntl(server->sockfd4, F_SETFL, flags) == -1){
-            fprintf(stderr, "Couldn't change non-/blocking\n");
-            return EXIT_FAILURE;
-        }
-    }
-
-    if (server->sockfd6 != -1){
-
-        // set non-blocking stdin
-        int flags = fcntl(server->sockfd6, F_GETFL, 0);
-        flags = (flags & ~O_NONBLOCK) | (state ? 0 : O_NONBLOCK);
-        if (fcntl(server->sockfd6, F_SETFL, flags) == -1){
-            fprintf(stderr, "Couldn't change non-/blocking\n");
-            return EXIT_FAILURE;
-        }
-    }
-
+    server->blocking = state;
 
     return EXIT_SUCCESS;
 }
@@ -627,6 +608,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
     server->listen_scopes = listen_scopes;
     server->send_scopes = send_scopes;
     server->port = port;
+    server->blocking = true;
     server->ipv6_if = ipv6_if;
     server->event_handler = event_handler;
     server->user_data = user_data;
@@ -660,6 +642,18 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
             free(server);
             return NULL;
         }
+
+        // set non-blocking stdin
+        int flags = fcntl(server->sockfd4, F_GETFL, 0);
+        if (fcntl(server->sockfd4, F_SETFL, flags|O_NONBLOCK) == -1){
+            perror("fcntl(sockfd4,..,O_NONBLOCK)");
+            if (server->sockfd4 != -1){
+                close(server->sockfd4);
+            }
+            free(server);
+            return NULL;
+        }
+
     }
 
     if ((listen_scopes | send_scopes) & AES67_SAPSRV_SCOPE_IPv6){
@@ -691,6 +685,17 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
                 close(server->sockfd4);
             }
             close(server->sockfd6);
+            free(server);
+            return NULL;
+        }
+
+        // set non-blocking stdin
+        int flags = fcntl(server->sockfd6, F_GETFL, 0);
+        if (fcntl(server->sockfd6, F_SETFL, flags|O_NONBLOCK) == -1){
+            perror("fcntl(sockfd6,..,O_NONBLOCK)");
+            if (server->sockfd4 != -1){
+                close(server->sockfd4);
+            }
             free(server);
             return NULL;
         }
@@ -742,20 +747,45 @@ void aes67_sapsrv_process(aes67_sapsrv_t sapserver)
 
     sapsrv_t * server = sapserver;
 
+    assert(server->sockfd4 != -1 || server->sockfd6 != -1);
+
     u8_t buf[AES67_SAPSRV_SDP_MAXLEN+20]; // 20 for SAP header
     ssize_t rlen;
 
-    if (server->sockfd4 != -1){
-        if ( (rlen = recv(server->sockfd4, buf, sizeof(buf), 0)) > 0){
-            syslog(LOG_DEBUG, "ipv4 rx %zd", rlen);
-            aes67_sap_service_handle(&server->service, buf, rlen, server);
-        }
-    }
+    if (server->blocking){
 
-    if (server->sockfd6 != -1){
-        if ( (rlen = recv(server->sockfd6, buf, sizeof(buf), 0)) > 0){
-            syslog(LOG_DEBUG, "ipv6 rx %zd", rlen);
-            aes67_sap_service_handle(&server->service, buf, rlen, server);
+        int nfds = (server->sockfd4 > server->sockfd6 ? server->sockfd4 : server->sockfd6) + 1;
+        struct fd_set fds;
+
+        FD_ZERO(&fds);
+        if (server->sockfd4 != -1){
+            FD_SET(server->sockfd4, &fds);
+        }
+        if (server->sockfd6 != -1){
+            FD_SET(server->sockfd6, &fds);
+        }
+
+        int s = select(nfds, &fds, NULL, &fds, NULL);
+        if (s > 0){
+            if ( (rlen = recv(s, buf, sizeof(buf), 0)) > 0){
+                syslog(LOG_DEBUG, "%s rx %zd", s == server->sockfd4 ? "ipv4" : "ipv6", rlen);
+                aes67_sap_service_handle(&server->service, buf, rlen, server);
+            }
+        }
+    } else {
+
+        if (server->sockfd4 != -1){
+            if ( (rlen = recv(server->sockfd4, buf, sizeof(buf), 0)) > 0){
+                syslog(LOG_DEBUG, "ipv4 rx %zd", rlen);
+                aes67_sap_service_handle(&server->service, buf, rlen, server);
+            }
+        }
+
+        if (server->sockfd6 != -1){
+            if ( (rlen = recv(server->sockfd6, buf, sizeof(buf), 0)) > 0){
+                syslog(LOG_DEBUG, "ipv6 rx %zd", rlen);
+                aes67_sap_service_handle(&server->service, buf, rlen, server);
+            }
         }
     }
 
