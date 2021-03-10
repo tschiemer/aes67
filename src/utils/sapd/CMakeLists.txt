@@ -18,6 +18,8 @@ if (${SAPD_WITH_RAV})
             ${AES67_DIR}/src/include/aes67/utils/mdns.h
             ${AES67_DIR}/src/utils/mdns-${AES67_MDNS}.c
     )
+    set(RAV_INCLUDE_DIRS ${AES67_MDNS_INCLUDE_DIRS})
+    set(RAV_LIBRARIES ${AES67_MDNS_LIBRARIES})
 endif()
 
 add_executable(sapd
@@ -37,7 +39,8 @@ target_include_directories(sapd
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${AES67_INCLUDE_DIRS}
         ${AES67_PORT_INCLUDE_DIRS}
+        ${RAV_INCLUDE_DIRS}
         )
-target_link_libraries(sapd "${AES67_PORT_LIB}")
+target_link_libraries(sapd "${AES67_PORT_LIB}" ${RAV_LIBRARIES})
 
 

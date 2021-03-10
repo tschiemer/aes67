@@ -10,9 +10,6 @@ set(INCLUDES
 
 )
 
-message("aes ${AES67_INCLUDE_DIRS}")
-message("aesport ${AES67_PORT_INCLUDE_DIRS} ")
-
 set(SOURCE_FILES
         time.c
         timer.c

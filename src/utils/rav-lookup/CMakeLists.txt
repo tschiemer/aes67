@@ -24,7 +24,8 @@ target_include_directories(rav-lookup
         ${AES67_INCLUDE_DIRS}
         ${AES67_PORT_INCLUDE_DIRS}
         ${AES67_THIRDPARTY_DIR}
+        ${AES67_MDNS_INCLUDE_DIRS}
         )
-target_link_libraries(rav-lookup "${AES67_PORT_LIB}")
+target_link_libraries(rav-lookup ${AES67_PORT_LIB} ${AES67_MDNS_LIBRARIES})
 
 

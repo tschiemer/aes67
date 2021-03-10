@@ -4,6 +4,7 @@ set (CMAKE_CONFIGURATION_TYPES "Debug;Release")
 
 project(aes67)
 
+set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 set(AES67_PORT "macos")
 
@@ -53,6 +54,17 @@ set(AES67_SOURCE_FILES
         )
 
 
+if (${AES67_MDNS} STREQUAL dnssd)
+    message(STATUS "mDNS: DNS-SD")
+
+    find_package(DNSSD REQUIRED)
+
+    set(AES67_MDNS_INCLUDE_DIRS ${DNSSD_INCLUDE_DIRS})
+    set(AES67_MDNS_LIBRARIES ${DNSSD_LIBRARIES})
+
+#    message(STATUS " ${AES67_MDNS_INCLUDE_DIRS}")
+#    message(STATUS "libs ${DNSSD_LIBRARIES}")
+endif()
 
 if(AES67_PORT)
     set(AES67_PORT_DIR "${AES67_DIR}/ports/${AES67_PORT}")
