@@ -503,6 +503,11 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
             return;
         }
 
+        // the wrong hash was sent, ignore
+        if (session->hash != hash){
+            return;
+        }
+
         // publish
         server->event_handler(server, session, aes67_sapsrv_event_timeout, &session->origin, session->payload, session->payloadlen, server->user_data);
 
@@ -575,6 +580,11 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
         // if event was not known before, there is no reason telling the client about (?)
         if (session == NULL){
             // nothing to be done
+            return;
+        }
+
+        // the wrong hash was sent, ignore
+        if (session->hash != hash){
             return;
         }
 
@@ -818,6 +828,8 @@ aes67_sapsrv_session_t aes67_sapsrv_session_add(aes67_sapsrv_t sapserver, const 
 
 void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, const u8_t * payload, const u16_t payloadlen)
 {
+    assert(sapserver != NULL);
+    assert(sapsession != NULL);
     assert(payload != NULL);
     assert(payloadlen <= AES67_SAPSRV_SDP_MAXLEN);
 
@@ -838,10 +850,16 @@ void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_
     sap_send(server, session, AES67_SAP_STATUS_MSGTYPE_ANNOUNCE);
 }
 
-void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session)
+void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession)
 {
+    assert(sapserver != NULL);
+    assert(sapsession != NULL);
 
-    //TODO SAP delete
+    sapsrv_t * server = (sapsrv_t*)sapserver;
+
+    sapsrv_session_t * session = (sapsrv_session_t *)sapsession;
+
+    sap_send(server, session, AES67_SAP_STATUS_MSGTYPE_DELETE );
 
     session_delete(sapserver, session);
 }

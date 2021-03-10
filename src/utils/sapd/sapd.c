@@ -564,7 +564,12 @@ static void rav_session_delete(struct rav_session_st * session)
 
     // if registered with sapsrv, remove
     if (session->state == rav_state_sdp_updated || session->state == rav_state_sdp_published){
-        //TODO
+        aes67_sapsrv_session_t sapsrvSession = aes67_sapsrv_session_by_origin(sapsrv, &session->origin);
+        if (sapsrvSession != NULL){
+            aes67_sapsrv_session_delete(sapsrv, sapsrvSession);
+        } else {
+            syslog(LOG_ERR, "trying to unpublish a session that was not found?!");
+        }
     }
 
     if (session->sdp != NULL){
@@ -766,6 +771,7 @@ static void rav_process()
                 // if it already exists, the device has published the SDp itself
                 if (sapsrvSession != NULL){
                     session->state = rav_state_sdp_not_published;
+                    syslog(LOG_INFO, "Published through SAP, ignoring: %s", session->name);
                 } else {
 
                     u16_t hash = atoi((char*)session->origin.session_id.data);
@@ -832,6 +838,8 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
             return;
         }
 
+        syslog(LOG_INFO, "RAV session discovered: %s@%s:%hu", name, hosttarget, port);
+
         session = rav_session_new(name, hosttarget, ipver, ip, port, ttl);
         session->last_activity = time(NULL);
         session->state = rav_state_discovered;
@@ -846,8 +854,6 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
         len = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_RAV_NEW_FMT "\n", hosttarget, ipstr, port, name);
 
         write_toall_except(msg, len, NULL);
-
-        syslog(LOG_INFO, "RAV session discovered: %s@%s:%hu", name, hosttarget, port);
     }
     else if (result == aes67_mdns_result_terminated){
 
@@ -856,15 +862,17 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
             return;
         }
 
+        syslog(LOG_INFO, "RAV session terminated: %s@%s:%hu", name, hosttarget, port);
+
         u8_t msg[256];
 
         u16_t len = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_RAV_DEL_FMT "\n", session->name);
+
 
         write_toall_except(msg, len, NULL);
 
         rav_session_delete(session);
 
-        syslog(LOG_INFO, "RAV session terminated: %s@%s:%hu", name, hosttarget, port);
     }
 }
 #endif //AES67_SAPD_WITH_RAV == 1
