@@ -50,7 +50,7 @@ static const unsigned char hexval[0x100] = {
  uri_encode.c - functions for URI percent encoding / decoding
 */
 
-ssize_t uri_encode (const char *src, const size_t len, char *dst, size_t count)
+ssize_t uri_encode (const char *src, const size_t len, char *dst, const size_t count)
 {
     size_t i = 0, j = 0;
     while (i < len)
