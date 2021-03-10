@@ -60,6 +60,7 @@ int aes67_rtsp_dsc_start(
 
     // can not start when an operation is pending
     if (res->state == aes67_rtsp_dsc_state_querying || res->state == aes67_rtsp_dsc_state_awaiting_response){
+        fprintf(stderr, "operation pending\n");
         return EXIT_FAILURE;
     }
     // mark as busy
@@ -85,12 +86,14 @@ int aes67_rtsp_dsc_start(
     if (res->sockfd == -1) {
         res->statuscode = errno;
         res->state = aes67_rtsp_dsc_state_done;
+        perror("socket()");
         return EXIT_FAILURE;
     }
 
     if (connect(res->sockfd, (struct sockaddr *) &server, server.ss_len) < 0) {
         res->statuscode = errno;
         res->state = aes67_rtsp_dsc_state_done;
+        perror("socket()");
         return EXIT_FAILURE;
     }
 
@@ -98,7 +101,8 @@ int aes67_rtsp_dsc_start(
         // set non-blocking
         int flags = fcntl(res->sockfd, F_GETFL, 0);
         if (fcntl(res->sockfd, F_SETFL, flags | O_NONBLOCK) == -1){
-            fprintf(stderr, "couldn't non-block\n");
+//            fprintf(stderr, "couldn't non-block\n");
+            perror("fcntl()");
             return EXIT_FAILURE;
         }
     }
@@ -122,6 +126,7 @@ int aes67_rtsp_dsc_start(
         close(res->sockfd);
         res->statuscode = errno;
         res->state = aes67_rtsp_dsc_state_done;
+        perror("write()");
         return EXIT_FAILURE;
     }
 

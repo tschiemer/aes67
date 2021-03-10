@@ -16,7 +16,10 @@ set(AES67_MDNS "dnssd")
 set(SAPD_WITH_RAV TRUE)
 
 set(AES67_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(AES67_INCLUDE_DIRS ${AES67_DIR}/src/include)
+set(AES67_INCLUDE_DIRS
+        ${AES67_DIR}/src/include
+        ${AES67_DIR}/src/third_party
+)
 set(AES67_THIRDPARTY_DIR "${CMAKE_CURRENT_SOURCE_DIR}/src/third_party")
 
 set(CMAKE_C_FLAGS "-Wall -O")

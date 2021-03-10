@@ -800,11 +800,11 @@ aes67_sapsrv_session_t aes67_sapsrv_session_add(aes67_sapsrv_t sapserver, const 
     assert(payload != NULL);
     assert(payloadlen <= AES67_SAPSRV_SDP_MAXLEN);
 
-    u8_t * o = (u8_t*)&payload[(payload[sizeof("v=0\n")] == 'o') ? sizeof("v=0\n") : sizeof("v=0\r\n")];
+    u8_t * o = (u8_t*)(payload[4] == '\n' ? &payload[5] : &payload[4]);
 
     struct aes67_sdp_originator origin;
     if (aes67_sdp_origin_fromstr(&origin, o, payloadlen - (o - payload)) == AES67_SDP_ERROR){
-        printf("invalid origin\n");
+//        fprintf(stderr, "invalid origin\n", o[0], o[1], o[2]);
         return NULL;
     }
 

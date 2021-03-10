@@ -25,6 +25,7 @@
 #if AES67_SAPD_WITH_RAV == 1
 #include "aes67/utils/mdns.h"
 #include "aes67/rav.h"
+#include "dnmfarrell/URI-Encode-C/src/uri_encode.h"
 #endif
 
 #include <stdlib.h>
@@ -47,12 +48,25 @@
 #define MSG_VERSIONWELCOME         AES67_SAPD_MSGU_INFO " " AES67_SAPD_NAME_LONG
 
 #if AES67_SAPD_WITH_RAV == 1
+enum rav_state {
+    rav_state_error = 0,
+    rav_state_discovered,
+    rav_state_sdp_available,
+    rav_state_sdp_published,
+    rav_state_sdp_updated,
+    rav_state_sdp_not_published,
+};
 struct rav_session_st {
     char * name;
     char * hosttarget;
     struct aes67_net_addr addr;
     u32_t ttl;
 
+    struct aes67_sdp_originator origin;
+    u8_t * sdp;
+    u16_t sdplen;
+
+    enum rav_state state;
     time_t last_activity;
 
     struct rav_session_st * next;
@@ -158,10 +172,14 @@ static struct {
     aes67_mdns_context_t mdns_context;
     aes67_mdns_resource_t mdns_browse_res;
     struct rav_session_st * first_session;
+    struct aes67_rtsp_dsc_res_st rtsp;
+    struct rav_session_st * rtsp_session;
+    struct aes67_timer timer;
 } rav = {
     .mdns_context = NULL,
     .mdns_browse_res = NULL,
-    .first_session = NULL
+    .first_session = NULL,
+    .rtsp_session = NULL
 };
 
 #endif //AES67_SAPD_WITH_RAV == 1
@@ -300,6 +318,13 @@ static void block_until_event()
             FD_SET(sockfds[i], &fds);
             if (sockfds[i] > nfds) {
                 nfds = sockfds[i];
+            }
+        }
+
+        if (rav.rtsp.state == aes67_rtsp_dsc_state_awaiting_response && rav.rtsp.sockfd != -1){
+            FD_SET(rav.rtsp.sockfd, &fds);
+            if (rav.rtsp.sockfd > nfds){
+                nfds = rav.rtsp.sockfd;
             }
         }
     }
@@ -482,6 +507,10 @@ static struct rav_session_st * rav_session_new(const char * name, const char * h
 
     session->ttl = ttl;
 
+    aes67_sdp_origin_init(&session->origin);
+    session->sdp = NULL;
+    session->sdplen = 0;
+
     session->last_activity = 0;
 
     session->next = rav.first_session;
@@ -506,6 +535,23 @@ static void rav_session_delete(struct rav_session_st * session)
         }
     }
 
+    // if currently SDP lookup is in process with given session, abort
+    if (rav.rtsp_session == session){
+        aes67_rtsp_dsc_stop(&rav.rtsp);
+        rav.rtsp_session = NULL;
+    }
+
+    // if registered with sapsrv, remove
+    if (session->state == rav_state_sdp_updated || session->state == rav_state_sdp_published){
+        //TODO
+    }
+
+    if (session->sdp != NULL){
+        free(session->sdp);
+        session->sdp = NULL;
+        session->sdplen = 0;
+    }
+
     free(session->name);
     free(session->hosttarget);
     free(session);
@@ -523,6 +569,10 @@ static int rav_setup()
         return EXIT_FAILURE;
     }
 
+    aes67_rtsp_dsc_init(&rav.rtsp, false);
+
+    aes67_timer_init(&rav.timer);
+
     syslog(LOG_INFO, "Browsing for Ravenna sessions");
 
     return EXIT_SUCCESS;
@@ -530,6 +580,10 @@ static int rav_setup()
 
 static void rav_teardown()
 {
+    aes67_timer_deinit(&rav.timer);
+
+    aes67_rtsp_dsc_deinit(&rav.rtsp);
+
     if (rav.mdns_context == NULL){
         return;
     }
@@ -540,12 +594,191 @@ static void rav_teardown()
 
 static void rav_process()
 {
+    //// update sessions according to mDNS
     struct timeval tv = {
             .tv_sec = 0,
             .tv_usec = 0
     };
     // non-blocking processing
     aes67_mdns_process(rav.mdns_context, &tv);
+
+    //// check if rtsp sdp lookup has anything to do
+    // first process pending
+    if (rav.rtsp.state == aes67_rtsp_dsc_state_awaiting_response){
+        aes67_rtsp_dsc_process(&rav.rtsp);
+    }
+    // if done
+    if (rav.rtsp.state == aes67_rtsp_dsc_state_done){
+
+        // update last activity?
+        rav.rtsp_session->last_activity = time(NULL);
+
+        // checking for some meaningful min-length
+        if (rav.rtsp.statuscode == AES67_RTSP_STATUS_OK && rav.rtsp.contentlen > 32){
+
+            u8_t *sdp = (u8_t*)aes67_rtsp_dsc_content(&rav.rtsp);
+            assert(sdp != NULL); // should not occur
+
+            // get origin (o=..) offset v=0\r\n
+            u8_t * o = sdp[4] == '\n' ? &sdp[5] : &sdp[4];
+
+            sdp[rav.rtsp.contentlen] = '\0';
+
+//            printf("%s\n", o);
+//            printf("origin %c%c%c %d\n", o[0], o[1] ,o[2], rav.rtsp.contentlen - (o - sdp));
+
+            struct aes67_sdp_originator origin;
+
+            if (aes67_sdp_origin_fromstr(&origin, o, rav.rtsp.contentlen - (o - sdp)) == AES67_SDP_ERROR){
+                rav.rtsp_session->state = rav_state_error;
+                syslog(LOG_ERR, "rav failed to extract originator");
+            }
+            // if originators are equal (and same version!) this implies that nothing has changed
+            // and that this rav session actually previously retrieved the SDP data
+            else if (aes67_sdp_origin_eq(&rav.rtsp_session->origin, &origin) == 0 && aes67_sdp_origin_cmpversion(&rav.rtsp_session->origin, &origin) == 0){
+                // nothing to do, hurray!
+//                rav.rtsp_session->state = rav_state_error;
+                fprintf(stderr, "???\n");
+            }
+            else {
+
+                // if originators are equal (but newer version!) this implies that nothing has changed
+                // and that this rav session actually previously retrieved the SDP data
+                if (aes67_sdp_origin_eq(&rav.rtsp_session->origin, &origin) == 0 && aes67_sdp_origin_cmpversion(&rav.rtsp_session->origin, &origin) == -1){
+                    free(rav.rtsp_session->sdp);
+                    rav.rtsp_session->sdp = NULL;
+                    rav.rtsp_session->sdplen = 0;
+                }
+
+                // update SDP info
+                memcpy(&rav.rtsp_session->origin, &origin, sizeof(struct aes67_sdp_originator));
+
+                rav.rtsp_session->sdp = malloc(rav.rtsp.contentlen + 1);
+
+                assert(rav.rtsp_session->sdp != NULL);
+
+                memcpy(rav.rtsp_session->sdp, sdp, rav.rtsp.contentlen);
+                rav.rtsp_session->sdp[rav.rtsp.contentlen] = '\0'; // not needed, but in case dumping
+                rav.rtsp_session->sdplen = rav.rtsp.contentlen;
+
+
+                if (rav.rtsp_session->state == rav_state_discovered){
+                    rav.rtsp_session->state = rav_state_sdp_available;
+                } else if (rav.rtsp_session->state == rav_state_sdp_published){
+                    rav.rtsp_session->state = rav_state_sdp_updated;
+                } else {
+                    // should not reach here
+                    rav.rtsp_session->state = rav_state_error;
+                }
+            }
+
+        } else {
+            rav.rtsp_session->state = rav_state_error;
+            syslog(LOG_ERR, "rtsp describe fail: %s", rav.rtsp_session->name);
+        }
+
+        // make available for next describe operation
+        rav.rtsp_session = NULL;
+        rav.rtsp.state = aes67_rtsp_dsc_state_bored;
+    }
+    // if actually nothing to do
+    if (rav.rtsp.state == aes67_rtsp_dsc_state_bored){
+        struct rav_session_st * session;
+
+#if 0 < AES67_SAPD_RAV_UPDATE_AFTER_SEC
+        struct rav_session_st * oldest = NULL;
+#endif
+
+        session = rav.first_session;
+        while(session != NULL){
+            if (session->state == rav_state_discovered){
+                break;
+            }
+#if 0 < AES67_SAPD_RAV_UPDATE_AFTER_SEC
+            // consider only published sdps that might have to be updated
+            if (session->state == rav_state_sdp_published && (oldest == NULL || session->last_activity < oldest->last_activity )){
+                oldest = session;
+            }
+#endif //0 < AES67_SAPD_RAV_UPDATE_AFTER_SEC
+            session = session->next;
+        }
+#if 0 < AES67_SAPD_RAV_UPDATE_AFTER_SEC
+        if (session == NULL && oldest != NULL){
+            // if the oldest is too old, let's update it directly
+            // otherwise set an alarm
+            if (oldest->last_activity < time(NULL) - AES67_SAPD_RAV_UPDATE_AFTER_SEC){
+                //session = oldest;
+            } else {
+                //TODO set alarm to trigger update
+            }
+        }
+#endif
+        if (session != NULL ){
+            char name[128];
+            uri_encode(session->name, strlen(session->name), name, sizeof(name));
+
+            char uri[256];
+            snprintf(uri, sizeof(uri), "/by-name/%s", name);
+
+            if (aes67_rtsp_dsc_start(&rav.rtsp, session->addr.ipver, session->addr.addr, session->addr.port, uri)){
+                syslog(LOG_ERR, "rtsp_dsc_start() fail");
+
+            } else {
+                rav.rtsp_session = session;
+            }
+        }
+    }
+
+    //// check if we now should publish
+    time_t publish_if_older = time(NULL) - AES67_SAPD_RAV_PUBLISH_AFTER_SEC;
+    struct rav_session_st * session = rav.first_session;
+    struct rav_session_st * oldest = NULL;
+    while(session != NULL){
+        if (session->state == rav_state_sdp_available){
+
+            if (session->last_activity <= publish_if_older){
+
+                assert(session->sdp != NULL);
+
+                aes67_sapsrv_session_t sapsrvSession = aes67_sapsrv_session_by_origin(sapsrv, &session->origin);
+
+                // if it already exists, the device has published the SDp itself
+                if (sapsrvSession != NULL){
+                    session->state = rav_state_sdp_not_published;
+                } else {
+
+                    u16_t hash = atoi((char*)session->origin.session_id.data);
+
+                    aes67_sapsrv_session_add(sapsrv, hash, session->addr.ipver, session->addr.addr, session->sdp, session->sdplen);
+
+                    session->state = rav_state_sdp_published;
+                }
+            } else if (oldest == NULL || session->last_activity < oldest->last_activity ){
+                oldest = session;
+            }
+
+        }
+        else if (session->state == rav_state_sdp_updated){
+
+            aes67_sapsrv_session_t sapsrvSession = aes67_sapsrv_session_by_origin(sapsrv, &session->origin);
+
+            if (sapsrvSession != NULL){
+
+                aes67_sapsrv_session_update(sapsrv, sapsrvSession, session->sdp, session->sdplen);
+
+                session->state = rav_state_sdp_published;
+            }
+
+        }
+
+        session = session->next;
+    }
+
+    // if oldest is set, this means we should set an alarm
+    if (oldest != NULL){
+        u32_t wait_sec = AES67_SAPD_RAV_PUBLISH_AFTER_SEC - (time(NULL) - oldest->last_activity);
+        aes67_timer_set(&rav.timer, 1000*wait_sec);
+    }
 }
 
 //static void rav_browse_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * domain, void * context)
@@ -579,8 +812,10 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
         }
 
         session = rav_session_new(name, hosttarget, ipver, ip, port, ttl);
+        session->last_activity = time(NULL);
+        session->state = rav_state_discovered;
 
-        u8_t ipstr[64];
+        u8_t ipstr[AES67_NET_ADDR_STR_MAX];
 
         u16_t len = aes67_net_ip2str(ipstr, ipver, (u8_t*)ip, 0);
         ipstr[len] = '\0';

@@ -34,6 +34,19 @@ extern "C" {
 #define AES67_SAPD_WITH_RAV  1
 #endif
 
+#if AES67_SAPD_WITH_RAV == 1
+/**
+ * do not publish immediately(?), ie wait some time after retrieving the session description in case the session
+ * will also be announce through SAP (which will is controlled by the device)
+ * Set to zero to publish immediately.
+ */
+#define AES67_SAPD_RAV_PUBLISH_AFTER_SEC    5
+/**
+ * Check if (published) ravenna sessions have changed after this time.
+ * Set to zero to disable updates.
+ */
+#define AES67_SAPD_RAV_UPDATE_AFTER_SEC     0
+#endif
 
 #define AES67_SAPD_NAME        "sapd"
 #define AES67_SAPD_VERSION     "0.1.0"
