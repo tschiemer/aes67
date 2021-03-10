@@ -118,7 +118,8 @@ static void sapsrv_teardown();
 static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
 
 #if AES67_SAPD_WITH_RAV == 1
-static struct rav_session_st * rav_session_find(const char * name);
+static struct rav_session_st * rav_session_find_by_name(const char * name);
+static struct rav_session_st * rav_session_find_by_origin(struct aes67_sdp_originator * origin);
 static struct rav_session_st * rav_session_new(const char * name, const char * hosttarget, enum aes67_net_ipver ipver, const u8_t * ip, u16_t port, u32_t ttl);
 static void rav_session_delete(struct rav_session_st * session);
 static int rav_setup();
@@ -487,19 +488,49 @@ static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sap
 
         write_toall_except(msg, mlen, NULL);
     }
+    else if (event == aes67_sapsrv_event_remote_duplicate){
+        syslog(LOG_INFO, "SAP: remote duplicate detected: %s", ostr);
+
+        //TODO either disown locally managed or ignore
+
+        //disowning makes sense in case of ravenna based discovery assuming the device finally published its service
+        //through SAP *after* we've done so
+
+#if AES67_SAPD_WITH_RAV == 1
+
+        struct rav_session_st * ravsession = rav_session_find_by_origin((struct aes67_sdp_originator*)origin);
+        if (ravsession != NULL){
+            syslog(LOG_INFO, "swapping management of rav session to remote");
+            aes67_sapsrv_session_set_managedby(sapsession, AES67_SAPSRV_MANAGEDBY_REMOTE);
+            ravsession->state = rav_state_sdp_not_published;
+        }
+#endif // AES67_SAPD_WITH_RAV == 1
+    }
     else {
-        syslog(LOG_INFO, "SAP: ???: %s", ostr);
+        syslog(LOG_ERR, "SAP: unrecognized event %d: %s", event, ostr);
     }
 }
 
 #if AES67_SAPD_WITH_RAV == 1
 
-static struct rav_session_st * rav_session_find(const char * name)
+static struct rav_session_st * rav_session_find_by_name(const char * name)
 {
     struct rav_session_st * session = rav.first_session;
 
     for(;session != NULL; session = session->next){
         if (strcmp(session->name, name) == 0){
+            return session;
+        }
+    }
+
+    return NULL;
+}
+static struct rav_session_st * rav_session_find_by_origin(struct aes67_sdp_originator * origin)
+{
+    struct rav_session_st * session = rav.first_session;
+
+    for(;session != NULL; session = session->next){
+        if (aes67_sdp_origin_eq(&session->origin, origin) == 1){
             return session;
         }
     }
@@ -566,7 +597,7 @@ static void rav_session_delete(struct rav_session_st * session)
     if (session->state == rav_state_sdp_updated || session->state == rav_state_sdp_published){
         aes67_sapsrv_session_t sapsrvSession = aes67_sapsrv_session_by_origin(sapsrv, &session->origin);
         if (sapsrvSession != NULL){
-            aes67_sapsrv_session_delete(sapsrv, sapsrvSession);
+            aes67_sapsrv_session_delete(sapsrv, sapsrvSession, true);
         } else {
             syslog(LOG_ERR, "trying to unpublish a session that was not found?!");
         }
@@ -663,7 +694,7 @@ static void rav_process()
             }
             // if originators are equal (and same version!) this implies that nothing has changed
             // and that this rav session actually previously retrieved the SDP data
-            else if (aes67_sdp_origin_eq(&rav.rtsp_session->origin, &origin) == 0 && aes67_sdp_origin_cmpversion(&rav.rtsp_session->origin, &origin) == 0){
+            else if (aes67_sdp_origin_eq(&rav.rtsp_session->origin, &origin) == 1 && aes67_sdp_origin_cmpversion(&rav.rtsp_session->origin, &origin) == 0){
                 // nothing to do, hurray!
 //                rav.rtsp_session->state = rav_state_error;
                 fprintf(stderr, "???\n");
@@ -672,7 +703,7 @@ static void rav_process()
 
                 // if originators are equal (but newer version!) this implies that nothing has changed
                 // and that this rav session actually previously retrieved the SDP data
-                if (aes67_sdp_origin_eq(&rav.rtsp_session->origin, &origin) == 0 && aes67_sdp_origin_cmpversion(&rav.rtsp_session->origin, &origin) == -1){
+                if (aes67_sdp_origin_eq(&rav.rtsp_session->origin, &origin) == 1 && aes67_sdp_origin_cmpversion(&rav.rtsp_session->origin, &origin) == -1){
                     free(rav.rtsp_session->sdp);
                     rav.rtsp_session->sdp = NULL;
                     rav.rtsp_session->sdplen = 0;
@@ -774,6 +805,8 @@ static void rav_process()
                     syslog(LOG_INFO, "Published through SAP, ignoring: %s", session->name);
                 } else {
 
+                    syslog(LOG_INFO, "Publishing through SAP: %s", session->name);
+
                     u16_t hash = atoi((char*)session->origin.session_id.data);
 
                     aes67_sapsrv_session_add(sapsrv, hash, session->addr.ipver, session->addr.addr, session->sdp, session->sdplen);
@@ -828,7 +861,7 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
         return;
     }
 
-    struct rav_session_st * session = rav_session_find(name);
+    struct rav_session_st * session = rav_session_find_by_name(name);
 
     if (result == aes67_mdns_result_discovered){
 
@@ -1453,7 +1486,7 @@ static void cmd_unset(struct connection_st * con, u8_t * cmdline, size_t len)
     }
 
     // delete session
-    aes67_sapsrv_session_delete(sapsrv, session);
+    aes67_sapsrv_session_delete(sapsrv, session, true);
 
     write_ok(con);
 

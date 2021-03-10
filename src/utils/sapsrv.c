@@ -488,6 +488,12 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
             return;
         }
 
+        // should never happen, but in case, let's log it
+        if (session->managed_by == AES67_SAPSRV_MANAGEDBY_REMOTE){
+            syslog(LOG_ERR, "announcement request for remote sap");
+            return;
+        }
+
         sap_send(server, session, AES67_SAP_STATUS_MSGTYPE_ANNOUNCE);
 
         return;
@@ -503,7 +509,12 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
             return;
         }
 
-        // the wrong hash was sent, ignore
+        // don't let remotes interfere with locally managed sdps
+        if (session->managed_by == AES67_SAPSRV_MANAGEDBY_LOCAL){
+            return;
+        }
+
+        // if hash doesn't match, ignore
         if (session->hash != hash){
             return;
         }
@@ -547,6 +558,23 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
 
     sapsrv_session_t * session = aes67_sapsrv_session_by_origin(server, &origin);
 
+    // safety check
+    if (session != NULL){
+
+        // don't let remotes interfere with locally managed SDPs
+        if (session->managed_by == AES67_SAPSRV_MANAGEDBY_LOCAL){
+            // but inform host about remote, it can decide what to do, it changes are to be made
+            // pass received data to host
+            server->event_handler(server, session, aes67_sapsrv_event_remote_duplicate, &origin, payload, payloadlen, server->user_data);
+            return;
+        }
+
+        // if hash doesn't match, ignore, we're familiar with this session, maybe it's a duplicate
+//        if (session->hash != hash){
+//            return;
+//        }
+    }
+
     if (event == aes67_sap_event_new || event == aes67_sap_event_updated){
 
         enum aes67_sapsrv_event evt;
@@ -580,11 +608,6 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
         // if event was not known before, there is no reason telling the client about (?)
         if (session == NULL){
             // nothing to be done
-            return;
-        }
-
-        // the wrong hash was sent, ignore
-        if (session->hash != hash){
             return;
         }
 
@@ -850,7 +873,7 @@ void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_
     sap_send(server, session, AES67_SAP_STATUS_MSGTYPE_ANNOUNCE);
 }
 
-void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession)
+void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, bool announce)
 {
     assert(sapserver != NULL);
     assert(sapsession != NULL);
@@ -859,7 +882,16 @@ void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_
 
     sapsrv_session_t * session = (sapsrv_session_t *)sapsession;
 
-    sap_send(server, session, AES67_SAP_STATUS_MSGTYPE_DELETE );
+    if (announce) {
+        sap_send(server, session, AES67_SAP_STATUS_MSGTYPE_DELETE);
+    } else {
+        struct aes67_sap_session * ss = aes67_sap_service_find(&server->service, session->hash, session->ip.ipver, session->ip.addr);
+        if (ss == NULL){
+            syslog(LOG_ERR, "trying to silently delete a session that isn't registered");
+        } else {
+            aes67_sap_service_unregister(&server->service, ss);
+        }
+    }
 
     session_delete(sapserver, session);
 }
@@ -922,5 +954,15 @@ time_t aes67_sapsrv_session_get_lastactivity(aes67_sapsrv_session_t session)
 u8_t aes67_sapsrv_session_get_managedby(aes67_sapsrv_session_t session)
 {
     assert(session != NULL);
+
     return ((sapsrv_session_t*)session)->managed_by;
+}
+void aes67_sapsrv_session_set_managedby(aes67_sapsrv_session_t session, u8_t managed_by)
+{
+    assert(session != NULL);
+    assert(AES67_SAPSRV_MANAGEDBY_ISVALID(managed_by));
+
+    //TODO also have to set sap_session accordingly otherwise will request announcement
+
+    ((sapsrv_session_t*)session)->managed_by = managed_by;
 }

@@ -63,8 +63,13 @@ extern "C" {
 #define u32_t aes67_sapsrv_time_t;
 #endif
 
-#define  AES67_SAPSRV_MANAGEDBY_LOCAL     1
-#define  AES67_SAPSRV_MANAGEDBY_REMOTE    2
+#define AES67_SAPSRV_MANAGEDBY_LOCAL     1
+#define AES67_SAPSRV_MANAGEDBY_REMOTE    2
+
+#define AES67_SAPSRV_MANAGEDBY_ISVALID(x) ( \
+    (x) ==  AES67_SAPSRV_MANAGEDBY_LOCAL || \
+    (x) ==  AES67_SAPSRV_MANAGEDBY_REMOTE \
+)
 
 
 typedef void * aes67_sapsrv_t;
@@ -74,14 +79,16 @@ enum aes67_sapsrv_event {
     aes67_sapsrv_event_discovered,
     aes67_sapsrv_event_updated,
     aes67_sapsrv_event_deleted,
-    aes67_sapsrv_event_timeout
+    aes67_sapsrv_event_timeout,
+    aes67_sapsrv_event_remote_duplicate
 };
 
 #define AES67_SAPSRV_EVENT_ISTVALID(x) (\
     (x) == aes67_sapsrv_event_discovered || \
     (x) == aes67_sapsrv_event_updated || \
     (x) == aes67_sapsrv_event_deleted || \
-    (x) == aes67_sapsrv_event_timeout \
+    (x) == aes67_sapsrv_event_timeout || \
+    (x) == aes67_sapsrv_event_remote_duplicate \
 )
 
 typedef void (*aes67_sapsrv_event_handler)(aes67_sapsrv_t server, aes67_sapsrv_session_t session, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
@@ -103,8 +110,8 @@ int aes67_sapsrv_setblocking(aes67_sapsrv_t sapserver, bool state);
 //int set_sock_reuse(int sockfd);
 
 aes67_sapsrv_session_t aes67_sapsrv_session_add(aes67_sapsrv_t sapserver, const u16_t hash, const enum aes67_net_ipver ipver, const u8_t * ip, const u8_t * payload, const u16_t payloadlen);
-void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session, const u8_t * payload, const u16_t payloadlen);
-void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t session);
+void aes67_sapsrv_session_update(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, const u8_t * payload, const u16_t payloadlen);
+void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, bool announce);
 
 aes67_sapsrv_session_t aes67_sapsrv_session_by_origin(aes67_sapsrv_t sapserver, const struct aes67_sdp_originator * origin);
 aes67_sapsrv_session_t aes67_sapsrv_session_first(aes67_sapsrv_t sapserver);
@@ -114,6 +121,7 @@ void aes67_sapsrv_session_get_payload(aes67_sapsrv_session_t session, u8_t ** pa
 struct aes67_sdp_originator * aes67_sapsrv_session_get_origin(aes67_sapsrv_session_t session);
 time_t aes67_sapsrv_session_get_lastactivity(aes67_sapsrv_session_t session);
 u8_t aes67_sapsrv_session_get_managedby(aes67_sapsrv_session_t session);
+void aes67_sapsrv_session_set_managedby(aes67_sapsrv_session_t session, u8_t managed_by);
 
 #ifdef __cplusplus
 }

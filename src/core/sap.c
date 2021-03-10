@@ -37,14 +37,6 @@ aes67_sap_service_register(struct aes67_sap_service *sap, u16_t hash, enum aes67
 #define aes67_sap_service_register(sap, hash, ipver, ip, src) NULL
 #endif
 
-/**
- * To remove a specific session from the session table.
- */
-#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
-static void aes67_sap_service_unregister(struct aes67_sap_service * sap, struct aes67_sap_session * session);
-#else
-#define aes67_sap_service_unregister(session, sap)
-#endif
 
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS

@@ -272,6 +272,16 @@ struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap
 #define aes67_sap_service_find(sap, hash, ipver, ip) NULL
 #endif
 
+/**
+ * To remove a specific session from the session table.
+ * Note: does not require generation of a message...
+ */
+#if AES67_SAP_MEMORY == AES67_MEMORY_DYNAMIC || 0 < AES67_SAP_MEMORY_MAX_SESSIONS
+void aes67_sap_service_unregister(struct aes67_sap_service * sap, struct aes67_sap_session * session);
+#else
+#define aes67_sap_service_unregister(session, sap)
+#endif
+
 inline u16_t aes67_sap_no_of_ads(struct aes67_sap_service * sap)
 {
     return sap->no_of_ads_other + sap->no_of_ads_self;
