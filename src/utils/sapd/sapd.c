@@ -48,6 +48,11 @@
 #define MSG_VERSIONWELCOME         AES67_SAPD_MSGU_INFO " " AES67_SAPD_NAME_LONG
 
 #if AES67_SAPD_WITH_RAV == 1
+
+#define RAV_MAX_PUBLISH_DELAY   360
+#define RAV_MAX_UPDATE_INTERVAL 360
+
+
 enum rav_state {
     rav_state_error = 0,
     rav_state_discovered,
@@ -152,7 +157,12 @@ static struct {
     u32_t send_scopes;
     s32_t port;
     unsigned int ipv6_if;
+#if AES67_SAPD_WITH_RAV == 1
     bool rav_enabled;
+    uint16_t rav_publish_delay;
+    uint16_t rav_update_interval;
+#endif// AES67_SAPD_WITH_RAV == 1
+
 } opts = {
         .daemonize = false,
         .verbose = false,
@@ -160,7 +170,11 @@ static struct {
         .send_scopes = 0,
         .port = AES67_SAP_PORT,
         .ipv6_if = 0,
-        .rav_enabled = false
+#if AES67_SAPD_WITH_RAV == 1
+        .rav_enabled = false,
+        .rav_publish_delay = AES67_SAPD_RAV_PUBLISH_DELAY_DEFAULT,
+        .rav_update_interval = AES67_SAPD_RAV_UPDATE_INTERVAL_DEFAULT
+#endif // AES67_SAPD_WITH_RAV == 1
 };
 
 static volatile bool keep_running;
@@ -174,7 +188,8 @@ static struct {
     struct rav_session_st * first_session;
     struct aes67_rtsp_dsc_res_st rtsp;
     struct rav_session_st * rtsp_session;
-    struct aes67_timer timer;
+    struct aes67_timer publish_timer;
+    struct aes67_timer update_timer;
 } rav = {
     .mdns_context = NULL,
     .mdns_browse_res = NULL,
@@ -222,7 +237,7 @@ static const char * error_msg[] = {
 static void help(FILE * fd)
 {
     fprintf( fd,
-             "Usage: %s [-h|-?] | [-d] [-p <port>] [--l <mcast-scope>] [--s <mcast-scope>] [--ipv6-if <ifname>]\n"
+             "Usage: %s [-h|-?] | [-d] [-p <port>] [--l <mcast-scope>] [--s <mcast-scope>] [--ipv6-if <ifname>] ..\n"
              "Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and keeps announcing\n"
              "specified SDPs on network.\n"
              "Communicates through local port (" AES67_SAPD_LOCAL_SOCK ")\n"
@@ -245,8 +260,12 @@ static void help(FILE * fd)
             "\t --ipv6-if\t IPv6 interface to listen on (default interface can fail)\n"
  #if AES67_SAPD_WITH_RAV == 1
             "\t --rav\t\t Enable Ravenna session lookups\n"
+             "\t --rav-pub-delay <delay-sec>\n"
+             "\t\t\t Wait for this many seconds before publishing discovered ravenna devices through SAP (0 .. %d, default %d)\n"
+             "\t --rav-upd-interval <interval-sec>\n"
+             "\t\t\t Wait for this many seconds checking for SDP change of already published ravenna device (0 .. %d, default %d)\n"
  #endif
-            "\nCompile time options (see aes67opts.h):\n"
+            "\nCompile time options:\n"
             "\t AES67_SAP_MIN_INTERVAL_SEC %d \t // +- announce time, depends on SAP traffic\n"
             "\t AES67_SAP_MIN_TIMEOUT_SEC %d \n"
             "\t AES67_SAPD_WITH_RAV %d\n"
@@ -254,6 +273,8 @@ static void help(FILE * fd)
              "sudo %s -v --ipv6-if en7 & socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
             , argv0,
             (u16_t)AES67_SAP_PORT,
+            RAV_MAX_PUBLISH_DELAY, AES67_SAPD_RAV_PUBLISH_DELAY_DEFAULT,
+            RAV_MAX_UPDATE_INTERVAL, AES67_SAPD_RAV_UPDATE_INTERVAL_DEFAULT,
             AES67_SAP_MIN_INTERVAL_SEC,
             AES67_SAP_MIN_TIMEOUT_SEC,
              AES67_SAPD_WITH_RAV,
@@ -571,7 +592,8 @@ static int rav_setup()
 
     aes67_rtsp_dsc_init(&rav.rtsp, false);
 
-    aes67_timer_init(&rav.timer);
+    aes67_timer_init(&rav.publish_timer);
+    aes67_timer_init(&rav.update_timer);
 
     syslog(LOG_INFO, "Browsing for Ravenna sessions");
 
@@ -580,7 +602,8 @@ static int rav_setup()
 
 static void rav_teardown()
 {
-    aes67_timer_deinit(&rav.timer);
+    aes67_timer_deinit(&rav.publish_timer);
+    aes67_timer_deinit(&rav.update_timer);
 
     aes67_rtsp_dsc_deinit(&rav.rtsp);
 
@@ -683,36 +706,34 @@ static void rav_process()
     }
     // if actually nothing to do
     if (rav.rtsp.state == aes67_rtsp_dsc_state_bored){
-        struct rav_session_st * session;
 
-#if 0 < AES67_SAPD_RAV_UPDATE_AFTER_SEC
+        struct rav_session_st * session = rav.first_session;
         struct rav_session_st * oldest = NULL;
-#endif
 
-        session = rav.first_session;
+        // try to find sessions whose SDP yet has to be retrieved (and look for oldest
         while(session != NULL){
             if (session->state == rav_state_discovered){
                 break;
             }
-#if 0 < AES67_SAPD_RAV_UPDATE_AFTER_SEC
+
             // consider only published sdps that might have to be updated
-            if (session->state == rav_state_sdp_published && (oldest == NULL || session->last_activity < oldest->last_activity )){
+            if (opts.rav_update_interval > 0 && session->state == rav_state_sdp_published && (oldest == NULL || session->last_activity < oldest->last_activity )){
                 oldest = session;
             }
-#endif //0 < AES67_SAPD_RAV_UPDATE_AFTER_SEC
+
             session = session->next;
         }
-#if 0 < AES67_SAPD_RAV_UPDATE_AFTER_SEC
+
         if (session == NULL && oldest != NULL){
             // if the oldest is too old, let's update it directly
             // otherwise set an alarm
-            if (oldest->last_activity < time(NULL) - AES67_SAPD_RAV_UPDATE_AFTER_SEC){
+            if (oldest->last_activity < time(NULL) - opts.rav_update_interval){
                 //session = oldest;
             } else {
                 //TODO set alarm to trigger update
             }
         }
-#endif
+
         if (session != NULL ){
             char name[128];
             uri_encode(session->name, strlen(session->name), name, sizeof(name));
@@ -730,7 +751,7 @@ static void rav_process()
     }
 
     //// check if we now should publish
-    time_t publish_if_older = time(NULL) - AES67_SAPD_RAV_PUBLISH_AFTER_SEC;
+    time_t publish_if_older = time(NULL) - opts.rav_publish_delay;
     struct rav_session_st * session = rav.first_session;
     struct rav_session_st * oldest = NULL;
     while(session != NULL){
@@ -776,8 +797,8 @@ static void rav_process()
 
     // if oldest is set, this means we should set an alarm
     if (oldest != NULL){
-        u32_t wait_sec = AES67_SAPD_RAV_PUBLISH_AFTER_SEC - (time(NULL) - oldest->last_activity);
-        aes67_timer_set(&rav.timer, 1000*wait_sec);
+        u32_t wait_sec = opts.rav_publish_delay - (time(NULL) - oldest->last_activity);
+        aes67_timer_set(&rav.publish_timer, 1000 * wait_sec);
     }
 }
 
@@ -1476,6 +1497,8 @@ int main(int argc, char * argv[]){
                 {"ipv6-if", required_argument, 0, 13},
 #if AES67_SAPD_WITH_RAV == 1
                 {"rav", no_argument, 0, 14},
+                {"rav-pub-delay", required_argument, 0, 15},
+                {"rav-upd-interval", required_argument, 0, 16},
 #endif
                 {0,         0,                 0,  0 }
         };
@@ -1543,6 +1566,26 @@ int main(int argc, char * argv[]){
             case 14: // --rav
                 opts.rav_enabled = true;
                 break;
+
+            case 15: {// --rav-pub-delay
+                int i = atoi(optarg);
+                if (i < 0 || RAV_MAX_PUBLISH_DELAY < i) {
+                    fprintf(stderr, "Invalid --rav-pub-delay must be in 0 .. %d", RAV_MAX_PUBLISH_DELAY);
+                    return EXIT_FAILURE;
+                }
+                opts.rav_publish_delay = i;
+                break;
+            }
+
+            case 16: {// --rav-upd-interval
+                int i = atoi(optarg);
+                if (i < 0 || RAV_MAX_UPDATE_INTERVAL < i){
+                    fprintf(stderr, "Invalid --rav-upd-interval must be in 0 .. %d", RAV_MAX_UPDATE_INTERVAL);
+                    return EXIT_FAILURE;
+                }
+                opts.rav_update_interval = i;
+                break;
+            }
 #endif
             case 'd':
                 opts.daemonize = true;
