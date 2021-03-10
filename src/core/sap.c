@@ -34,7 +34,7 @@
 static struct aes67_sap_session *
 aes67_sap_service_register(struct aes67_sap_service *sap, u16_t hash, enum aes67_net_ipver ipver, u8_t *ip, u16_t src);
 #else
-#define aes67_sap_service_register(sap, hash, ipver, ip) NULL
+#define aes67_sap_service_register(sap, hash, ipver, ip, src) NULL
 #endif
 
 /**
