@@ -39,7 +39,7 @@ https://github.com/tschiemer/aes67
   - SAP
     - [x] [sap-pack](#sap-pack): create SAP message(s)
     - [x] [sap-unpack](#sap-unpack): parse SAP message(s) 
-    - [ ] [sapd](#sapd): SAP daemon
+    - [ ] [sapd](#sapd): SAP daemon (with Ravenna support)
   - SDP
     - [x] [sdp-parse](#sdp-parse): parse SDP(s)
     - [x] [sdp-gen](#sdp-gen): generate SDP
@@ -47,7 +47,7 @@ https://github.com/tschiemer/aes67
     - [x] [rtsp-describe](#rtsp-describe): retrieve SDP from RTSP service
     - [ ] rtsp/http combo server?
   - RAVENNA
-    - [ ] [RAV2SAP](#rav2sap) alternative?
+    - [ ] ~~RAV2SAP~~ -> [sapd](#sapd)
     - [x] [rav-lookup](#rav-lookup): browse for RAVENNA sessions/devices
     - [ ] rav-register? easily register a specific mDNS service/device 
   - PTP
@@ -57,8 +57,10 @@ https://github.com/tschiemer/aes67
     - [ ] rtp-send: send RTP (from STDIN)
     - [ ] rtp-recv: receive RTP (to STDOUT)
   - Support
-    - mDNS (abstraction for service *discovery* and registration(?))
+    - mDNS (abstraction for service *discovery*)
       - [ ] dns-sd
+         - [x] discovery
+         - [ ] registration (?)
       - [ ] ahavi
 
 
@@ -284,7 +286,7 @@ Examples:
 sudo ./sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:sapd.sock,keepalive
 ```
 A SAP daemon with a local client interface that supports local registration of sessions
-aswell as lookup and injection of ravenna based sessions - somewhat like [rav2sap](#rav2sap).
+aswell as lookup and injection of ravenna based sessions - somewhat like [RAV2SAP](https://www.ravenna-network.com/aes67/rav2sap/).
 
 *rav features work in progress*
 
@@ -294,6 +296,28 @@ for registration and deletion of locally managed sessions (SDP files).
 For documentation of protocol/interface used through AF_LOCAL sockets, see [src/include/aes67/utils/sapd.h](src/include/aes67/utils/sapd.h).
 
 (note: AES67-2018 is specified for IPv4 primarily, consider IPv6 a proof of concept and for other purposes..)
+
+---
+
+The original [RAV2SAP](https://www.ravenna-network.com/aes67/rav2sap/) essentially is intended to translate RAVENNA-style mDNS-based
+discovery into SAP-based discovery (but also allowing for a managed point of manual SDP management).
+
+It is somewhat straightforward as in:
+
+1. listen to mDNS services
+2. get SDP of discovered streams
+3. and pass to SAP
+
+To improvise something to the same effect without the use of `sapd` you can also make use of utilities given herein:
+
+```bash 
+rav-lookup -v | rtsp-describe -v | sap-pack -v | socat -u - UDP4-DATAGRAM:224.2.127.254:9875
+```
+
+Note: the `-v` option just helps to trace what's happening.
+
+Also note multicast global scope (224.2.127.254) vs. administered scope which devices typically assume to be
+239.255.255.255.
 ### `sdp-parse`
 
 ```
@@ -403,30 +427,6 @@ Or similarly using `ahavi-browse`
 ahavi-browse _ravenna_session._sub._rtsp._tcp
 ```
 
-
-### rav2sap
-
-For an actual *RAV2SAP* alternative have a look at [sapd](#sapd).
-
-The original [RAV2SAP](https://www.ravenna-network.com/aes67/rav2sap/) essentially is intended to translate RAVENNA-style mDNS-based
-discovery into SAP-based discovery (but also allowing for a managed point of manual SDP management).
-
-It is somewhat straightforward as in:
-
-1. listen to mDNS services
-2. get SDP of discovered streams
-3. and pass to SAP
-
-To improvise something to the same effect you can also make use of utilities given herein:
-
-```bash 
-rav-lookup -v | rtsp-describe -v | sap-pack -v | socat -u - UDP4-DATAGRAM:224.2.127.254:9875
-```
-
-Note: the `-v` option just helps to trace what's happening.
-
-Also note multicast global scope (224.2.127.254) vs. administered scope which devices typically assume to be
-239.255.255.255.
 
 ## References
 
