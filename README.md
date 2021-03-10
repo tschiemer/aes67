@@ -247,10 +247,10 @@ socat -u UDP4-RECVFROM:9875,ip-add-membership=239.255.255.255:192.168.1.122,reus
 
 ### `sapd`
 ```
-Usage: ./sapd [-h|-?] | [-d] [-p <port>] [--l <mcast-scope>] [--s <mcast-scope>] [--ipv6-if <ifname>]
+Usage: ./sapd [-h|-?] | [-d] [-p <port>] [--l <mcast-scope>] [--s <mcast-scope>] [--ipv6-if <ifname>] ..
 Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and keeps announcing
 specified SDPs on network.
-Communicates through local port (/var/run/sapd.sock)
+Communicates through local port (sapd.sock)
 Logs to syslog (identity sapd)
 
 Options:
@@ -269,21 +269,31 @@ Options:
 			 Default listen: 4g + 4a + 6ll
 			 Default send: 4a
 	 --ipv6-if	 IPv6 interface to listen on (default interface can fail)
+	 --rav		 Enable Ravenna session lookups
+	 --rav-pub-delay <delay-sec>
+			 Wait for this many seconds before publishing discovered ravenna devices through SAP (0 .. 360, default 5)
+	 --rav-upd-interval <interval-sec>
+			 Wait for this many seconds checking for SDP change of already published ravenna device (0 .. 360, default 0)
 
-Compile time options (see aes67opts.h):
+Compile time options:
 	 AES67_SAP_MIN_INTERVAL_SEC 30 	 // +- announce time, depends on SAP traffic
 	 AES67_SAP_MIN_TIMEOUT_SEC 600
+	 AES67_SAPD_WITH_RAV 1
 
 Examples:
-sudo ./sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:/var/run/sapd.sock,keepalive
+sudo ./sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:sapd.sock,keepalive
 ```
-(note: AES67-2018 is specified for IPv4 primarily, consider IPv6 a proof of concept and for other purposes..)
+A SAP daemon with a local client interface that supports local registration of sessions
+aswell as lookup and injection of ravenna based sessions - somewhat like [rav2sap](#rav2sap).
+
+*rav features work in progress*
 
 Essentially any connection to the AF_LOCAL socket is considered a subscription and will receive updates but allows also
-for registration and deletion of locally managed SDP files.
+for registration and deletion of locally managed sessions (SDP files).
 
 For documentation of protocol/interface used through AF_LOCAL sockets, see [src/include/aes67/utils/sapd.h](src/include/aes67/utils/sapd.h).
 
+(note: AES67-2018 is specified for IPv4 primarily, consider IPv6 a proof of concept and for other purposes..)
 ### `sdp-parse`
 
 ```
@@ -395,6 +405,8 @@ ahavi-browse _ravenna_session._sub._rtsp._tcp
 
 
 ### rav2sap
+
+For an actual *RAV2SAP* alternative have a look at [sapd](#sapd).
 
 The original [RAV2SAP](https://www.ravenna-network.com/aes67/rav2sap/) essentially is intended to translate RAVENNA-style mDNS-based
 discovery into SAP-based discovery (but also allowing for a managed point of manual SDP management).
