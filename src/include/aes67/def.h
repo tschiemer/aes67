@@ -130,7 +130,7 @@ void * aes67_memchr( const void * ptr, int ch, size_t count );
 #define aes67_ischar_insensitive(this_char, is_like_lc) ( ((this_char) < 'a' ? (this_char) + ('a' - 'A'): (this_char) ) == (is_like_lc))
 
 #ifndef aes67_strnlen
-u32_t aes67_strnlen(const char * str, size_t count);
+#define aes67_strnlen(str, n) aes67_memchr((str), '\0', (n))
 #endif
 
 #ifndef aes67_strncpy

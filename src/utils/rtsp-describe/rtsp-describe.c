@@ -24,6 +24,7 @@
 #include <string.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <netdb.h>
 
 static char * argv0;
 
@@ -48,80 +49,116 @@ static void help(FILE * fd)
             , argv0);
 }
 
-//static void rtsp_hdr_handler(u8_t * buf, ssize_t len)
-//{
-//    if (!opts.print_rtsp){
-//        return;
-//    }
-//
-//    u8_t failed = len < 0;
-//
-//    if (failed){
-//        len *= -1;
-//    }
-//
-//    write(STDERR_FILENO, buf, len);
-//}
-
-static int lookup(char * rtsp)
+static int lookup2(char * rtsp)
 {
-    u8_t sdp[3000];
-    ssize_t sdplen = aes67_rtsp_dsc_easy_url(rtsp, sdp, sizeof(sdp));
+    // first extract hostname, port and uri which will be used laster...
 
-    if (opts.verbose){
-        fprintf(stderr, "RTSP-DESCRIBE %s %s\n", sdp > 0 ? "OK" : "FAIL", rtsp);
-        fflush(stderr);
-    }
-
-    if (sdplen <= 0){
+    int l = strlen(rtsp);
+    if (l < sizeof("rtsp://")){
         return EXIT_FAILURE;
     }
 
-//    sdp[sdplen] = '\0';
-    write(STDOUT_FILENO, sdp, sdplen);
+    if (memcmp(rtsp, "rtsp://", sizeof("rtsp://")-1) != 0){
+        return EXIT_FAILURE;
+    }
 
-    fflush(stdout);
+    char * uri = memchr(&rtsp[sizeof("rtsp://")-1], '/', strlen(rtsp) - sizeof("rtsp://")-1);
 
-    return EXIT_SUCCESS;
+    // if not found, just point to '\0'
+    if (uri == NULL){
+        uri = &rtsp[l - 1];
+    }
+
+    char * host = &rtsp[sizeof("rtsp://")-1];
+    size_t hostlen = uri - host;
+
+    struct aes67_net_addr addr;
+
+    // if not an <ip>:<port> is given we're dealing with <host>:<port>
+    if (aes67_net_str2addr(&addr, (u8_t*)host, hostlen) == false){
+
+        // note: is equal to uri[0] = '\0';
+        // so we have to remember to change this back
+        bool has_uri = uri[0] != '\0';
+        host[hostlen] = '\0';
+
+        char * p = strrchr(host, ':');
+
+        if (p == NULL){
+            addr.port = 0;
+        } else {
+            // terminate host str to not include port
+            *p = '\0';
+
+            // just read port
+            addr.port = atoi(&p[1]);
+        }
+
+
+        struct hostent * he = gethostbyname(host);
+
+        if (he == NULL){
+            return EXIT_FAILURE;
+        }
+        if (he->h_addrtype == AF_INET){
+            addr.ipver = aes67_net_ipver_4;
+            *(u32_t*)addr.addr = ((struct in_addr *) he->h_addr_list[0])->s_addr;
+        } else if (he->h_addrtype == AF_INET6){
+            addr.ipver = aes67_net_ipver_6;
+            memcpy(addr.addr, (struct in6_addr *) he->h_addr_list[0], 16);
+        } else {
+            return EXIT_FAILURE;
+        }
+
+//        printf("%d.%d.%d.%d:%d\n", addr.addr[0], addr.addr[1], addr.addr[2], addr.addr[3], addr.port);
+
+
+        // restore uri
+        if (has_uri){
+            uri[0] = '/';
+        }
+        // restore port delimiter
+        if (p != NULL){
+            p[0] = ':';
+        }
+    }
+
+    // if no port is given, use default port
+    if (addr.port == 0){
+        addr.port = AES67_RTSP_DEFAULT_PORT;
+    }
+
+    // now we get to the actual request
+    struct aes67_rtsp_dsc_res_st res;
+
+    aes67_rtsp_dsc_init(&res, true);
+
+    if (aes67_rtsp_dsc_start(&res, addr.ipver, addr.addr, addr.port, uri)){
+        return EXIT_FAILURE;
+    }
+
+    while(res.state != aes67_rtsp_dsc_state_done){
+        aes67_rtsp_dsc_process(&res);
+    }
+
+    if (opts.verbose){
+        char str[256];
+        ssize_t l = snprintf(str, sizeof(str), "RTSP-DESCRIBE %s %s\n", res.statuscode == AES67_RTSP_STATUS_OK ? "OK" : "FAIL", rtsp);
+        write(STDERR_FILENO,str, l);
+    }
+
+    if (opts.print_rtsp && res.hdrlen > 0){
+        write(STDERR_FILENO, res.buf, res.hdrlen);
+    }
+
+    if (res.contentlen > 0){
+        write(STDOUT_FILENO, aes67_rtsp_dsc_content(&res), res.contentlen);
+    }
+
+    aes67_rtsp_dsc_deinit(&res);
+
+    return (res.statuscode == AES67_RTSP_STATUS_OK ? EXIT_SUCCESS : EXIT_FAILURE);
 }
-
-
-//static int lookup2(u8_t * rtsp)
-//{
-//    struct aes67_net_addr addr;
-//
-//    if (memcmp(rtsp, "rtsp://", sizeof("rtsp://")-1) != 0){
-//        return EXIT_FAILURE;
-//    }
-//
-//
-//
-//
-//    struct aes67_rtsp_dsc_res_st res;
-//
-//    aes67_rtsp_dsc_init(&res, true);
-//
-//    if (aes67_rtsp_dsc_start(&res, addr.ipver, addr.addr, addr.port, "/by-name/here-be-kittens.ravenna_27")){
-//        return EXIT_FAILURE;
-//    }
-//
-//    while(res.state != aes67_rtsp_dsc_state_done){
-//        aes67_rtsp_dsc_process(&res);
-//    }
-//
-//    if (opts.verbose){
-//        fprintf(stderr, "RTSP-DESCRIBE %s %s\n", res.contentlen > 0 ? "OK" : "FAIL", rtsp);
-//        fflush(stderr);
-//    }
-//
-//    if (res.contentlen > 0){
-//        write(STDOUT_FILENO, aes67_rtsp_dsc_content(&res), res.contentlen);
-//    }
-//
-//    aes67_rtsp_dsc_deinit(&res);
-//
-//    return (res.contentlen > 0 ? EXIT_SUCCESS : EXIT_FAILURE);
-//}
 
 
 int main(int argc, char * argv[])
@@ -154,7 +191,7 @@ int main(int argc, char * argv[])
     }
 
     if ( optind + 1 == argc ){
-        return lookup(argv[optind]);
+        return lookup2(argv[optind]);
     }
 
 
@@ -170,7 +207,7 @@ int main(int argc, char * argv[])
             line[len] = '\0';
 
             if (len > 0){
-                lookup(line);
+                lookup2(line);
 //                usleep(1000);
                 len = 0;
             }
@@ -188,7 +225,7 @@ int main(int argc, char * argv[])
     // in case EOF but something in buffer just try that aswell
     if (len > 0){
         line[len] = '\0';
-        lookup(line);
+        lookup2(line);
     }
 
     return EXIT_SUCCESS;

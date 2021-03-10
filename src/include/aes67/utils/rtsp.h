@@ -62,7 +62,7 @@ struct aes67_rtsp_dsc_res_st {
     u8_t * line;
     u16_t llen;
 
-    u16_t resultcode;
+    u16_t statuscode;
     u16_t hdrlen;
     u16_t contentlen;
 };
@@ -83,8 +83,6 @@ inline const u8_t * aes67_rtsp_dsc_content(struct aes67_rtsp_dsc_res_st * res)
 {
     return res->contentlen ? &res->buf[res->hdrlen] : NULL;
 }
-
-typedef void (*aes67_rtsp_header_handler)(u8_t * buf, ssize_t len);
 
 ssize_t aes67_rtsp_dsc_easy(
         const u8_t *ip,

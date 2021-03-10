@@ -83,13 +83,13 @@ int aes67_rtsp_dsc_start(
     res->sockfd = socket(AF_INET, SOCK_STREAM, 0);
 
     if (res->sockfd == -1) {
-        res->resultcode = errno;
+        res->statuscode = errno;
         res->state = aes67_rtsp_dsc_state_done;
         return EXIT_FAILURE;
     }
 
     if (connect(res->sockfd, (struct sockaddr *) &server, server.ss_len) < 0) {
-        res->resultcode = errno;
+        res->statuscode = errno;
         res->state = aes67_rtsp_dsc_state_done;
         return EXIT_FAILURE;
     }
@@ -120,13 +120,13 @@ int aes67_rtsp_dsc_start(
     // writing to the socket could also be done in the process function (this here is, in principle, a blocking call..)
     if (write(res->sockfd, res->buf, res->buflen) == -1) {
         close(res->sockfd);
-        res->resultcode = errno;
+        res->statuscode = errno;
         res->state = aes67_rtsp_dsc_state_done;
         return EXIT_FAILURE;
     }
 
     res->buflen = 0;
-    res->resultcode = 0;
+    res->statuscode = 0;
     res->hdrlen = 0;
     res->contentlen = 0;
 
@@ -170,7 +170,7 @@ void aes67_rtsp_dsc_process(struct aes67_rtsp_dsc_res_st * res)
         u16_t rl; // readlen
 
         // read first line
-        if (res->resultcode == 0){
+        if (res->statuscode == 0){
             // read only a meaningful max
             while( res->buflen < 256 ){
 
@@ -205,8 +205,8 @@ void aes67_rtsp_dsc_process(struct aes67_rtsp_dsc_res_st * res)
                             return;
                         }
 
-                        res->resultcode = aes67_atoi(&res->buf[9], 3, 10, &rl);
-                        if (res->resultcode == 0){
+                        res->statuscode = aes67_atoi(&res->buf[9], 3, 10, &rl);
+                        if (res->statuscode == 0){
                             close(res->sockfd);
                             res->sockfd = -1;
                             res->state = aes67_rtsp_dsc_state_done;
