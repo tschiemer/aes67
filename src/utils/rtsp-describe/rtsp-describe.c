@@ -48,25 +48,25 @@ static void help(FILE * fd)
             , argv0);
 }
 
-static void rtsp_hdr_handler(u8_t * buf, ssize_t len)
-{
-    if (!opts.print_rtsp){
-        return;
-    }
+//static void rtsp_hdr_handler(u8_t * buf, ssize_t len)
+//{
+//    if (!opts.print_rtsp){
+//        return;
+//    }
+//
+//    u8_t failed = len < 0;
+//
+//    if (failed){
+//        len *= -1;
+//    }
+//
+//    write(STDERR_FILENO, buf, len);
+//}
 
-    u8_t failed = len < 0;
-
-    if (failed){
-        len *= -1;
-    }
-
-    write(STDERR_FILENO, buf, len);
-}
-
-static int lookup(u8_t * rtsp)
+static int lookup(char * rtsp)
 {
     u8_t sdp[3000];
-    ssize_t sdplen = aes67_rtsp_describe_url(rtsp, sdp, sizeof(sdp), rtsp_hdr_handler);
+    ssize_t sdplen = aes67_rtsp_dsc_easy_url(rtsp, sdp, sizeof(sdp));
 
     if (opts.verbose){
         fprintf(stderr, "RTSP-DESCRIBE %s %s\n", sdp > 0 ? "OK" : "FAIL", rtsp);
@@ -84,6 +84,45 @@ static int lookup(u8_t * rtsp)
 
     return EXIT_SUCCESS;
 }
+
+
+//static int lookup2(u8_t * rtsp)
+//{
+//    struct aes67_net_addr addr;
+//
+//    if (memcmp(rtsp, "rtsp://", sizeof("rtsp://")-1) != 0){
+//        return EXIT_FAILURE;
+//    }
+//
+//
+//
+//
+//    struct aes67_rtsp_dsc_res_st res;
+//
+//    aes67_rtsp_dsc_init(&res, true);
+//
+//    if (aes67_rtsp_dsc_start(&res, addr.ipver, addr.addr, addr.port, "/by-name/here-be-kittens.ravenna_27")){
+//        return EXIT_FAILURE;
+//    }
+//
+//    while(res.state != aes67_rtsp_dsc_state_done){
+//        aes67_rtsp_dsc_process(&res);
+//    }
+//
+//    if (opts.verbose){
+//        fprintf(stderr, "RTSP-DESCRIBE %s %s\n", res.contentlen > 0 ? "OK" : "FAIL", rtsp);
+//        fflush(stderr);
+//    }
+//
+//    if (res.contentlen > 0){
+//        write(STDOUT_FILENO, aes67_rtsp_dsc_content(&res), res.contentlen);
+//    }
+//
+//    aes67_rtsp_dsc_deinit(&res);
+//
+//    return (res.contentlen > 0 ? EXIT_SUCCESS : EXIT_FAILURE);
+//}
+
 
 int main(int argc, char * argv[])
 {
@@ -115,12 +154,12 @@ int main(int argc, char * argv[])
     }
 
     if ( optind + 1 == argc ){
-        return lookup((u8_t*)argv[optind]);
+        return lookup(argv[optind]);
     }
 
 
     ssize_t len = 0;
-    u8_t line[256];
+    char line[256];
     ssize_t c;
     while ( (c = read(STDIN_FILENO, &line[len], 1)) != -1) {
 

@@ -32,8 +32,10 @@ extern "C" {
 
 #if AES67_USE_IPv6
 #define AES67_NET_ADDR_SIZE 16
+#define AES67_NET_ADDR_STR_MAX sizeof("[0102:0304:0506:0708:090a:0b0c:0d0e:0f10]:65535")
 #else
 #define AES67_NET_ADDR_SIZE 4
+#define AES67_NET_ADDR_STR_MAX sizeof("123.123.123.123:65535")
 #endif
 
 // the value equals the size in bytes

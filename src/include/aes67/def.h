@@ -127,6 +127,16 @@ void * aes67_memmove(void* dst, const void* src, size_t count);
 void * aes67_memchr( const void * ptr, int ch, size_t count );
 #endif
 
+#define aes67_ischar_insensitive(this_char, is_like_lc) ( ((this_char) < 'a' ? (this_char) + ('a' - 'A'): (this_char) ) == (is_like_lc))
+
+#ifndef aes67_strnlen
+u32_t aes67_strnlen(const char * str, size_t count);
+#endif
+
+#ifndef aes67_strncpy
+u32_t aes67_strncpy(char * dst, const char * src, size_t count);
+#endif
+
 #ifndef aes67_bintohex
 void aes67_bintohex(u8_t * bytes, u32_t nbytes, u8_t * str);
 #endif

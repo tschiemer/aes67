@@ -27,6 +27,7 @@
 #ifndef AES67_UTILS_RTSP_H
 #define AES67_UTILS_RTSP_H
 
+#include <stdbool.h>
 #include "aes67/arch.h"
 #include "aes67/net.h"
 
@@ -39,20 +40,62 @@ extern "C" {
 
 #define AES67_RTSP_STATUS_OK        200
 
+#define AES67_RTSP_BUFSIZE          1500
+    
+
+enum aes67_rtsp_dsc_state {
+    aes67_rtsp_dsc_state_bored,
+    aes67_rtsp_dsc_state_querying,
+    aes67_rtsp_dsc_state_awaiting_response,
+    aes67_rtsp_dsc_state_done
+};
+
+struct aes67_rtsp_dsc_res_st {
+    volatile enum aes67_rtsp_dsc_state state;
+
+    bool blocking;
+    int sockfd;
+
+    u8_t buf[AES67_RTSP_BUFSIZE];
+    u16_t buflen;
+
+    u8_t * line;
+    u16_t llen;
+
+    u16_t resultcode;
+    u16_t hdrlen;
+    u16_t contentlen;
+};
+
+void aes67_rtsp_dsc_init(struct aes67_rtsp_dsc_res_st * res, bool blocking);
+void aes67_rtsp_dsc_deinit(struct aes67_rtsp_dsc_res_st * res);
+int aes67_rtsp_dsc_start(
+        struct aes67_rtsp_dsc_res_st * res,
+        const enum aes67_net_ipver ipver,
+        const u8_t *ip,
+        const u16_t port,
+        const char * encoded_uri
+);
+void aes67_rtsp_dsc_stop(struct aes67_rtsp_dsc_res_st * res);
+void aes67_rtsp_dsc_process(struct aes67_rtsp_dsc_res_st * res);
+
+inline const u8_t * aes67_rtsp_dsc_content(struct aes67_rtsp_dsc_res_st * res)
+{
+    return res->contentlen ? &res->buf[res->hdrlen] : NULL;
+}
 
 typedef void (*aes67_rtsp_header_handler)(u8_t * buf, ssize_t len);
 
-ssize_t aes67_rtsp_describe(
+ssize_t aes67_rtsp_dsc_easy(
         const u8_t *ip,
         const enum aes67_net_ipver ipver,
         const u16_t port,
-        const u8_t *uri,
+        const char *uri,
         u8_t *sdp,
-        size_t maxlen,
-        aes67_rtsp_header_handler hdr_handler
+        size_t maxlen
 );
 
-ssize_t aes67_rtsp_describe_url(const u8_t *url, u8_t *sdp, size_t maxlen, aes67_rtsp_header_handler hdr_handler);
+ssize_t aes67_rtsp_dsc_easy_url(const char *url, u8_t *sdp, size_t maxlen);
 
 #ifdef __cplusplus
 extern "C" {

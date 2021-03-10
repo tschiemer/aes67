@@ -117,6 +117,29 @@ void * aes67_memchr( const void * ptr, int ch, size_t count )
 }
 #endif //aes67_memchr
 
+
+#ifndef aes67_strnlen
+u32_t aes67_strnlen(const char * str, size_t count)
+{
+    char * s = (char*)str;
+    while(*s++ != '\0' && count--){
+        // do nothing
+    }
+    return s - str;
+}
+#endif
+
+#ifndef aes67_strncpy
+u32_t aes67_strncpy(char * dst, const char * src, size_t count)
+{
+    char * s = (char*)src;
+    while(*s != '\0' && count--){
+        *dst++ = *s++;
+    }
+    return s - src;
+}
+#endif
+
 #ifndef aes67_atohex
 void aes67_bintohex(u8_t * bytes, u32_t nbytes, u8_t * str)
 {
