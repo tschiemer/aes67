@@ -1,9 +1,6 @@
 /**
  * @file mdns.h
  * Common abstraction of mDNS service.
- *
- * References:
- * Real-Time Streaming Protocol Version 2.0 https://tools.ietf.org/html/rfc7826
  */
 
 /**

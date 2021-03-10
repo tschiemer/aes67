@@ -2,7 +2,6 @@
  * @file daemonize.h
  * Helper to quickly daemonize the current process.
  *
- *
  * References:
  * Thanks to Pascal Werkl https://stackoverflow.com/a/17955149/1982142
  */

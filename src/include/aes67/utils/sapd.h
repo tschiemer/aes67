@@ -1,4 +1,9 @@
 /**
+ * @file sapd.h
+ * SAP daemon defines, in particular as used for/by local clients.
+ */
+
+/**
  * AES67 Framework
  * Copyright (C) 2021  Philip Tschiemer, https://github.com/tschiemer/aes67
  *

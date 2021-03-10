@@ -1,4 +1,9 @@
 /**
+ * @file sapsrv.h
+ * SAP server module
+ */
+
+/**
  * AES67 Framework
  * Copyright (C) 2021  Philip Tschiemer, https://github.com/tschiemer/aes67
  *
