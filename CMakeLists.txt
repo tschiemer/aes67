@@ -97,7 +97,7 @@ set_property(TARGET aes67 PROPERTY LINKER_LANGUAGE C)
 
 add_subdirectory("${AES67_DIR}/test" EXCLUDE_FROM_ALL)
 
-add_subdirectory("${AES67_DIR}/src/utils" EXCLUDE_FROM_ALL)
+add_subdirectory("${AES67_DIR}/src/utils")
 
 #list(APPEND AES67_TARGET_LIST mytest)
 #add_executable(mytest test.c)
