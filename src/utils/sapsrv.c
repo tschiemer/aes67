@@ -27,6 +27,7 @@
 #include <libproc.h>
 #include <ifaddrs.h>
 #include <syslog.h>
+#include <errno.h>
 
 
 typedef struct sapsrv_session_st {
@@ -226,8 +227,7 @@ int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if)
     }
 
     if (setsockopt(sockfd, proto, optname, &mreq, optlen) < 0){
-        perror("setsockopt(IP_ADD_MEMBERSHIP/IPV6_JOIN_GROUP) failed (scope)");
-        syslog(LOG_ERR, "failed joining mcast");
+        syslog(LOG_ERR, "setsockopt(IP_ADD_MEMBERSHIP/IPV6_JOIN_GROUP) failed (scope): %s", strerror(errno));
         return EXIT_FAILURE;
     }
 
@@ -237,27 +237,27 @@ int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if)
 static int join_mcast_groups(sapsrv_t * server, u32_t scopes)
 {
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && aes67_sapsrv_join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL, server->ipv6_if)){
-        perror("4gl");
+        syslog(LOG_ERR, "4gl: %s", strerror(errno));
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && aes67_sapsrv_join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED, server->ipv6_if)){
-        perror("4al");
+        syslog(LOG_ERR, "4al: %s", strerror(errno));
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL, server->ipv6_if)){
-        perror("6ll");
+        syslog(LOG_ERR, "6ll: %s", strerror(errno));
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_IPv4) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_IPv4, server->ipv6_if)){
-        perror("6al");
+        syslog(LOG_ERR, "6al: %s", strerror(errno));
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL, server->ipv6_if)){
-        perror("6al");
+        syslog(LOG_ERR, "6al: %s", strerror(errno));
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL, server->ipv6_if)){
-        perror("6sl");
+        syslog(LOG_ERR, "6sl: %s", strerror(errno));
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
@@ -306,7 +306,7 @@ int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if
     }
 
     if (setsockopt(sockfd, IPPROTO_IP, optname, &mreq, optlen) < 0){
-        perror("setsockopt(IP_DROP_MEMBERSHIP/IPV6_LEAVE_GROUP) failed");
+        syslog(LOG_ERR, "setsockopt(IP_DROP_MEMBERSHIP/IPV6_LEAVE_GROUP): %s", strerror(errno));
         return EXIT_FAILURE;
     }
 
@@ -341,13 +341,13 @@ static int set_sock_reuse(int sockfd)
 {
     // set addr/port reuse
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &(int){1}, sizeof(int)) < 0) {
-        perror("setsockopt(SO_REUSEADDR) failed");
+        syslog(LOG_ERR, "setsockopt(SO_REUSEADDR): %s", strerror(errno));
         return EXIT_FAILURE;
     }
 
 #ifdef SO_REUSEPORT
     if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEPORT, &(int){1}, sizeof(int)) < 0){
-        perror("setsockopt(SO_REUSEPORT) failed");
+        syslog(LOG_ERR, "setsockopt(SO_REUSEPORT): %s", strerror(errno));
         return EXIT_FAILURE;
     }
 #endif
@@ -420,7 +420,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
     if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL)){
         memcpy(&addr_in.sin_addr, (u8_t[])AES67_SAP_IPv4_GLOBAL, 4);
         if ( (s = sendto(server->sockfd4, sap, saplen, 0, (struct sockaddr*)&addr_in, addr_in.sin_len)) != saplen){
-            syslog(LOG_ERR, "ipv4-g tx failed (%zd)", s);
+            syslog(LOG_ERR, "ipv4-g tx (%zd)", s);
         } else {
             syslog(LOG_DEBUG, "ipv4-g tx %zd", s);
         }
@@ -428,7 +428,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
     if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED)){
         memcpy(&addr_in.sin_addr, (u8_t[])AES67_SAP_IPv4_ADMIN, 4);
         if ( (s = sendto(server->sockfd4, sap, saplen, 0, (struct sockaddr*)&addr_in, addr_in.sin_len)) != saplen){
-            syslog(LOG_ERR, "ipv4-a tx failed (%zd)", s);
+            syslog(LOG_ERR, "ipv4-a tx (%zd)", s);
         } else {
             syslog(LOG_DEBUG, "ipv4-a tx %zd", s);
         }
@@ -436,7 +436,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
     if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)){
         memcpy(&addr_in6.sin6_addr, (u8_t[])AES67_SAP_IPv6_LL, 16);
         if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, addr_in6.sin6_len)) != saplen){
-            syslog(LOG_ERR, "ipv6-ll tx failed (%zd)", s);
+            syslog(LOG_ERR, "ipv6-ll tx (%zd)", s);
         } else {
             syslog(LOG_DEBUG, "ipv6-ll tx %zd", s);
         }
@@ -444,7 +444,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
     if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL)){
         memcpy(&addr_in6.sin6_addr, (u8_t[])AES67_SAP_IPv6_AL, 16);
         if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, addr_in6.sin6_len)) != saplen){
-            syslog(LOG_ERR, "ipv6-al tx failed (%zd)", s);
+            syslog(LOG_ERR, "ipv6-al tx (%zd)", s);
         } else {
             syslog(LOG_DEBUG, "ipv6-al tx %zd", s);
         }
@@ -452,7 +452,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
     if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv6_IPv4)){
         memcpy(&addr_in6.sin6_addr, (u8_t[])AES67_SAP_IPv6_IP4, 16);
         if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, addr_in6.sin6_len)) != saplen){
-            syslog(LOG_ERR, "ipv6-v4 tx failed (%zd)", s);
+            syslog(LOG_ERR, "ipv6-v4 tx (%zd)", s);
         } else {
             syslog(LOG_DEBUG, "ipv6-v4 tx %zd", s);
         }
@@ -460,7 +460,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
     if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL)){
         memcpy(&addr_in6.sin6_addr, (u8_t[])AES67_SAP_IPv6_SL, 16);
         if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, addr_in6.sin6_len)) != saplen){
-            syslog(LOG_ERR, "ipv6-sl tx failed (%zd)", s);
+            syslog(LOG_ERR, "ipv6-sl tx (%zd)", s);
         } else {
             syslog(LOG_DEBUG, "ipv6-sl tx %zd", s);
         }
@@ -637,7 +637,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
         }
 
         if (bind(server->sockfd4, (struct sockaddr*)&server->addr4, server->addr4.sin_len) == -1){
-            perror("ipv4 bind() failed");
+            syslog(LOG_ERR, "ipv4 bind(): %s", strerror(errno));
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
             }
@@ -648,7 +648,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
         // set non-blocking stdin
         int flags = fcntl(server->sockfd4, F_GETFL, 0);
         if (fcntl(server->sockfd4, F_SETFL, flags|O_NONBLOCK) == -1){
-            perror("ipv4 fcntl(sockfd4,..,O_NONBLOCK)");
+            syslog(LOG_ERR, "ipv4 fcntl(sockfd4,..,O_NONBLOCK): %s", strerror(errno));
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
             }
@@ -682,7 +682,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
         }
 
         if (bind(server->sockfd6, (struct sockaddr*)&server->addr6, server->addr6.sin6_len) == -1){
-            perror("ipv6 bind() failed");
+            syslog(LOG_ERR, "ipv6 bind(): %s", strerror(errno));
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
             }
@@ -694,7 +694,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
         // set non-blocking stdin
         int flags = fcntl(server->sockfd6, F_GETFL, 0);
         if (fcntl(server->sockfd6, F_SETFL, flags|O_NONBLOCK) == -1){
-            perror("fcntl(sockfd6,..,O_NONBLOCK)");
+            syslog(LOG_ERR, "fcntl(sockfd6,..,O_NONBLOCK): %s", strerror(errno));
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
             }
