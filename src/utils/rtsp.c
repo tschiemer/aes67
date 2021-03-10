@@ -28,12 +28,16 @@
 #include <netdb.h>
 #include <search.h>
 
-WEAK_FUN void aes67_rtsp_header(u8_t * buf, ssize_t len)
-{
-    // do nothing
-}
 
-ssize_t  aes67_rtsp_describe(const u8_t * ip, const enum aes67_net_ipver ipver, const u16_t port, const u8_t * uri, u8_t * sdp, size_t maxlen) {
+ssize_t aes67_rtsp_describe(
+        const u8_t *ip,
+        const enum aes67_net_ipver ipver,
+        const u16_t port,
+        const u8_t *uri,
+        u8_t *sdp,
+        size_t maxlen,
+        aes67_rtsp_header_handler hdr_handler
+) {
     int sockfd = -1;
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -61,7 +65,7 @@ ssize_t  aes67_rtsp_describe(const u8_t * ip, const enum aes67_net_ipver ipver, 
 
     u8_t *p = (uri == NULL) ? (u8_t *) "" : (u8_t*)uri;
 
-    size_t len = sprintf((char *) buf,
+    size_t len = snprintf((char *) buf, sizeof(buf),
                          "DESCRIBE rtsp://%s%s RTSP/1.0\r\n"
                          "CSeq: 1\r\n"
                          "Accept: application/sdp\r\n"
@@ -104,14 +108,18 @@ ssize_t  aes67_rtsp_describe(const u8_t * ip, const enum aes67_net_ipver ipver, 
 
     // body not found
     if (body >= &buf[r]) {
-        aes67_rtsp_header(buf, r);
+        if (hdr_handler != NULL){
+            hdr_handler(buf, r);
+        }
 
         return -1;
     }
 
     size_t contentLength = r - (body - buf);
 
-    aes67_rtsp_header(buf, r - contentLength - 2);
+    if (hdr_handler != NULL){
+        hdr_handler(buf, r - contentLength - 2);
+    }
 
     if (contentLength > maxlen){
         contentLength = maxlen;
@@ -123,7 +131,7 @@ ssize_t  aes67_rtsp_describe(const u8_t * ip, const enum aes67_net_ipver ipver, 
 }
 
 
-ssize_t aes67_rtsp_describe_url(const u8_t * url, u8_t * sdp, size_t maxlen)
+ssize_t aes67_rtsp_describe_url(const u8_t *url, u8_t *sdp, size_t maxlen, aes67_rtsp_header_handler hdr_handler)
 {
     AES67_ASSERT("url != NULL", url != NULL);
     AES67_ASSERT("sdp != NULL", sdp != NULL);
@@ -197,5 +205,5 @@ ssize_t aes67_rtsp_describe_url(const u8_t * url, u8_t * sdp, size_t maxlen)
 
 //    printf("%d.%d.%d.%d:%d (%d) %s (%lu)\n", ip.addr[0], ip.addr[1], ip.addr[2], ip.addr[3], ip.port, ip.ipver, (char*)uri, strlen((char*)uri));
 //    return 0;
-    return aes67_rtsp_describe(ip.addr, ip.ipver, ip.port, uri, sdp, maxlen);
+    return aes67_rtsp_describe(ip.addr, ip.ipver, ip.port, uri, sdp, maxlen, hdr_handler);
 }

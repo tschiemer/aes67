@@ -48,7 +48,7 @@ static void help(FILE * fd)
             , argv0);
 }
 
-void aes67_rtsp_header(u8_t * buf, ssize_t len)
+static void rtsp_hdr_handler(u8_t * buf, ssize_t len)
 {
     if (!opts.print_rtsp){
         return;
@@ -66,7 +66,7 @@ void aes67_rtsp_header(u8_t * buf, ssize_t len)
 static int lookup(u8_t * rtsp)
 {
     u8_t sdp[3000];
-    ssize_t sdplen = aes67_rtsp_describe_url(rtsp, sdp, sizeof(sdp));
+    ssize_t sdplen = aes67_rtsp_describe_url(rtsp, sdp, sizeof(sdp), rtsp_hdr_handler);
 
     if (opts.verbose){
         fprintf(stderr, "RTSP-DESCRIBE %s %s\n", sdp > 0 ? "OK" : "FAIL", rtsp);
