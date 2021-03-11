@@ -34,20 +34,6 @@ extern "C" {
 #define AES67_SAPD_WITH_RAV  1
 #endif
 
-#if AES67_SAPD_WITH_RAV == 1
-/**
- * Default setting (see command line options)
- * do not publish immediately, ie wait some time after retrieving the session description in case the session
- * will also be announce through SAP (which will is controlled by the device)
- * Set to zero to publish immediately.
- */
-#define AES67_SAPD_RAV_PUBLISH_DELAY_DEFAULT    5
-/**
- * Default setting (see command line options)
- * Check if (published) ravenna sessions have changed after this time.
- */
-#define AES67_SAPD_RAV_UPDATE_INTERVAL_DEFAULT     0
-#endif
 
 #define AES67_SAPD_NAME        "sapd"
 #define AES67_SAPD_VERSION     "0.1.0"
@@ -70,6 +56,7 @@ extern "C" {
 #define AES67_SAPD_ERR_UNKNOWN      4
 #define AES67_SAPD_ERR_TOOBIG       5
 #define AES67_SAPD_ERR_INVALID      6
+#define AES67_SAPD_ERR_NOTENABLED   7
 
 #define AES67_SAPD_MSG_OK           "OK"
 
@@ -85,7 +72,7 @@ extern "C" {
  * DEL      a session was explicitly deleted
  * TMT      a timeout for a session occurred, treat like deleted
  */
-#define AES67_SAPD_MSGU_INFO        "+MSG"
+#define AES67_SAPD_MSGU_INFO        "+INFO"
 #define AES67_SAPD_MSGU_NEW         "+NEW"
 #define AES67_SAPD_MSGU_NEW_FMT     "+NEW %d o=%s %s %s IN IP%d %s"
 #define AES67_SAPD_MSGU_UPDATED     "+UPD"
@@ -95,10 +82,14 @@ extern "C" {
 #define AES67_SAPD_MSGU_TIMEOUT     "+TMT"
 #define AES67_SAPD_MSGU_TIMEOUT_FMT "+TMT o=%s %s %s IN IP%d %s"
 
+#define AES67_SAPD_MSGU_DUPLICATE   "+DUP"
+#define AES67_SAPD_MSGU_DUPLICATE_FMT "+DUP o=%s %s %s IN IP%d %s"
+
 #define AES67_SAPD_MSGU_RAV_NEW     "+RAVNEW"
 #define AES67_SAPD_MSGU_RAV_NEW_FMT "+RAVNEW %s %s %d %s"
 #define AES67_SAPD_MSGU_RAV_DEL     "+RAVDEL"
 #define AES67_SAPD_MSGU_RAV_DEL_FMT "+RAVDEL %s"
+
 
 /**
  * LIST known SDPs
@@ -114,11 +105,11 @@ extern "C" {
  *  <last-activity> timestamp
  *  <sdp-len>       length of sdp payload which follows terminating NL
  *  <origin>        SDP conform originator-line (without CRNL)
- *  <sdp>           SDP payload
+ *  <sdp>           SDP payload (only given if <sdp-len> is greater than 0), with exact length of <sdp-len> bytes
  */
 #define AES67_SAPD_CMD_LIST         "ls"
-#define AES67_SAPD_CMD_LIST_V_FMT   "ls %b"
-//#define AES67_SAPD_CMD_LIST_VM_FMT  "ls %b %d"
+#define AES67_SAPD_CMD_LIST_V_FMT   "ls %d"
+//#define AES67_SAPD_CMD_LIST_VM_FMT  "ls %d %d"
 #define AES67_SAPD_RESULT_LIST      "LS"
 #define AES67_SAPD_RESULT_LIST_FMT  "LS %d %d %d o=%s %s %s IN IP%d %s"
 
@@ -144,21 +135,66 @@ extern "C" {
 #define AES67_SAPD_CMD_UNSET        "unset"
 #define AES67_SAPD_CMD_UNSET_FMT    "unset o=%s %s %s IN IP%d %s"
 
+
 /**
- * RAVLIST know ravenna sessions
+ * Handover authority of a locally managed session to remote devices
+ * Implies unpublishing of rav session
  *
- * Command: ravls NL
+ * Command: handover <origin>
+ *
+ * On success returns OK (NL)
+ * Informas any other connections clients through an unsolicited INFO message
+ */
+#define AES67_SAPD_CMD_HANDOVER     "handover"
+#define AES67_SAPD_CMD_HANDOVER_FMT "handover o=%s %s %s IN IP%d %s"
+
+/**
+ * Takeover authority of a session announced by a remote device
+ *
+ * Command: handover <origin>
+ *
+ * On success returns OK (NL)
+ * Informas any other connections clients through an unsolicited INFO message
+ */
+#define AES67_SAPD_CMD_TAKEOVER     "takeover"
+#define AES67_SAPD_CMD_TAKEOVER_FMT "takeover o=%s %s %s IN IP%d %s"
+
+/**
+ * RAVLIST known ravenna sessions
+ *
+ * Command: ravls [SPACE <return-sdp> [SPACE <session-name>]] NL
+ *  <return-sdp>    0 (default) do not return, 1 do return -> if 0 implies returned <sdp-len> = 0
+ *  <origin>        If given will only return matching session
  *
  * On success returns a series of RAVLS items (see below) terminated by an OK (NL)
  *
- * RAVLS SPACE <last-activity> SPACE <hosttarget> SPACE <port> SPACE <ipv4> SPACE <session-name> NL
+ * RAVLS SPACE <state> SPACE <last-activity> SPACE <sdp-len> SPACE <hosttarget> SPACE <port> SPACE <ipv4> SPACE <session-name> NL [<sdp>]
+ *
+ *  <state>             (also see enum rav_state in sapd.c)
+ *                          0   error (inactive)
+ *                          1   discovered but no sdp yet
+ *                          2   discovered and available sdp but not yet published through SAP
+ *                          3   published through SAP
+ *                          (4  published + updated (note, this is an transitory state and should be treated like 3)
+ *                          5   not published (ie inactive), most likely because was announced through SAP by another host
+ *  <last-activity>     typical timestamp in sec from last update
+ *  <sdp-len>           length of sdp payload which follows terminating NL
+ *  <hosttarget>        hostname as discovered through mdns
+ *  <port>              port of rtsp service
+ *  <ipv4-str>          parsable IPv4 string
+ *  <session-name>      (unique) ravenna session name (can contain spaces)
+ *  <sdp>               SDP payload (only given if <sdp-len> is greater than 0), with exact length of <sdp-len> bytes
  */
 #define AES67_SAPD_CMD_RAV_LIST         "ravls"
-//#define AES67_SAPD_CMD_RAV_LIST_FMT     "ravls %s"
+//#define AES67_SAPD_CMD_RAV_LIST_FMT     "ravls %d %s"
 #define AES67_SAPD_RESULT_RAV_LIST      "RAVLS"
-#define AES67_SAPD_RESULT_RAV_LIST_FMT  "RAVLS %d %s %s"
+#define AES67_SAPD_RESULT_RAV_LIST_FMT  "RAVLS %d %d %s %s"
 
 
+#define AES67_SAPD_CMD_RAV_PUBLISH      "ravpub"
+#define AES67_SAPD_CMD_RAV_PUBLISH_FMT  "ravpub %s"
+#define AES67_SAPD_CMD_RAV_UNPUBLISH    "ravunpub"
+#define AES67_SAPD_CMD_RAV_UNPUBLISH_FMT "ravunpub %s"
 #ifdef __cplusplus
 }
 #endif

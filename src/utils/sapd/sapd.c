@@ -49,9 +49,13 @@
 
 #if AES67_SAPD_WITH_RAV == 1
 
-#define RAV_MAX_PUBLISH_DELAY   360
-#define RAV_MAX_UPDATE_INTERVAL 360
+#define RAV_PUBLISH_DELAY_DEFAULT 5
+#define RAV_PUBLISH_DELAY_MAX   360
 
+#define RAV_UPDATE_INTERVAL_DEFAULT 0
+#define RAV_UPDATE_INTERVAL_MAX 360
+
+#define RAV_RTSP_NERR_BEFORE_FAIL 5
 
 enum rav_state {
     rav_state_error = 0,
@@ -73,6 +77,7 @@ struct rav_session_st {
 
     enum rav_state state;
     time_t last_activity;
+    u8_t error_count;
 
     struct rav_session_st * next;
 };
@@ -145,7 +150,14 @@ static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * exc
 static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_unset(struct connection_st * con, u8_t * cmdline, size_t len);
+static void cmd_handover(struct connection_st * con, u8_t * cmdline, size_t len);
+static void cmd_takeover(struct connection_st * con, u8_t * cmdline, size_t len);
 
+#if AES67_SAPD_WITH_RAV == 1
+static void cmd_rav_list(struct connection_st * con, u8_t * cmdline, size_t len);
+static void cmd_rav_publish(struct connection_st * con, u8_t * cmdline, size_t len);
+static void cmd_rav_unpublish(struct connection_st * con, u8_t * cmdline, size_t len);
+#endif
 
 
 
@@ -160,8 +172,10 @@ static struct {
     unsigned int ipv6_if;
 #if AES67_SAPD_WITH_RAV == 1
     bool rav_enabled;
+    bool rav_auto_publish;
     uint16_t rav_publish_delay;
     uint16_t rav_update_interval;
+    bool rav_handover;
 #endif// AES67_SAPD_WITH_RAV == 1
 
 } opts = {
@@ -173,8 +187,10 @@ static struct {
         .ipv6_if = 0,
 #if AES67_SAPD_WITH_RAV == 1
         .rav_enabled = false,
-        .rav_publish_delay = AES67_SAPD_RAV_PUBLISH_DELAY_DEFAULT,
-        .rav_update_interval = AES67_SAPD_RAV_UPDATE_INTERVAL_DEFAULT
+        .rav_auto_publish = true,
+        .rav_publish_delay = RAV_PUBLISH_DELAY_DEFAULT,
+        .rav_update_interval = RAV_UPDATE_INTERVAL_DEFAULT,
+        .rav_handover = true
 #endif // AES67_SAPD_WITH_RAV == 1
 };
 
@@ -215,10 +231,16 @@ static struct {
 
 
 static const struct cmd_st commands[] = {
-//        CMD_INIT(AES67_SAPD_CMD_HELP, cmd_help),
         CMD_INIT(AES67_SAPD_CMD_LIST, cmd_list),
         CMD_INIT(AES67_SAPD_CMD_SET, cmd_set),
-        CMD_INIT(AES67_SAPD_CMD_UNSET, cmd_unset)
+        CMD_INIT(AES67_SAPD_CMD_UNSET, cmd_unset),
+        CMD_INIT(AES67_SAPD_CMD_HANDOVER, cmd_handover),
+        CMD_INIT(AES67_SAPD_CMD_TAKEOVER, cmd_takeover),
+#if AES67_SAPD_WITH_RAV == 1
+        CMD_INIT(AES67_SAPD_CMD_RAV_LIST, cmd_rav_list),
+        CMD_INIT(AES67_SAPD_CMD_RAV_PUBLISH, cmd_rav_publish),
+        CMD_INIT(AES67_SAPD_CMD_RAV_UNPUBLISH, cmd_rav_unpublish)
+#endif
 };
 
 #define COMMAND_COUNT (sizeof(commands) / sizeof(struct cmd_st))
@@ -231,13 +253,14 @@ static const char * error_msg[] = {
         "Unknown session",        // AES67_SAPD_ERR_UNKNOWN
         "SDP too big",            // AES67_SAPD_ERR_TOOBIG
         "Invalid..",                // AES67_SAPD_ERR_INVALID
+        "Feature not enabled"     // AES67_SAPD_ERR_NOTENABLED
 };
 
 #define ERROR_COUNT (sizeof(error_msg) / sizeof(char *))
 
 static void help(FILE * fd)
 {
-    fprintf( fd,
+    fprintf(fd,
              "Usage: %s [-h|-?] | [-d] [-p <port>] [--l <mcast-scope>] [--s <mcast-scope>] [--ipv6-if <ifname>] ..\n"
              "Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and keeps announcing\n"
              "specified SDPs on network.\n"
@@ -261,25 +284,32 @@ static void help(FILE * fd)
             "\t --ipv6-if\t IPv6 interface to listen on (default interface can fail)\n"
  #if AES67_SAPD_WITH_RAV == 1
             "\t --rav\t\t Enable Ravenna session lookups\n"
+            "\t --rav-no-autopub\t Disable automatic publishing of discovered ravenna sessions\n"
              "\t --rav-pub-delay <delay-sec>\n"
-             "\t\t\t Wait for this many seconds before publishing discovered ravenna devices through SAP (0 .. %d, default %d)\n"
+             "\t\t\t Wait for this many seconds before publishing discovered ravenna sessions\n"
+             "\t\t\t through SAP (0 .. %d, default %d)\n"
              "\t --rav-upd-interval <interval-sec>\n"
-             "\t\t\t Wait for this many seconds checking for SDP change of already published ravenna device (0 .. %d, default %d)\n"
+             "\t\t\t Wait for this many seconds checking for SDP change of already published\n"
+             "\t\t\t ravenna device (0 .. %d, default %d)\n"
+             "\t --rav-no-handover\n"
+             "\t\t\t Discovered ravenna session that are also found through SAP will give NOT\n"
+             "\t\t\t up local management (assuming another source, possibly the originating device)\n"
+             "\t\t\t will actually handle this)."
  #endif
             "\nCompile time options:\n"
-            "\t AES67_SAP_MIN_INTERVAL_SEC %d \t // +- announce time, depends on SAP traffic\n"
-            "\t AES67_SAP_MIN_TIMEOUT_SEC %d \n"
-            "\t AES67_SAPD_WITH_RAV %d\n"
+            "\t AES67_SAP_MIN_INTERVAL_SEC \t %d \t // +- announce time, depends on SAP traffic\n"
+            "\t AES67_SAP_MIN_TIMEOUT_SEC \t %d \n"
+            "\t AES67_SAPD_WITH_RAV \t\t %d \t // Ravenna sessions supported?\n"
              "\nExamples:\n"
              "sudo %s -v --ipv6-if en7 & socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
             , argv0,
             (u16_t)AES67_SAP_PORT,
-            RAV_MAX_PUBLISH_DELAY, AES67_SAPD_RAV_PUBLISH_DELAY_DEFAULT,
-            RAV_MAX_UPDATE_INTERVAL, AES67_SAPD_RAV_UPDATE_INTERVAL_DEFAULT,
+            RAV_PUBLISH_DELAY_MAX, RAV_PUBLISH_DELAY_DEFAULT,
+            RAV_UPDATE_INTERVAL_MAX, RAV_UPDATE_INTERVAL_DEFAULT,
             AES67_SAP_MIN_INTERVAL_SEC,
             AES67_SAP_MIN_TIMEOUT_SEC,
-             AES67_SAPD_WITH_RAV,
-             argv0);
+            AES67_SAPD_WITH_RAV,
+            argv0);
 }
 
 static void sig_int(int sig)
@@ -429,11 +459,7 @@ static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sap
     if (event == aes67_sapsrv_event_discovered){
         syslog(LOG_INFO, "SAP: discovered (payload %d): %s", payloadlen, ostr);
 
-        mlen = snprintf((char*)msg, sizeof(msg), "%s %d %s\n",
-                        AES67_SAPD_MSGU_NEW,
-                        payloadlen,
-                        ostr
-        );
+        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_NEW " %d %s\n", payloadlen, ostr);
 
         if (mlen + payloadlen + 1 >= sizeof(msg)){
             syslog(LOG_ERR, "not enough memory");
@@ -450,11 +476,7 @@ static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sap
     else if (event == aes67_sapsrv_event_updated){
         syslog(LOG_INFO, "SAP: updated (payload %d): %s", payloadlen, ostr);
 
-        mlen = snprintf((char*)msg, sizeof(msg), "%s %d %s\n",
-                        AES67_SAPD_MSGU_UPDATED,
-                        payloadlen,
-                        ostr
-        );
+        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_UPDATED " %d %s\n", payloadlen, ostr);
 
         if (mlen + payloadlen + 1 >= sizeof(msg)){
             syslog(LOG_ERR, "not enough memory");
@@ -471,40 +493,50 @@ static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sap
     else if (event == aes67_sapsrv_event_deleted){
         syslog(LOG_INFO, "SAP: deleted: %s", ostr);
 
-        mlen = snprintf((char*)msg, sizeof(msg), "%s %s\n",
-                        AES67_SAPD_MSGU_DELETED,
-                        ostr
-        );
+        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_DELETED " %s\n", ostr);
 
         write_toall_except(msg, mlen, NULL);
     }
     else if (event == aes67_sapsrv_event_timeout){
         syslog(LOG_INFO, "SAP: timeout: %s", ostr);
 
-        mlen = snprintf((char*)msg, sizeof(msg), "%s %s\n",
-                        AES67_SAPD_MSGU_TIMEOUT,
-                        ostr
-        );
+        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_TIMEOUT " %s\n", ostr);
 
         write_toall_except(msg, mlen, NULL);
     }
     else if (event == aes67_sapsrv_event_remote_duplicate){
         syslog(LOG_INFO, "SAP: remote duplicate detected: %s", ostr);
 
-        //TODO either disown locally managed or ignore
+#if AES67_SAPD_WITH_RAV == 1
 
         //disowning makes sense in case of ravenna based discovery assuming the device finally published its service
         //through SAP *after* we've done so
-
-#if AES67_SAPD_WITH_RAV == 1
-
         struct rav_session_st * ravsession = rav_session_find_by_origin((struct aes67_sdp_originator*)origin);
-        if (ravsession != NULL){
-            syslog(LOG_INFO, "swapping management of rav session to remote");
-            aes67_sapsrv_session_set_managedby(sapsession, AES67_SAPSRV_MANAGEDBY_REMOTE);
-            ravsession->state = rav_state_sdp_not_published;
+        if (opts.rav_handover && ravsession != NULL){
+
+            // only consider published rav sessions (check shouldn't be needed, but let's play it safe)
+            if (ravsession->state == rav_state_sdp_published || ravsession->state == rav_state_sdp_updated){
+
+                syslog(LOG_INFO, "rav session " AES67_SAPD_CMD_HANDOVER);
+                aes67_sapsrv_session_set_managedby(sapsrv, sapsession, AES67_SAPSRV_MANAGEDBY_REMOTE);
+                ravsession->state = rav_state_sdp_not_published;
+
+                // notify all about handover
+                mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_INFO " " AES67_SAPD_CMD_HANDOVER " %s\n",
+                                ostr
+                );
+
+                write_toall_except(msg, mlen, NULL);
+            }
+
+            return;
         }
 #endif // AES67_SAPD_WITH_RAV == 1
+
+        // notify all about duplicate
+        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_DUPLICATE " %s\n", ostr);
+
+        write_toall_except(msg, mlen, NULL);
     }
     else {
         syslog(LOG_ERR, "SAP: unrecognized event %d: %s", event, ostr);
@@ -564,6 +596,7 @@ static struct rav_session_st * rav_session_new(const char * name, const char * h
     session->sdplen = 0;
 
     session->last_activity = 0;
+    session->error_count = 0;
 
     session->next = rav.first_session;
     rav.first_session = session;
@@ -689,11 +722,16 @@ static void rav_process()
             struct aes67_sdp_originator origin;
 
             if (aes67_sdp_origin_fromstr(&origin, o, rav.rtsp.contentlen - (o - sdp)) == AES67_SDP_ERROR){
-                rav.rtsp_session->state = rav_state_error;
-                syslog(LOG_ERR, "rav failed to extract originator");
+                if (rav.rtsp_session->state == rav_state_sdp_available || rav.rtsp_session->state == rav_state_sdp_published){
+                    // if prior sdp retrieved, ignore error, assume a temporary fail
+                    //TODO anything to consider? if device went offline, the rtsp start operation will fail
+                } else {
+                    rav.rtsp_session->state = rav_state_error;
+                    syslog(LOG_ERR, "rav failed to extract originator");
+                }
             }
             // if originators are equal (and same version!) this implies that nothing has changed
-            // and that this rav session actually previously retrieved the SDP data
+            // and that this rav session actually previously retrieved identical SDP data
             else if (aes67_sdp_origin_eq(&rav.rtsp_session->origin, &origin) == 1 && aes67_sdp_origin_cmpversion(&rav.rtsp_session->origin, &origin) == 0){
                 // nothing to do, hurray!
 //                rav.rtsp_session->state = rav_state_error;
@@ -704,10 +742,14 @@ static void rav_process()
                 // if originators are equal (but newer version!) this implies that nothing has changed
                 // and that this rav session actually previously retrieved the SDP data
                 if (aes67_sdp_origin_eq(&rav.rtsp_session->origin, &origin) == 1 && aes67_sdp_origin_cmpversion(&rav.rtsp_session->origin, &origin) == -1){
+                // free previous sdp
+//                if (rav.rtsp_session->sdp != NULL){
                     free(rav.rtsp_session->sdp);
                     rav.rtsp_session->sdp = NULL;
                     rav.rtsp_session->sdplen = 0;
                 }
+
+                assert(rav.rtsp_session->sdp == NULL);
 
                 // update SDP info
                 memcpy(&rav.rtsp_session->origin, &origin, sizeof(struct aes67_sdp_originator));
@@ -721,11 +763,12 @@ static void rav_process()
                 rav.rtsp_session->sdplen = rav.rtsp.contentlen;
 
 
-                if (rav.rtsp_session->state == rav_state_discovered){
+                if (rav.rtsp_session->state == rav_state_discovered || (!opts.rav_auto_publish && rav.rtsp_session->state == rav_state_sdp_available)){
                     rav.rtsp_session->state = rav_state_sdp_available;
                 } else if (rav.rtsp_session->state == rav_state_sdp_published){
                     rav.rtsp_session->state = rav_state_sdp_updated;
                 } else {
+                    syslog(LOG_ERR, "sdp retrieved from unexpected state %d", rav.rtsp_session->state);
                     // should not reach here
                     rav.rtsp_session->state = rav_state_error;
                 }
@@ -753,7 +796,9 @@ static void rav_process()
             }
 
             // consider only published sdps that might have to be updated
-            if (opts.rav_update_interval > 0 && session->state == rav_state_sdp_published && (oldest == NULL || session->last_activity < oldest->last_activity )){
+            if (opts.rav_update_interval > 0 &&
+                (session->state == rav_state_sdp_published || (!opts.rav_auto_publish && session->state == rav_state_sdp_available)) &&
+                (oldest == NULL || session->last_activity < oldest->last_activity )){
                 oldest = session;
             }
 
@@ -764,9 +809,10 @@ static void rav_process()
             // if the oldest is too old, let's update it directly
             // otherwise set an alarm
             if (oldest->last_activity < time(NULL) - opts.rav_update_interval){
-                //session = oldest;
+                session = oldest;
             } else {
-                //TODO set alarm to trigger update
+                u32_t wait_sec = opts.rav_update_interval - (time(NULL) - oldest->last_activity);
+                aes67_timer_set(&rav.update_timer, 1000 * wait_sec);
             }
         }
 
@@ -778,10 +824,29 @@ static void rav_process()
             snprintf(uri, sizeof(uri), "/by-name/%s", name);
 
             if (aes67_rtsp_dsc_start(&rav.rtsp, session->addr.ipver, session->addr.addr, session->addr.port, uri)){
-                syslog(LOG_ERR, "rtsp_dsc_start() fail");
+
+                //TODO what can a start fail signify?
+                // - a device gone offline without telling anyone
+
+                if (session->error_count > RAV_RTSP_NERR_BEFORE_FAIL){
+
+                    if (session->state == rav_state_sdp_published){
+                        //TODO actually delete session?
+                        aes67_sapsrv_session_t * ss = aes67_sapsrv_session_by_origin(sapsrv, &session->origin);
+                        if (ss != NULL){
+                            aes67_sapsrv_session_delete(sapsrv, ss, true);
+                        }
+                    }
+
+                    session->state = rav_state_error;
+
+                } else {
+                    session->error_count++;
+                }
 
             } else {
                 rav.rtsp_session = session;
+                session->error_count = 0;
             }
         }
     }
@@ -791,7 +856,7 @@ static void rav_process()
     struct rav_session_st * session = rav.first_session;
     struct rav_session_st * oldest = NULL;
     while(session != NULL){
-        if (session->state == rav_state_sdp_available){
+        if (session->state == rav_state_sdp_available && opts.rav_auto_publish){
 
             if (session->last_activity <= publish_if_older){
 
@@ -825,6 +890,8 @@ static void rav_process()
             if (sapsrvSession != NULL){
 
                 aes67_sapsrv_session_update(sapsrv, sapsrvSession, session->sdp, session->sdplen);
+
+                //TODO inform clients about update
 
                 session->state = rav_state_sdp_published;
             }
@@ -867,6 +934,12 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
 
         // if the session is known already, don't bother about it except for updating it's timestamp
         if (session != NULL){
+            // buuuuut, if a session had an error, reset it to discovered state
+            // maybe it went offline, was unreachable, moved to error state and just came back online
+            if (session->state == rav_state_error){
+                session->state = rav_state_discovered;
+            }
+
             session->last_activity = time(NULL);
             return;
         }
@@ -900,7 +973,6 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
         u8_t msg[256];
 
         u16_t len = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_RAV_DEL_FMT "\n", session->name);
-
 
         write_toall_except(msg, len, NULL);
 
@@ -940,16 +1012,6 @@ static struct connection_st * connection_new(int sockfd, struct sockaddr_un * ad
     return con;
 }
 
-//static struct connection_st * connection_by_fd(int sockfd)
-//{
-//    struct connection_st * current = local.first_connection;
-//    for(; current != NULL; current = current->next){
-//        if (current->sockfd == sockfd){
-//            return current;
-//        }
-//    }
-//    return NULL;
-//}
 
 static void connection_close(struct connection_st * con)
 {
@@ -1226,13 +1288,6 @@ static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * exc
     }
 }
 
-//static void cmd_help(struct connection_st * con, u8_t * cmdline, size_t len)
-//{
-//    write(con->sockfd, "+MSG help\n", sizeof("+MSG help"));
-//
-//    write_ok(con);
-//}
-
 static void write_list_entry(struct connection_st * con, aes67_sapsrv_session_t session, bool return_payload)
 {
     u8_t buf[256 + AES67_SAPSRV_SDP_MAXLEN];
@@ -1393,7 +1448,10 @@ static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len)
 
     if (session == NULL){
         // new SDP
-        u16_t hash = atoi((char*)origin.session_id.data);
+        // we choose the hash randomly to minimize the possibility of hash collisions
+        // that is, device might choose to base the hash off the session id which might lead to problems
+        // when handing over management to a remote source because the locally managed session (sap_service..)
+        u16_t hash = rand(); //atoi((char*)origin.session_id.data);
         session = aes67_sapsrv_session_add(sapsrv, hash, addr.ipver, addr.addr, sdp, sdplen);
     } else {
         // make sure it is a newer version.
@@ -1493,23 +1551,185 @@ static void cmd_unset(struct connection_st * con, u8_t * cmdline, size_t len)
     // now inform all other clients that session was deleted
     u8_t buf[256];
 
-    // "+DEL o=....\n"
-    size_t blen = (sizeof(AES67_SAPD_MSGU_DELETED) + 1) + (len - sizeof(AES67_SAPD_CMD_UNSET));
+    // let's cheat and just reuse the command line given (but we'll have to terminate it)
+    cmdline[len] = '\0';
 
-    if (blen > sizeof(buf)){
-        syslog(LOG_ERR, "buf too small for " AES67_SAPD_MSGU_DELETED " msg, %zu required", blen);
-        return;
-    }
-
-    memcpy(buf, AES67_SAPD_MSGU_DELETED, sizeof(AES67_SAPD_MSGU_DELETED)-1);
-    buf[sizeof(AES67_SAPD_MSGU_DELETED)-1] = ' ';
-    memcpy(&buf[sizeof(AES67_SAPD_MSGU_DELETED)], &cmdline[sizeof(AES67_SAPD_CMD_UNSET)], len - sizeof(AES67_SAPD_CMD_UNSET));
-    buf[blen-1] = '\n';
+    ssize_t blen = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_DELETED " %s\n", &cmdline[sizeof(AES67_SAPD_CMD_UNSET)]);
 
     write_toall_except(buf, blen, con);
 }
 
 
+static void cmd_handover(struct connection_st * con, u8_t * cmdline, size_t len)
+{
+    if (len < sizeof(AES67_SAPD_CMD_UNSET " o=- 1 1 IN IP4 1.2.3.4")){
+        write_error(con, AES67_SAPD_ERR_SYNTAX, NULL);
+        return;
+    }
+
+    // try to parse given originator
+    struct aes67_sdp_originator origin;
+    // note sizeof(..) gives length of string + 1 (terminating null)
+    if (aes67_sdp_origin_fromstr(&origin, &cmdline[sizeof(AES67_SAPD_CMD_HANDOVER)], len - sizeof(AES67_SAPD_CMD_HANDOVER)) == AES67_SDP_ERROR){
+        write_error(con, AES67_SAPD_ERR_SYNTAX, "Invalid origin");
+        return;
+    }
+
+    // lookup session
+    aes67_sapsrv_session_t session = aes67_sapsrv_session_by_origin(sapsrv, &origin);
+    if (session == NULL){
+        write_error(con, AES67_SAPD_ERR_UNKNOWN, NULL);
+        return;
+    }
+
+    if (aes67_sapsrv_session_get_managedby(session) != AES67_SAPSRV_MANAGEDBY_LOCAL){
+        write_error(con, AES67_SAPD_ERR, "Not a locally managed service");
+        return;
+    }
+
+    // delete session
+    aes67_sapsrv_session_set_managedby(sapsrv, session, AES67_SAPSRV_MANAGEDBY_REMOTE);
+
+#if AES67_SAPD_WITH_RAV
+    if (opts.rav_enabled){
+        // if
+        struct rav_session_st * rs = rav_session_find_by_origin(&origin);
+        if (rs != NULL && (rs->state == rav_state_sdp_published || rs->state == rav_state_sdp_updated)){
+            rs->state = rav_state_sdp_not_published;
+        }
+    }
+#endif
+
+    write_ok(con);
+
+
+    // now inform all other clients that session was handed over
+    u8_t buf[256];
+
+    ssize_t blen = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_INFO " " AES67_SAPD_CMD_HANDOVER " %s\n", &cmdline[sizeof(AES67_SAPD_CMD_UNSET)]);
+
+    write_toall_except(buf, blen, con);
+}
+
+static void cmd_takeover(struct connection_st * con, u8_t * cmdline, size_t len)
+{
+    if (len < sizeof(AES67_SAPD_CMD_UNSET " o=- 1 1 IN IP4 1.2.3.4")){
+        write_error(con, AES67_SAPD_ERR_SYNTAX, NULL);
+        return;
+    }
+
+    // try to parse given originator
+    struct aes67_sdp_originator origin;
+    // note sizeof(..) gives length of string + 1 (terminating null)
+    if (aes67_sdp_origin_fromstr(&origin, &cmdline[sizeof(AES67_SAPD_CMD_TAKEOVER)], len - sizeof(AES67_SAPD_CMD_TAKEOVER)) == AES67_SDP_ERROR){
+        write_error(con, AES67_SAPD_ERR_SYNTAX, "Invalid origin");
+        return;
+    }
+
+    // lookup session
+    aes67_sapsrv_session_t session = aes67_sapsrv_session_by_origin(sapsrv, &origin);
+    if (session == NULL){
+        write_error(con, AES67_SAPD_ERR_UNKNOWN, NULL);
+        return;
+    }
+
+    if (aes67_sapsrv_session_get_managedby(session) != AES67_SAPSRV_MANAGEDBY_REMOTE){
+        write_error(con, AES67_SAPD_ERR, "Not a remotely managed service");
+        return;
+    }
+
+    // delete session
+    aes67_sapsrv_session_set_managedby(sapsrv, session, AES67_SAPSRV_MANAGEDBY_LOCAL);
+
+    write_ok(con);
+
+
+    // now inform all other clients that session was handed over
+    u8_t buf[256];
+
+    ssize_t blen = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_INFO " " AES67_SAPD_CMD_TAKEOVER " %s\n", &cmdline[sizeof(AES67_SAPD_CMD_UNSET)]);
+
+    write_toall_except(buf, blen, con);
+}
+
+#if AES67_SAPD_WITH_RAV == 1
+static void cmd_rav_list(struct connection_st * con, u8_t * cmdline, size_t len)
+{
+    if (opts.rav_enabled){
+        write_error(con, AES67_SAPD_ERR_NOTENABLED, NULL);
+        return;
+    }
+}
+
+static void cmd_rav_publish(struct connection_st * con, u8_t * cmdline, size_t len)
+{
+    if (opts.rav_enabled){
+        write_error(con, AES67_SAPD_ERR_NOTENABLED, NULL);
+        return;
+    }
+
+    if (len < sizeof(AES67_SAPD_CMD_RAV_PUBLISH " 1")-1){
+        write_error(con, AES67_SAPD_ERR_MISSING, NULL);
+        return;
+    }
+
+    cmdline[len] = '\0';
+
+    struct rav_session_st * session = rav_session_find_by_name((char*)&cmdline[sizeof(AES67_SAPD_CMD_RAV_PUBLISH)]);
+    if (session == NULL){
+        write_error(con, AES67_SAPD_ERR_UNKNOWN, NULL);
+        return;
+    }
+
+    if (session->state == rav_state_sdp_published || session->state == rav_state_sdp_updated){
+        // ok, nothing to be done
+    } else if (session->state == rav_state_sdp_available){
+        //TODO actually publish
+        //TODO inform clients
+        write(con->sockfd, "asdf\n", 5);
+    } else {
+        write_error(con, AES67_SAPD_ERR, "Not in state to be published");
+        return;
+    }
+
+    write_ok(con);
+}
+
+static void cmd_rav_unpublish(struct connection_st * con, u8_t * cmdline, size_t len)
+{
+    if (opts.rav_enabled){
+        write_error(con, AES67_SAPD_ERR_NOTENABLED, NULL);
+        return;
+    }
+
+    if (len < sizeof(AES67_SAPD_CMD_RAV_PUBLISH " 1")-1){
+        write_error(con, AES67_SAPD_ERR_MISSING, NULL);
+        return;
+    }
+
+    cmdline[len] = '\0';
+
+    struct rav_session_st * session = rav_session_find_by_name((char*)&cmdline[sizeof(AES67_SAPD_CMD_RAV_PUBLISH)]);
+    if (session == NULL){
+        write_error(con, AES67_SAPD_ERR_UNKNOWN, NULL);
+        return;
+    }
+
+    if (session->state == rav_state_sdp_published || session->state == rav_state_sdp_updated || session->state == rav_state_sdp_available){
+
+        session->state = rav_state_sdp_not_published;
+
+        //TODO actually unpublish
+        //TODO inform clients
+        write(con->sockfd, "asdf\n", 5);
+    } else {
+        write_error(con, AES67_SAPD_ERR, "Not in state to be unpublished");
+        return;
+    }
+
+    write_ok(con);
+}
+#endif
 
 int main(int argc, char * argv[]){
 
@@ -1540,6 +1760,8 @@ int main(int argc, char * argv[]){
                 {"rav", no_argument, 0, 14},
                 {"rav-pub-delay", required_argument, 0, 15},
                 {"rav-upd-interval", required_argument, 0, 16},
+                {"rav-no-handover", required_argument, 0, 17},
+                {"rav-no-autopub", required_argument, 0, 18},
 #endif
                 {0,         0,                 0,  0 }
         };
@@ -1610,8 +1832,8 @@ int main(int argc, char * argv[]){
 
             case 15: {// --rav-pub-delay
                 int i = atoi(optarg);
-                if (i < 0 || RAV_MAX_PUBLISH_DELAY < i) {
-                    fprintf(stderr, "Invalid --rav-pub-delay must be in 0 .. %d", RAV_MAX_PUBLISH_DELAY);
+                if (i < 0 || RAV_PUBLISH_DELAY_MAX < i) {
+                    fprintf(stderr, "Invalid --rav-pub-delay must be in 0 .. %d", RAV_PUBLISH_DELAY_MAX);
                     return EXIT_FAILURE;
                 }
                 opts.rav_publish_delay = i;
@@ -1620,11 +1842,21 @@ int main(int argc, char * argv[]){
 
             case 16: {// --rav-upd-interval
                 int i = atoi(optarg);
-                if (i < 0 || RAV_MAX_UPDATE_INTERVAL < i){
-                    fprintf(stderr, "Invalid --rav-upd-interval must be in 0 .. %d", RAV_MAX_UPDATE_INTERVAL);
+                if (i < 0 || RAV_UPDATE_INTERVAL_MAX < i){
+                    fprintf(stderr, "Invalid --rav-upd-interval must be in 0 .. %d", RAV_UPDATE_INTERVAL_MAX);
                     return EXIT_FAILURE;
                 }
                 opts.rav_update_interval = i;
+                break;
+            }
+
+            case 17: {// --rav-no-handover
+                opts.rav_handover = false;
+                break;
+            }
+
+            case 18: {// --rav-no-autopub
+                opts.rav_auto_publish = false;
                 break;
             }
 #endif

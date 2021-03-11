@@ -121,7 +121,7 @@ void aes67_sapsrv_session_get_payload(aes67_sapsrv_session_t session, u8_t ** pa
 struct aes67_sdp_originator * aes67_sapsrv_session_get_origin(aes67_sapsrv_session_t session);
 time_t aes67_sapsrv_session_get_lastactivity(aes67_sapsrv_session_t session);
 u8_t aes67_sapsrv_session_get_managedby(aes67_sapsrv_session_t session);
-void aes67_sapsrv_session_set_managedby(aes67_sapsrv_session_t session, u8_t managed_by);
+void aes67_sapsrv_session_set_managedby(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, u8_t managed_by);
 
 #ifdef __cplusplus
 }

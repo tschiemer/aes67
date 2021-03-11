@@ -37,6 +37,7 @@ typedef struct sapsrv_session_st {
     struct aes67_net_addr ip;
     u16_t payloadlen;
     u8_t * payload;
+
     struct aes67_sdp_originator origin;
     struct sapsrv_session_st * next;
 } sapsrv_session_t;
@@ -510,11 +511,14 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
         }
 
         // don't let remotes interfere with locally managed sdps
+        // (which implies that the hash sum will never really be zero without)
         if (session->managed_by == AES67_SAPSRV_MANAGEDBY_LOCAL){
             return;
         }
 
         // if hash doesn't match, ignore
+        // note that remotely managed sessions have their stored hash value updated to the last announcement message
+        // thus only once the last announcement message times out, we consider this an actual timeout.
         if (session->hash != hash){
             return;
         }
@@ -548,11 +552,13 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
     } else if (payload[0] == 'o' && payload[1] == '='){
         o = payload;
     } else {
+        // ignore messages that miss expected payload start to begin with
         return;
     }
 
     struct aes67_sdp_originator origin;
     if (AES67_SDP_OK != aes67_sdp_origin_fromstr(&origin, o, payloadlen - (o - payload))){
+        // ignore messages that do not have a valid origin
         return;
     }
 
@@ -565,7 +571,10 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
         if (session->managed_by == AES67_SAPSRV_MANAGEDBY_LOCAL){
             // but inform host about remote, it can decide what to do, it changes are to be made
             // pass received data to host
-            server->event_handler(server, session, aes67_sapsrv_event_remote_duplicate, &origin, payload, payloadlen, server->user_data);
+            // (but only when it's an announcement message)
+            if (event == aes67_sap_event_new || event == aes67_sap_event_updated){
+                server->event_handler(server, session, aes67_sapsrv_event_remote_duplicate, &origin, payload, payloadlen, server->user_data);
+            }
             return;
         }
 
@@ -583,6 +592,9 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
             evt = aes67_sapsrv_event_discovered;
             session = session_new(server, AES67_SAPSRV_MANAGEDBY_REMOTE, hash, ipver, ip, &origin, payload, payloadlen);
         } else {
+
+            // IMPORTANT set hash to value of last announced one because this will be the last announcement to timeout
+            session->hash = hash;
 
             // if previous session is not older, just skip (because is just a SAP message to prevent timeout)
             if (aes67_sdp_origin_cmpversion(&session->origin, &origin) != -1){
@@ -605,11 +617,14 @@ void aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event
 
 
     } else if (event == aes67_sap_event_deleted){
-        // if event was not known before, there is no reason telling the client about (?)
+
+        // if event was not known before, there is no reason telling the host about (?)
         if (session == NULL){
             // nothing to be done
             return;
         }
+
+        // do not check hash, assume that a delete message will first come from the originating device itself
 
         // publish
         server->event_handler(server, session, aes67_sapsrv_event_deleted, &session->origin, session->payload, session->payloadlen, server->user_data);
@@ -957,12 +972,19 @@ u8_t aes67_sapsrv_session_get_managedby(aes67_sapsrv_session_t session)
 
     return ((sapsrv_session_t*)session)->managed_by;
 }
-void aes67_sapsrv_session_set_managedby(aes67_sapsrv_session_t session, u8_t managed_by)
+void aes67_sapsrv_session_set_managedby(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, u8_t managed_by)
 {
-    assert(session != NULL);
+    assert(sapserver != NULL);
+    assert(sapsession != NULL);
     assert(AES67_SAPSRV_MANAGEDBY_ISVALID(managed_by));
 
-    //TODO also have to set sap_session accordingly otherwise will request announcement
+    sapsrv_t * server = sapserver;
+    sapsrv_session_t * session = sapsession;
 
-    ((sapsrv_session_t*)session)->managed_by = managed_by;
+    struct aes67_sap_session * ss = aes67_sap_service_find(&server->service, session->hash, session->ip.ipver, session->ip.addr);
+    if (ss != NULL){
+        ss->stat = (ss->stat & ~AES67_SAP_SESSION_STAT_SRC) | (managed_by == AES67_SAPSRV_MANAGEDBY_LOCAL ? AES67_SAP_SESSION_STAT_SRC_IS_SELF : AES67_SAP_SESSION_STAT_SRC_IS_OTHER);
+    }
+
+    session->managed_by = managed_by;
 }
