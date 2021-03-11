@@ -252,7 +252,7 @@ socat -u UDP4-RECVFROM:9875,ip-add-membership=239.255.255.255:192.168.1.122,reus
 Usage: ./sapd [-h|-?] | [-d] [-p <port>] [--l <mcast-scope>] [--s <mcast-scope>] [--ipv6-if <ifname>] ..
 Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and keeps announcing
 specified SDPs on network.
-Communicates through local port (sapd.sock)
+Communicates through local port (/var/run/sapd.sock)
 Logs to syslog (identity sapd)
 
 Options:
@@ -272,23 +272,30 @@ Options:
 			 Default send: 4a
 	 --ipv6-if	 IPv6 interface to listen on (default interface can fail)
 	 --rav		 Enable Ravenna session lookups
+	 --rav-no-autopub
+			 Disable automatic publishing of discovered ravenna sessions
 	 --rav-pub-delay <delay-sec>
-			 Wait for this many seconds before publishing discovered ravenna devices through SAP (0 .. 360, default 5)
+			 Wait for this many seconds before publishing discovered ravenna sessions
+			 through SAP (0 .. 360, default 5)
 	 --rav-upd-interval <interval-sec>
-			 Wait for this many seconds checking for SDP change of already published ravenna device (0 .. 360, default 0)
-
+			 Wait for this many seconds checking for SDP change of already published
+			 ravenna device (0 .. 360, default 0)
+	 --rav-no-handover
+			 Discovered ravenna session that are also found through SAP will give NOT
+			 up local management (assuming another source, possibly the originating device)
+			 will actually handle this).
 Compile time options:
-	 AES67_SAP_MIN_INTERVAL_SEC 30 	 // +- announce time, depends on SAP traffic
-	 AES67_SAP_MIN_TIMEOUT_SEC 600
-	 AES67_SAPD_WITH_RAV 1
+	 AES67_SAP_MIN_INTERVAL_SEC 	 30 	 // +- announce time, depends on SAP traffic
+	 AES67_SAP_MIN_TIMEOUT_SEC 	 600
+	 AES67_SAPD_WITH_RAV 		 1 	 // Ravenna sessions supported?
 
 Examples:
-sudo ./sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:sapd.sock,keepalive
+sudo ./sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:/var/run/sapd.sock,keepalive
 ```
 A SAP daemon with a local client interface that supports local registration of sessions
 aswell as lookup and injection of ravenna based sessions - somewhat like [RAV2SAP](https://www.ravenna-network.com/aes67/rav2sap/).
 
-*rav features work in progress*
+*yet requires field testing (feel free)*
 
 Essentially any connection to the AF_LOCAL socket is considered a subscription and will receive updates but allows also
 for registration and deletion of locally managed sessions (SDP files).
