@@ -1809,12 +1809,83 @@ static void write_rav_unpublish_by(struct rav_session_st * session, struct conne
     write_toall_except(buf, len, con);
 }
 
+static void write_rav_list_entry(struct connection_st * con, struct rav_session_st * session, bool return_payload)
+{
+    u8_t ipstr[AES67_NET_ADDR_STR_MAX];
+
+    u16_t len = aes67_net_ip2str(ipstr, session->addr.ipver, session->addr.addr, 0);
+    ipstr[len] = '\0';
+
+    u8_t buf[256];
+
+    //RAVLS SPACE <state> SPACE <last-activity> SPACE <sdp-len> SPACE <hosttarget> SPACE <port> SPACE <ipv4> SPACE <session-name> NL [<sdp>]
+    u16_t blen = snprintf((char*)buf, sizeof(buf),
+                          AES67_SAPD_RESULT_RAV_LIST_FMT "\n",
+                          session->state,
+                          session->last_activity,
+                          return_payload ? 0 : session->sdplen,
+                          session->hosttarget,
+                          session->addr.port,
+                          ipstr,
+                          session->name
+    );
+
+    write(con->sockfd, buf, blen);
+
+    if (return_payload && session->sdplen > 0){
+        assert(session->sdp != NULL);
+
+        write(con->sockfd, session->sdp, session->sdplen);
+    }
+}
+
 static void cmd_rav_list(struct connection_st * con, u8_t * cmdline, size_t len)
 {
     if (!opts.rav_enabled){
         write_error(con, AES67_SAPD_ERR_NOTENABLED, NULL);
         return;
     }
+
+    bool return_payload = false;
+
+    // check wether payload should be returned
+    if (len >= sizeof(AES67_SAPD_CMD_RAV_LIST " 0")-1){
+        if (cmdline[sizeof(AES67_SAPD_CMD_RAV_LIST)] == '1'){
+            return_payload = true;
+        } else if (cmdline[sizeof(AES67_SAPD_CMD_RAV_LIST)] == '0'){
+            return_payload = false;
+        } else {
+            write_error(con, AES67_SAPD_ERR_SYNTAX, NULL);
+            return;
+        }
+    }
+
+    // if a session was specified, just return this one
+    if (len >= sizeof(AES67_SAPD_CMD_RAV_LIST " 0 n")-1){
+        u8_t * name = &cmdline[sizeof(AES67_SAPD_CMD_RAV_LIST " 0 n")-2];
+        cmdline[len] = '\0';
+
+        struct rav_session_st * session = rav_session_find_by_name((char*)name);
+        if (session == NULL){
+            write_error(con, AES67_SAPD_ERR_UNKNOWN, NULL);
+            return;
+        }
+
+        write_rav_list_entry(con, session, return_payload);
+        write_ok(con);
+        return;
+    }
+
+    struct rav_session_st * session = rav.first_session;
+
+    while(session != NULL){
+
+        write_rav_list_entry(con, session, return_payload);
+
+        session = session->next;
+    }
+
+    write_ok(con);
 }
 
 static void cmd_rav_publish(struct connection_st * con, u8_t * cmdline, size_t len)

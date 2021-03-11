@@ -44,8 +44,8 @@ extern "C" {
 #define AES67_SAPD_SYSLOG_OPTION    0
 #define AES67_SAPD_SYSLOG_FACILITY  LOG_DAEMON
 
-//#define AES67_SAPD_LOCAL_SOCK     "/var/run/sapd.sock"
-#define AES67_SAPD_LOCAL_SOCK      "sapd.sock"
+#define AES67_SAPD_LOCAL_SOCK     "/var/run/sapd.sock"
+//#define AES67_SAPD_LOCAL_SOCK      "sapd.sock"
 #define AES67_SAPD_LOCAL_LISTEN_BACKLOG    3
 #define AES67_SAPD_LOCAL_MAX_CONNECTIONS   10
 
@@ -196,7 +196,7 @@ extern "C" {
 #define AES67_SAPD_CMD_RAV_LIST         "ravls"
 //#define AES67_SAPD_CMD_RAV_LIST_FMT     "ravls %d %s"
 #define AES67_SAPD_RESULT_RAV_LIST      "RAVLS"
-#define AES67_SAPD_RESULT_RAV_LIST_FMT  "RAVLS %d %d %s %s"
+#define AES67_SAPD_RESULT_RAV_LIST_FMT  "RAVLS %d %lu %u %s %hu %s %s"
 
 
 #define AES67_SAPD_CMD_RAV_PUBLISH      "ravpub"
