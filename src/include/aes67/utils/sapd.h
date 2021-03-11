@@ -67,30 +67,37 @@ extern "C" {
 /**
  * Unsolicited messages (informing about updates)
  *
- * INFO     general info that can be taken note of (or not)
- * NEW      there is a new session (either added by another client or discovered)
- * UPD      there is an updated SDP for a session
- * DEL      a session was explicitly deleted
- * TMT      a timeout for a session occurred, treat like deleted
+ * INFO         general info that can be taken note of (or not)
+ * NEW          there is a new session (either added by another client or discovered)
+ * UPD          there is an updated SDP for a session
+ * DEL          a session was explicitly deleted
+ * TMT          a timeout for a session occurred, treat like deleted
+ * DUP          another host is announcing a locally managed session
+ * HANDOVER     a locally managed session was handed over to remote (and will not be announed anymore)
+ * TAKEOVER     a remotely managed session was taken over (and will be announced henceforth)
+ * RAVDSCV      a ravenna session was discovered
+ * RAVTERM      a ravenna session was terminated
  */
 #define AES67_SAPD_MSGU_INFO        "+INFO"
+
 #define AES67_SAPD_MSGU_NEW         "+NEW"
-#define AES67_SAPD_MSGU_NEW_FMT     "+NEW %d o=%s %s %s IN IP%d %s"
 #define AES67_SAPD_MSGU_UPDATED     "+UPD"
-#define AES67_SAPD_MSGU_UPDATED_FMT "+UPD %d o=%s %s %s IN IP%d %s"
 #define AES67_SAPD_MSGU_DELETED     "+DEL"
-#define AES67_SAPD_MSGU_DELETED_FMT "+DEL o=%s %s %s IN IP%d %s"
 #define AES67_SAPD_MSGU_TIMEOUT     "+TMT"
-#define AES67_SAPD_MSGU_TIMEOUT_FMT "+TMT o=%s %s %s IN IP%d %s"
-
 #define AES67_SAPD_MSGU_DUPLICATE   "+DUP"
-#define AES67_SAPD_MSGU_DUPLICATE_FMT "+DUP o=%s %s %s IN IP%d %s"
 
-#define AES67_SAPD_MSGU_RAV_NEW     "+RAVNEW"
-#define AES67_SAPD_MSGU_RAV_NEW_FMT "+RAVNEW %s %s %d %s"
-#define AES67_SAPD_MSGU_RAV_DEL     "+RAVDEL"
-#define AES67_SAPD_MSGU_RAV_DEL_FMT "+RAVDEL %s"
+#define AES67_SAPD_MSGU_HANDOVER    "+HANDOVER"
+#define AES67_SAPD_MSGU_TAKEOVER    "+TAKEOVER"
 
+#define AES67_SAPD_MSGU_RAV_DSCV     "+RAVDSCV"
+#define AES67_SAPD_MSGU_RAV_DSCV_FMT AES67_SAPD_MSGU_RAV_DSCV " %s %s %d %s"
+#define AES67_SAPD_MSGU_RAV_TERM     "+RAVTERM"
+#define AES67_SAPD_MSGU_RAV_TERM_FMT AES67_SAPD_MSGU_RAV_TERM " %s"
+
+#define AES67_SAPD_MSGU_RAV_PUB     "+RAVPUB"
+#define AES67_SAPD_MSGU_RAV_PUB_FMT "+RAVPUB %s"
+#define AES67_SAPD_MSGU_RAV_UNPUB   "+RAVUNPUB"
+#define AES67_SAPD_MSGU_RAV_UNPUB_FMT "+RAVUNPUB %s"
 
 /**
  * LIST known SDPs
@@ -110,7 +117,7 @@ extern "C" {
  */
 #define AES67_SAPD_CMD_LIST         "ls"
 #define AES67_SAPD_CMD_LIST_V_FMT   "ls %d"
-//#define AES67_SAPD_CMD_LIST_VM_FMT  "ls %d %d"
+#define AES67_SAPD_CMD_LIST_VM_FMT  "ls %d %d"
 #define AES67_SAPD_RESULT_LIST      "LS"
 #define AES67_SAPD_RESULT_LIST_FMT  "LS %d %d %d o=%s %s %s IN IP%d %s"
 
@@ -196,6 +203,7 @@ extern "C" {
 #define AES67_SAPD_CMD_RAV_PUBLISH_FMT  "ravpub %s"
 #define AES67_SAPD_CMD_RAV_UNPUBLISH    "ravunpub"
 #define AES67_SAPD_CMD_RAV_UNPUBLISH_FMT "ravunpub %s"
+
 #ifdef __cplusplus
 }
 #endif

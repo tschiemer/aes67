@@ -147,8 +147,13 @@ static void write_ok(struct connection_st * con);
 static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * except);
 
 static void write_new_by(aes67_sapsrv_session_t session, struct connection_st * by);
-static void write_upd_by(aes67_sapsrv_session_t session, struct connection_st * by);
-static void write_del_by(aes67_sapsrv_session_t session, struct connection_st * by);
+static void write_updated_by(aes67_sapsrv_session_t session, struct connection_st * by);
+static void write_deleted_by(aes67_sapsrv_session_t session, struct connection_st * by);
+static void write_timeout_by(aes67_sapsrv_session_t session, struct connection_st * by);
+static void write_handover_by(aes67_sapsrv_session_t session, struct connection_st * by);
+static void write_takeover_by(aes67_sapsrv_session_t session, struct connection_st * by);
+
+
 static void write_list_entry(struct connection_st * con, aes67_sapsrv_session_t session, bool return_payload);
 
 //static void cmd_help(struct connection_st * con, u8_t * cmdline, size_t len);
@@ -159,6 +164,11 @@ static void cmd_handover(struct connection_st * con, u8_t * cmdline, size_t len)
 static void cmd_takeover(struct connection_st * con, u8_t * cmdline, size_t len);
 
 #if AES67_SAPD_WITH_RAV == 1
+static void write_rav_new(struct rav_session_st * session);
+static void write_rav_del(struct rav_session_st * session);
+static void write_rav_publish_by(struct rav_session_st * session, struct connection_st * con);
+static void write_rav_unpublish_by(struct rav_session_st * session, struct connection_st * con);
+
 static void cmd_rav_list(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_rav_publish(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_rav_unpublish(struct connection_st * con, u8_t * cmdline, size_t len);
@@ -467,50 +477,54 @@ static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sap
     if (event == aes67_sapsrv_event_discovered){
         syslog(LOG_INFO, "SAP: discovered (payload %d): %s", payloadlen, ostr);
 
-        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_NEW " %d %s\n", payloadlen, ostr);
-
-        if (mlen + payloadlen + 1 >= sizeof(msg)){
-            syslog(LOG_ERR, "not enough memory");
-            return;
-        }
-
-        memcpy(&msg[mlen], payload, payloadlen);
-        mlen += payloadlen;
-
-//        msg[mlen++] = '\n'; // always add a newline?
-
-        write_toall_except(msg, mlen, NULL);
+        write_new_by(sapsession, NULL);
+//        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_NEW " %d %s\n", payloadlen, ostr);
+//
+//        if (mlen + payloadlen + 1 >= sizeof(msg)){
+//            syslog(LOG_ERR, "not enough memory");
+//            return;
+//        }
+//
+//        memcpy(&msg[mlen], payload, payloadlen);
+//        mlen += payloadlen;
+//
+////        msg[mlen++] = '\n'; // always add a newline?
+//
+//        write_toall_except(msg, mlen, NULL);
     }
     else if (event == aes67_sapsrv_event_updated){
         syslog(LOG_INFO, "SAP: updated (payload %d): %s", payloadlen, ostr);
 
-        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_UPDATED " %d %s\n", payloadlen, ostr);
-
-        if (mlen + payloadlen + 1 >= sizeof(msg)){
-            syslog(LOG_ERR, "not enough memory");
-            return;
-        }
-
-        memcpy(&msg[mlen], payload, payloadlen);
-        mlen += payloadlen;
-
-//        msg[mlen++] = '\n'; // always add a newline?
-
-        write_toall_except(msg, mlen, NULL);
+        write_updated_by(sapsession, NULL);
+//        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_UPDATED " %d %s\n", payloadlen, ostr);
+//
+//        if (mlen + payloadlen + 1 >= sizeof(msg)){
+//            syslog(LOG_ERR, "not enough memory");
+//            return;
+//        }
+//
+//        memcpy(&msg[mlen], payload, payloadlen);
+//        mlen += payloadlen;
+//
+////        msg[mlen++] = '\n'; // always add a newline?
+//
+//        write_toall_except(msg, mlen, NULL);
     }
     else if (event == aes67_sapsrv_event_deleted){
         syslog(LOG_INFO, "SAP: deleted: %s", ostr);
 
-        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_DELETED " %s\n", ostr);
-
-        write_toall_except(msg, mlen, NULL);
+        write_deleted_by(sapsession, NULL);
+//        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_DELETED " %s\n", ostr);
+//
+//        write_toall_except(msg, mlen, NULL);
     }
     else if (event == aes67_sapsrv_event_timeout){
         syslog(LOG_INFO, "SAP: timeout: %s", ostr);
 
-        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_TIMEOUT " %s\n", ostr);
-
-        write_toall_except(msg, mlen, NULL);
+        write_timeout_by(sapsession, NULL);
+//        mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_TIMEOUT " %s\n", ostr);
+//
+//        write_toall_except(msg, mlen, NULL);
     }
     else if (event == aes67_sapsrv_event_remote_duplicate){
         syslog(LOG_INFO, "SAP: remote duplicate detected: %s", ostr);
@@ -530,11 +544,7 @@ static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sap
                 ravsession->state = rav_state_sdp_not_published;
 
                 // notify all about handover
-                mlen = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_INFO " " AES67_SAPD_CMD_HANDOVER " %s\n",
-                                ostr
-                );
-
-                write_toall_except(msg, mlen, NULL);
+                write_handover_by(sapsession, NULL);
             }
 
             return;
@@ -854,7 +864,7 @@ static void rav_process()
                         aes67_sapsrv_session_t * ss = aes67_sapsrv_session_by_origin(sapsrv, &session->origin);
                         if (ss != NULL){
                             aes67_sapsrv_session_delete(sapsrv, ss, true);
-                            write_del_by(ss, NULL);
+                            write_deleted_by(ss, NULL);
                         }
                     }
 
@@ -907,11 +917,12 @@ static void rav_process()
 
             if (sapsrvSession != NULL){
 
+                session->state = rav_state_sdp_published;
+
                 aes67_sapsrv_session_update(sapsrv, sapsrvSession, session->sdp, session->sdplen);
 
-                //TODO inform clients about update
+                write_updated_by(sapsrvSession, NULL);
 
-                session->state = rav_state_sdp_published;
             }
 
         }
@@ -937,6 +948,7 @@ static void rav_publish_by(struct rav_session_st * session, struct connection_st
 
     assert(ss != NULL);
 
+    write_rav_publish_by(session, con);
     write_new_by(ss, con);
 }
 
@@ -979,16 +991,8 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
         session->last_activity = time(NULL);
         session->state = rav_state_discovered;
 
-        u8_t ipstr[AES67_NET_ADDR_STR_MAX];
+        write_rav_new(session);
 
-        u16_t len = aes67_net_ip2str(ipstr, ipver, (u8_t*)ip, 0);
-        ipstr[len] = '\0';
-
-        u8_t msg[256];
-
-        len = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_RAV_NEW_FMT "\n", hosttarget, ipstr, port, name);
-
-        write_toall_except(msg, len, NULL);
     }
     else if (result == aes67_mdns_result_terminated){
 
@@ -999,11 +1003,7 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
 
         syslog(LOG_INFO, "RAV session terminated: %s@%s:%hu", name, hosttarget, port);
 
-        u8_t msg[256];
-
-        u16_t len = snprintf((char*)msg, sizeof(msg), AES67_SAPD_MSGU_RAV_DEL_FMT "\n", session->name);
-
-        write_toall_except(msg, len, NULL);
+        write_rav_del(session);
 
         rav_session_delete(session);
 
@@ -1319,17 +1319,116 @@ static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * exc
 
 static void write_new_by(aes67_sapsrv_session_t session, struct connection_st * by)
 {
+    assert(session != NULL);
 
+    struct aes67_sdp_originator * origin = aes67_sapsrv_session_get_origin(session);
+
+    assert(origin != NULL);
+
+    u8_t ostr[256];
+    u16_t olen = aes67_sdp_origin_tostr(ostr, sizeof(ostr), origin);
+    ostr[olen-2] = '\0'; // remove CRNL
+
+    u8_t buf[256];
+
+    ssize_t blen = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_NEW " %s\n", ostr);
+
+    write_toall_except(buf, blen, by);
 }
 
-static void write_upd_by(aes67_sapsrv_session_t session, struct connection_st * by)
+static void write_updated_by(aes67_sapsrv_session_t session, struct connection_st * by)
 {
+    assert(session != NULL);
 
+    struct aes67_sdp_originator * origin = aes67_sapsrv_session_get_origin(session);
+
+    assert(origin != NULL);
+
+    u8_t ostr[256];
+    u16_t olen = aes67_sdp_origin_tostr(ostr, sizeof(ostr), origin);
+    ostr[olen-2] = '\0'; // remove CRNL
+
+    u8_t buf[256];
+
+    ssize_t blen = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_UPDATED " %s\n", ostr);
+
+    write_toall_except(buf, blen, by);
 }
 
-static void write_del_by(aes67_sapsrv_session_t session, struct connection_st * by)
+static void write_deleted_by(aes67_sapsrv_session_t session, struct connection_st * by)
 {
+    assert(session != NULL);
 
+    struct aes67_sdp_originator * origin = aes67_sapsrv_session_get_origin(session);
+
+    assert(origin != NULL);
+
+    u8_t ostr[256];
+    u16_t olen = aes67_sdp_origin_tostr(ostr, sizeof(ostr), origin);
+    ostr[olen-2] = '\0'; // remove CRNL
+
+    u8_t buf[256];
+
+    ssize_t blen = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_DELETED " %s\n", ostr);
+
+    write_toall_except(buf, blen, by);
+}
+
+static void write_timeout_by(aes67_sapsrv_session_t session, struct connection_st * by)
+{
+    assert(session != NULL);
+
+    struct aes67_sdp_originator * origin = aes67_sapsrv_session_get_origin(session);
+
+    assert(origin != NULL);
+
+    u8_t ostr[256];
+    u16_t olen = aes67_sdp_origin_tostr(ostr, sizeof(ostr), origin);
+    ostr[olen-2] = '\0'; // remove CRNL
+
+    u8_t buf[256];
+
+    ssize_t blen = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_TIMEOUT " %s\n", ostr);
+
+    write_toall_except(buf, blen, by);
+}
+
+static void write_handover_by(aes67_sapsrv_session_t session, struct connection_st * by)
+{
+    assert(session != NULL);
+
+    struct aes67_sdp_originator * origin = aes67_sapsrv_session_get_origin(session);
+
+    assert(origin != NULL);
+
+    u8_t ostr[256];
+    u16_t olen = aes67_sdp_origin_tostr(ostr, sizeof(ostr), origin);
+    ostr[olen-2] = '\0'; // remove CRNL
+
+    u8_t buf[256];
+
+    ssize_t blen = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_HANDOVER " %s\n", ostr);
+
+    write_toall_except(buf, blen, by);
+}
+
+static void write_takeover_by(aes67_sapsrv_session_t session, struct connection_st * by)
+{
+    assert(session != NULL);
+
+    struct aes67_sdp_originator * origin = aes67_sapsrv_session_get_origin(session);
+
+    assert(origin != NULL);
+
+    u8_t ostr[256];
+    u16_t olen = aes67_sdp_origin_tostr(ostr, sizeof(ostr), origin);
+    ostr[olen-2] = '\0'; // remove CRNL
+
+    u8_t buf[256];
+
+    ssize_t blen = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_TAKEOVER " %s\n", ostr);
+
+    write_toall_except(buf, blen, by);
 }
 
 static void write_list_entry(struct connection_st * con, aes67_sapsrv_session_t session, bool return_payload)
@@ -1521,51 +1620,12 @@ static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len)
 
     write_ok(con);
 
+    // now inform all other clients that session added/updated
     if (is_new){
         write_new_by(session, con);
     } else {
-        write_upd_by(session, con);
+        write_updated_by(session, con);
     }
-
-    // now inform all other clients that session was deleted
-    u8_t buf[256];
-
-    u16_t olen = aes67_sdp_origin_size(&origin)-2; // ignore CRNL
-
-    // "+NEW <size> o=....\n"
-    //
-//    size_t blen = (sizeof(AES67_SAPD_MSGU_NEW) + 2) + sdplen_slen + (aes67_sdp_origin_size(&origin) - 2);
-    size_t blen = sizeof(AES67_SAPD_MSGU_NEW)+2 + sdplen_slen + olen;
-
-
-    if (blen > sizeof(buf)){
-        syslog(LOG_ERR, "buf too small for " AES67_SAPD_MSGU_NEW " msg, %zu required", blen);
-        return;
-    }
-
-    memcpy(buf, AES67_SAPD_MSGU_NEW, sizeof(AES67_SAPD_MSGU_NEW)-1);
-    blen = sizeof(AES67_SAPD_MSGU_NEW)-1;
-
-    buf[blen++] = ' ';
-
-    // copy sdplen
-    memcpy(&buf[blen], &cmdline[sizeof(AES67_SAPD_CMD_SET)], sdplen_slen);
-    blen += sdplen_slen;
-
-    buf[blen++] = ' ';
-
-    memcpy(&buf[blen], o, olen);
-    blen += olen;
-
-    buf[blen++] = '\n';
-
-    // also add sdp payload
-//    memcpy(&buf[blen], sdp, sdplen);
-//    blen += sdplen;
-
-    write_toall_except(buf, blen, con);
-
-    write_toall_except(sdp, sdplen, con);
 }
 
 static void cmd_unset(struct connection_st * con, u8_t * cmdline, size_t len)
@@ -1595,22 +1655,23 @@ static void cmd_unset(struct connection_st * con, u8_t * cmdline, size_t len)
         return;
     }
 
+#if AES67_SAPD_WITH_RAV
+    if (opts.rav_enabled){
+        // if managed by ravenna, unpublish
+        struct rav_session_st * rs = rav_session_find_by_origin(&origin);
+        if (rs != NULL && (rs->state == rav_state_sdp_published || rs->state == rav_state_sdp_updated)){
+            rs->state = rav_state_sdp_not_published;
+        }
+    }
+#endif
+
     // delete session
     aes67_sapsrv_session_delete(sapsrv, session, true);
 
     write_ok(con);
 
-    write_del_by(session, con);
-
     // now inform all other clients that session was deleted
-    u8_t buf[256];
-
-    // let's cheat and just reuse the command line given (but we'll have to terminate it)
-    cmdline[len] = '\0';
-
-    ssize_t blen = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_DELETED " %s\n", &cmdline[sizeof(AES67_SAPD_CMD_UNSET)]);
-
-    write_toall_except(buf, blen, con);
+    write_deleted_by(session, con);
 }
 
 
@@ -1646,7 +1707,7 @@ static void cmd_handover(struct connection_st * con, u8_t * cmdline, size_t len)
 
 #if AES67_SAPD_WITH_RAV
     if (opts.rav_enabled){
-        // if
+        // if managed by ravenna, unpublish
         struct rav_session_st * rs = rav_session_find_by_origin(&origin);
         if (rs != NULL && (rs->state == rav_state_sdp_published || rs->state == rav_state_sdp_updated)){
             rs->state = rav_state_sdp_not_published;
@@ -1656,13 +1717,8 @@ static void cmd_handover(struct connection_st * con, u8_t * cmdline, size_t len)
 
     write_ok(con);
 
-
     // now inform all other clients that session was handed over
-    u8_t buf[256];
-
-    ssize_t blen = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_INFO " " AES67_SAPD_CMD_HANDOVER " %s\n", &cmdline[sizeof(AES67_SAPD_CMD_UNSET)]);
-
-    write_toall_except(buf, blen, con);
+    write_handover_by(session, con);
 }
 
 static void cmd_takeover(struct connection_st * con, u8_t * cmdline, size_t len)
@@ -1697,16 +1753,62 @@ static void cmd_takeover(struct connection_st * con, u8_t * cmdline, size_t len)
 
     write_ok(con);
 
-
-    // now inform all other clients that session was handed over
-    u8_t buf[256];
-
-    ssize_t blen = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_INFO " " AES67_SAPD_CMD_TAKEOVER " %s\n", &cmdline[sizeof(AES67_SAPD_CMD_UNSET)]);
-
-    write_toall_except(buf, blen, con);
+    // now inform all other clients that session was taken over
+    write_takeover_by(session, con);
 }
 
 #if AES67_SAPD_WITH_RAV == 1
+
+static void write_rav_new(struct rav_session_st * session)
+{
+    assert(session != NULL);
+
+    u8_t ipstr[AES67_NET_ADDR_STR_MAX];
+
+    u16_t len = aes67_net_ip2str(ipstr, session->addr.ipver, session->addr.addr, 0);
+    ipstr[len] = '\0';
+
+
+    u8_t buf[256];
+
+    len = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_RAV_DSCV_FMT "\n", session->hosttarget, ipstr, session->addr.port, session->name);
+
+    write_toall_except(buf, len, NULL);
+}
+
+static void write_rav_del(struct rav_session_st * session)
+{
+    assert(session != NULL);
+
+    u8_t buf[256];
+
+    u16_t len = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_RAV_TERM_FMT "\n", session->name);
+
+    write_toall_except(buf, len, NULL);
+}
+
+static void write_rav_publish_by(struct rav_session_st * session, struct connection_st * con)
+{
+    assert(session != NULL);
+
+    u8_t buf[256];
+
+    u16_t len = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_RAV_PUB_FMT "\n", session->name);
+
+    write_toall_except(buf, len, con);
+}
+
+static void write_rav_unpublish_by(struct rav_session_st * session, struct connection_st * con)
+{
+    assert(session != NULL);
+
+    u8_t buf[256];
+
+    u16_t len = snprintf((char*)buf, sizeof(buf), AES67_SAPD_MSGU_RAV_UNPUB_FMT "\n", session->name);
+
+    write_toall_except(buf, len, con);
+}
+
 static void cmd_rav_list(struct connection_st * con, u8_t * cmdline, size_t len)
 {
     if (!opts.rav_enabled){
@@ -1741,19 +1843,23 @@ static void cmd_rav_publish(struct connection_st * con, u8_t * cmdline, size_t l
 
     if (session->state == rav_state_sdp_published || session->state == rav_state_sdp_updated){
         // ok, nothing to be done
+
+        write_ok(con);
+
     } else if (session->state == rav_state_sdp_available){
+
         aes67_sapsrv_session_t ss = aes67_sapsrv_session_by_origin(sapsrv, &session->origin);
         if (ss != NULL){
             write_error(con, AES67_SAPD_ERR_NOTALLOWED, "can not publish existing session");
             return;
         }
         rav_publish_by(session, con);
+        write_ok(con);
+
+        // inform others
     } else {
         write_error(con, AES67_SAPD_ERR, "Not in state to be published");
-        return;
     }
-
-    write_ok(con);
 }
 
 static void cmd_rav_unpublish(struct connection_st * con, u8_t * cmdline, size_t len)
@@ -1778,17 +1884,19 @@ static void cmd_rav_unpublish(struct connection_st * con, u8_t * cmdline, size_t
 
     if (session->state == rav_state_sdp_published || session->state == rav_state_sdp_updated || session->state == rav_state_sdp_available){
 
+        //also remove locally managed session? no, this can be achieved through another command, if so desired
+        // or rather deleting or handing over a local session also unpublished the rav session
+
         session->state = rav_state_sdp_not_published;
 
-        //TODO actually unpublish
-        //TODO inform clients
-        write(con->sockfd, "asdf\n", 5);
+        write_ok(con);
+
+        write_rav_unpublish_by(session, con);
+
     } else {
         write_error(con, AES67_SAPD_ERR, "Not in state to be unpublished");
-        return;
     }
 
-    write_ok(con);
 }
 #endif
 
