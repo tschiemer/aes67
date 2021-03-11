@@ -192,10 +192,10 @@ int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if)
         optname = IP_ADD_MEMBERSHIP;
         if (scope & AES67_SAPSRV_SCOPE_IPv4_GLOBAL){
             memcpy(&mreq.v4.imr_multiaddr.s_addr, (u8_t[])AES67_SAP_IPv4_GLOBAL, 4);
-            syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv4_GLOBAL_STR);
+            syslog(LOG_INFO, "sapsrv joining mcast " AES67_SAP_IPv4_GLOBAL_STR);
         } else if (scope & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED){
             memcpy(&mreq.v4.imr_multiaddr.s_addr, (u8_t[])AES67_SAP_IPv4_ADMIN, 4);
-            syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv4_ADMIN_STR);
+            syslog(LOG_INFO, "sapsrv joining mcast " AES67_SAP_IPv4_ADMIN_STR);
         }
         mreq.v4.imr_interface.s_addr = htonl(INADDR_ANY);//*(in_addr_t*)server->iface_addr.addr;
         optlen = sizeof(struct ip_mreq);
@@ -204,16 +204,16 @@ int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if)
         optname = IPV6_JOIN_GROUP;
         if (scope & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_LL, 16);
-            syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv6_LL_STR);
+            syslog(LOG_INFO, "sapsrv joining mcast " AES67_SAP_IPv6_LL_STR);
         } else if (scope & AES67_SAPSRV_SCOPE_IPv6_IPv4){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_IP4, 16);
-            syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv6_IP4_STR);
+            syslog(LOG_INFO, "sapsrv joining mcast " AES67_SAP_IPv6_IP4_STR);
         } else if (scope & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_AL, 16);
-            syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv6_AL_STR);
+            syslog(LOG_INFO, "sapsrv joining mcast " AES67_SAP_IPv6_AL_STR);
         } else if (scope & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL){
             memcpy(&mreq.v6.ipv6mr_multiaddr, (u8_t[])AES67_SAP_IPv6_SL, 16);
-            syslog(LOG_INFO, "joining mcast " AES67_SAP_IPv6_SL_STR);
+            syslog(LOG_INFO, "sapsrv joining mcast " AES67_SAP_IPv6_SL_STR);
         }
 //        printf("%08x:%08x:%08x:%08x\n",
 //               ntohl(((struct in6_addr*)&mreq.v6.ipv6mr_multiaddr)->__u6_addr.__u6_addr32[0]),
@@ -228,7 +228,7 @@ int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if)
     }
 
     if (setsockopt(sockfd, proto, optname, &mreq, optlen) < 0){
-        syslog(LOG_ERR, "setsockopt(IP_ADD_MEMBERSHIP/IPV6_JOIN_GROUP) failed (scope): %s", strerror(errno));
+        syslog(LOG_ERR, "sapsrv setsockopt(IP_ADD_MEMBERSHIP/IPV6_JOIN_GROUP) failed (scope): %s", strerror(errno));
         return EXIT_FAILURE;
     }
 
@@ -238,27 +238,27 @@ int aes67_sapsrv_join_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if)
 static int join_mcast_groups(sapsrv_t * server, u32_t scopes)
 {
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && aes67_sapsrv_join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL, server->ipv6_if)){
-        syslog(LOG_ERR, "4gl: %s", strerror(errno));
+        syslog(LOG_ERR, "sapsrv 4gl: %s", strerror(errno));
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED) && aes67_sapsrv_join_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED, server->ipv6_if)){
-        syslog(LOG_ERR, "4al: %s", strerror(errno));
+        syslog(LOG_ERR, "sapsrv 4al: %s", strerror(errno));
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL, server->ipv6_if)){
-        syslog(LOG_ERR, "6ll: %s", strerror(errno));
+        syslog(LOG_ERR, "sapsrv 6ll: %s", strerror(errno));
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_IPv4) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_IPv4, server->ipv6_if)){
-        syslog(LOG_ERR, "6al: %s", strerror(errno));
+        syslog(LOG_ERR, "sapsrv 6al: %s", strerror(errno));
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL, server->ipv6_if)){
-        syslog(LOG_ERR, "6al: %s", strerror(errno));
+        syslog(LOG_ERR, "sapsrv 6al: %s", strerror(errno));
         return EXIT_FAILURE;
     }
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL) && aes67_sapsrv_join_mcast_group(server->sockfd6, AES67_SAPSRV_SCOPE_IPv6_SITELOCAL, server->ipv6_if)){
-        syslog(LOG_ERR, "6sl: %s", strerror(errno));
+        syslog(LOG_ERR, "sapsrv 6sl: %s", strerror(errno));
         return EXIT_FAILURE;
     }
     return EXIT_SUCCESS;
@@ -685,7 +685,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
         }
 
         if (bind(server->sockfd4, (struct sockaddr*)&server->addr4, server->addr4.sin_len) == -1){
-            syslog(LOG_ERR, "ipv4 bind(): %s", strerror(errno));
+            syslog(LOG_ERR, "sapsrv ipv4 bind(): %s", strerror(errno));
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
             }
@@ -696,7 +696,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
         // set non-blocking stdin
         int flags = fcntl(server->sockfd4, F_GETFL, 0);
         if (fcntl(server->sockfd4, F_SETFL, flags|O_NONBLOCK) == -1){
-            syslog(LOG_ERR, "ipv4 fcntl(sockfd4,..,O_NONBLOCK): %s", strerror(errno));
+            syslog(LOG_ERR, "sapsrv ipv4 fcntl(sockfd4,..,O_NONBLOCK): %s", strerror(errno));
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
             }
@@ -730,7 +730,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
         }
 
         if (bind(server->sockfd6, (struct sockaddr*)&server->addr6, server->addr6.sin6_len) == -1){
-            syslog(LOG_ERR, "ipv6 bind(): %s", strerror(errno));
+            syslog(LOG_ERR, "sapsrv ipv6 bind(): %s", strerror(errno));
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
             }
@@ -742,7 +742,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
         // set non-blocking stdin
         int flags = fcntl(server->sockfd6, F_GETFL, 0);
         if (fcntl(server->sockfd6, F_SETFL, flags|O_NONBLOCK) == -1){
-            syslog(LOG_ERR, "fcntl(sockfd6,..,O_NONBLOCK): %s", strerror(errno));
+            syslog(LOG_ERR, "sapsrv fcntl(sockfd6,..,O_NONBLOCK): %s", strerror(errno));
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
             }
@@ -818,7 +818,7 @@ void aes67_sapsrv_process(aes67_sapsrv_t sapserver)
         int s = select(nfds, &fds, NULL, &fds, NULL);
         if (s > 0){
             if ( (rlen = recv(s, buf, sizeof(buf), 0)) > 0){
-                syslog(LOG_DEBUG, "%s rx %zd", s == server->sockfd4 ? "ipv4" : "ipv6", rlen);
+                syslog(LOG_DEBUG, "sapsrv %s rx %zd", s == server->sockfd4 ? "ipv4" : "ipv6", rlen);
                 aes67_sap_service_handle(&server->service, buf, rlen, server);
             }
         }
@@ -826,14 +826,14 @@ void aes67_sapsrv_process(aes67_sapsrv_t sapserver)
 
         if (server->sockfd4 != -1){
             if ( (rlen = recv(server->sockfd4, buf, sizeof(buf), 0)) > 0){
-                syslog(LOG_DEBUG, "ipv4 rx %zd", rlen);
+                syslog(LOG_DEBUG, "sapsrv ipv4 rx %zd", rlen);
                 aes67_sap_service_handle(&server->service, buf, rlen, server);
             }
         }
 
         if (server->sockfd6 != -1){
             if ( (rlen = recv(server->sockfd6, buf, sizeof(buf), 0)) > 0){
-                syslog(LOG_DEBUG, "ipv6 rx %zd", rlen);
+                syslog(LOG_DEBUG, "sapsrv ipv6 rx %zd", rlen);
                 aes67_sap_service_handle(&server->service, buf, rlen, server);
             }
         }
@@ -902,7 +902,7 @@ void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_
     } else {
         struct aes67_sap_session * ss = aes67_sap_service_find(&server->service, session->hash, session->ip.ipver, session->ip.addr);
         if (ss == NULL){
-            syslog(LOG_ERR, "trying to silently delete a session that isn't registered");
+            syslog(LOG_ERR, "sapsrv trying to silently delete a session that isn't registered");
         } else {
             aes67_sap_service_unregister(&server->service, ss);
         }

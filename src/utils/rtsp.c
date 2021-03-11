@@ -30,6 +30,7 @@
 #include <search.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <syslog.h>
 
 void aes67_rtsp_dsc_init(struct aes67_rtsp_dsc_res_st * res, bool blocking)
 {
@@ -60,7 +61,7 @@ int aes67_rtsp_dsc_start(
 
     // can not start when an operation is pending
     if (res->state == aes67_rtsp_dsc_state_querying || res->state == aes67_rtsp_dsc_state_awaiting_response){
-        fprintf(stderr, "operation pending\n");
+//        fprintf(stderr, "operation pending\n");
         return EXIT_FAILURE;
     }
     // mark as busy
@@ -85,15 +86,15 @@ int aes67_rtsp_dsc_start(
 
     if (res->sockfd == -1) {
         res->statuscode = errno;
-        res->state = aes67_rtsp_dsc_state_done;
-        perror("socket()");
+        res->state = aes67_rtsp_dsc_state_bored;
+        syslog(LOG_ERR, "rtsp socket(): %s", strerror(errno));
         return EXIT_FAILURE;
     }
 
     if (connect(res->sockfd, (struct sockaddr *) &server, server.ss_len) < 0) {
         res->statuscode = errno;
-        res->state = aes67_rtsp_dsc_state_done;
-        perror("socket()");
+        res->state = aes67_rtsp_dsc_state_bored;
+        syslog(LOG_ERR, "rtsp connect(): %s", strerror(errno));
         return EXIT_FAILURE;
     }
 
@@ -102,7 +103,8 @@ int aes67_rtsp_dsc_start(
         int flags = fcntl(res->sockfd, F_GETFL, 0);
         if (fcntl(res->sockfd, F_SETFL, flags | O_NONBLOCK) == -1){
 //            fprintf(stderr, "couldn't non-block\n");
-            perror("fcntl()");
+            syslog(LOG_ERR, "rtsp fcntl(): %s", strerror(errno));
+            res->state = aes67_rtsp_dsc_state_bored;
             return EXIT_FAILURE;
         }
     }
@@ -125,8 +127,8 @@ int aes67_rtsp_dsc_start(
     if (write(res->sockfd, res->buf, res->buflen) == -1) {
         close(res->sockfd);
         res->statuscode = errno;
-        res->state = aes67_rtsp_dsc_state_done;
-        perror("write()");
+        res->state = aes67_rtsp_dsc_state_bored;
+        syslog(LOG_ERR,"rtsp write(): %s", strerror(errno));
         return EXIT_FAILURE;
     }
 

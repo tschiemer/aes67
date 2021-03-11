@@ -130,7 +130,7 @@ static void rav_session_delete(struct rav_session_st * session);
 static int rav_setup();
 static void rav_teardown();
 static void rav_process();
-//static void rav_browse_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * domain, void * context);
+static void rav_publish_by(struct rav_session_st * session, struct connection_st * con);
 static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context);
 #endif //AES67_SAPD_WITH_RAV == 1
 
@@ -145,6 +145,11 @@ static void local_process();
 static void write_error(struct connection_st * con, const u32_t code, const char * str);
 static void write_ok(struct connection_st * con);
 static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * except);
+
+static void write_new_by(aes67_sapsrv_session_t session, struct connection_st * by);
+static void write_upd_by(aes67_sapsrv_session_t session, struct connection_st * by);
+static void write_del_by(aes67_sapsrv_session_t session, struct connection_st * by);
+static void write_list_entry(struct connection_st * con, aes67_sapsrv_session_t session, bool return_payload);
 
 //static void cmd_help(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len);
@@ -205,6 +210,7 @@ static struct {
     struct rav_session_st * first_session;
     struct aes67_rtsp_dsc_res_st rtsp;
     struct rav_session_st * rtsp_session;
+    struct aes67_timer retry_timer;
     struct aes67_timer publish_timer;
     struct aes67_timer update_timer;
 } rav = {
@@ -253,7 +259,8 @@ static const char * error_msg[] = {
         "Unknown session",        // AES67_SAPD_ERR_UNKNOWN
         "SDP too big",            // AES67_SAPD_ERR_TOOBIG
         "Invalid..",                // AES67_SAPD_ERR_INVALID
-        "Feature not enabled"     // AES67_SAPD_ERR_NOTENABLED
+        "Feature not enabled",     // AES67_SAPD_ERR_NOTENABLED
+        "Not allowed",              // AES67_SAPD_ERR_NOTALLOWED
 };
 
 #define ERROR_COUNT (sizeof(error_msg) / sizeof(char *))
@@ -284,7 +291,8 @@ static void help(FILE * fd)
             "\t --ipv6-if\t IPv6 interface to listen on (default interface can fail)\n"
  #if AES67_SAPD_WITH_RAV == 1
             "\t --rav\t\t Enable Ravenna session lookups\n"
-            "\t --rav-no-autopub\t Disable automatic publishing of discovered ravenna sessions\n"
+            "\t --rav-no-autopub\n"
+            "\t\t\t Disable automatic publishing of discovered ravenna sessions\n"
              "\t --rav-pub-delay <delay-sec>\n"
              "\t\t\t Wait for this many seconds before publishing discovered ravenna sessions\n"
              "\t\t\t through SAP (0 .. %d, default %d)\n"
@@ -661,6 +669,7 @@ static int rav_setup()
 
     aes67_rtsp_dsc_init(&rav.rtsp, false);
 
+    aes67_timer_init(&rav.retry_timer);
     aes67_timer_init(&rav.publish_timer);
     aes67_timer_init(&rav.update_timer);
 
@@ -673,6 +682,7 @@ static void rav_teardown()
 {
     aes67_timer_deinit(&rav.publish_timer);
     aes67_timer_deinit(&rav.update_timer);
+    aes67_timer_deinit(&rav.retry_timer);
 
     aes67_rtsp_dsc_deinit(&rav.rtsp);
 
@@ -697,6 +707,7 @@ static void rav_process()
     //// check if rtsp sdp lookup has anything to do
     // first process pending
     if (rav.rtsp.state == aes67_rtsp_dsc_state_awaiting_response){
+
         aes67_rtsp_dsc_process(&rav.rtsp);
     }
     // if done
@@ -790,8 +801,11 @@ static void rav_process()
         struct rav_session_st * oldest = NULL;
 
         // try to find sessions whose SDP yet has to be retrieved (and look for oldest
+        time_t now = time(NULL);
+
         while(session != NULL){
-            if (session->state == rav_state_discovered){
+
+            if (session->state == rav_state_discovered && session->last_activity + session->error_count <= now){
                 break;
             }
 
@@ -814,6 +828,8 @@ static void rav_process()
                 u32_t wait_sec = opts.rav_update_interval - (time(NULL) - oldest->last_activity);
                 aes67_timer_set(&rav.update_timer, 1000 * wait_sec);
             }
+
+            printf("set oldest\n");
         }
 
         if (session != NULL ){
@@ -828,13 +844,17 @@ static void rav_process()
                 //TODO what can a start fail signify?
                 // - a device gone offline without telling anyone
 
-                if (session->error_count > RAV_RTSP_NERR_BEFORE_FAIL){
+
+                if (session->error_count >= RAV_RTSP_NERR_BEFORE_FAIL){
+
+                    syslog(LOG_INFO, "device not reachable, ignoring: %s@%s:%hu", session->name, session->hosttarget, session->addr.port);
 
                     if (session->state == rav_state_sdp_published){
-                        //TODO actually delete session?
+                        //TODO actually delete session or let linger in case host comes back?
                         aes67_sapsrv_session_t * ss = aes67_sapsrv_session_by_origin(sapsrv, &session->origin);
                         if (ss != NULL){
                             aes67_sapsrv_session_delete(sapsrv, ss, true);
+                            write_del_by(ss, NULL);
                         }
                     }
 
@@ -842,6 +862,11 @@ static void rav_process()
 
                 } else {
                     session->error_count++;
+
+                    // set timer to wait as many seconds as errors occured (unless timer already set for another connection)
+                    if (aes67_timer_getstate(&rav.retry_timer) != aes67_timer_state_set){
+                        aes67_timer_set(&rav.retry_timer, 1000 * session->error_count);
+                    }
                 }
 
             } else {
@@ -869,14 +894,7 @@ static void rav_process()
                     session->state = rav_state_sdp_not_published;
                     syslog(LOG_INFO, "Published through SAP, ignoring: %s", session->name);
                 } else {
-
-                    syslog(LOG_INFO, "Publishing through SAP: %s", session->name);
-
-                    u16_t hash = atoi((char*)session->origin.session_id.data);
-
-                    aes67_sapsrv_session_add(sapsrv, hash, session->addr.ipver, session->addr.addr, session->sdp, session->sdplen);
-
-                    session->state = rav_state_sdp_published;
+                    rav_publish_by(session, NULL);
                 }
             } else if (oldest == NULL || session->last_activity < oldest->last_activity ){
                 oldest = session;
@@ -907,11 +925,21 @@ static void rav_process()
         aes67_timer_set(&rav.publish_timer, 1000 * wait_sec);
     }
 }
+static void rav_publish_by(struct rav_session_st * session, struct connection_st * con)
+{
+    syslog(LOG_INFO, "Publishing through SAP: %s", session->name);
 
-//static void rav_browse_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * domain, void * context)
-//{
-//
-//}
+    u16_t hash = rand();//atoi((char*)session->origin.session_id.data);
+
+    aes67_sapsrv_session_t * ss = aes67_sapsrv_session_add(sapsrv, hash, session->addr.ipver, session->addr.addr, session->sdp, session->sdplen);
+
+    session->state = rav_state_sdp_published;
+
+    assert(ss != NULL);
+
+    write_new_by(ss, con);
+}
+
 
 static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context)
 {
@@ -937,6 +965,7 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
             // buuuuut, if a session had an error, reset it to discovered state
             // maybe it went offline, was unreachable, moved to error state and just came back online
             if (session->state == rav_state_error){
+//                printf("err -> disco\n");
                 session->state = rav_state_discovered;
             }
 
@@ -1288,6 +1317,21 @@ static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * exc
     }
 }
 
+static void write_new_by(aes67_sapsrv_session_t session, struct connection_st * by)
+{
+
+}
+
+static void write_upd_by(aes67_sapsrv_session_t session, struct connection_st * by)
+{
+
+}
+
+static void write_del_by(aes67_sapsrv_session_t session, struct connection_st * by)
+{
+
+}
+
 static void write_list_entry(struct connection_st * con, aes67_sapsrv_session_t session, bool return_payload)
 {
     u8_t buf[256 + AES67_SAPSRV_SDP_MAXLEN];
@@ -1446,8 +1490,10 @@ static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len)
 
     aes67_sapsrv_session_t session = aes67_sapsrv_session_by_origin(sapsrv, &origin);
 
+    bool is_new;
+
     if (session == NULL){
-        // new SDP
+        is_new = true;
         // we choose the hash randomly to minimize the possibility of hash collisions
         // that is, device might choose to base the hash off the session id which might lead to problems
         // when handing over management to a remote source because the locally managed session (sap_service..)
@@ -1457,6 +1503,7 @@ static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len)
         // make sure it is a newer version.
         struct aes67_sdp_originator * sorigin = aes67_sapsrv_session_get_origin(session);
         if (aes67_sdp_origin_cmpversion(sorigin, &origin) == -1){
+            is_new = false;
             aes67_sapsrv_session_update(sapsrv, session, sdp, sdplen);
         } else {
             write_error(con, AES67_SAPD_ERR, "session version is not newer");
@@ -1474,6 +1521,11 @@ static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len)
 
     write_ok(con);
 
+    if (is_new){
+        write_new_by(session, con);
+    } else {
+        write_upd_by(session, con);
+    }
 
     // now inform all other clients that session was deleted
     u8_t buf[256];
@@ -1547,6 +1599,8 @@ static void cmd_unset(struct connection_st * con, u8_t * cmdline, size_t len)
     aes67_sapsrv_session_delete(sapsrv, session, true);
 
     write_ok(con);
+
+    write_del_by(session, con);
 
     // now inform all other clients that session was deleted
     u8_t buf[256];
@@ -1655,7 +1709,7 @@ static void cmd_takeover(struct connection_st * con, u8_t * cmdline, size_t len)
 #if AES67_SAPD_WITH_RAV == 1
 static void cmd_rav_list(struct connection_st * con, u8_t * cmdline, size_t len)
 {
-    if (opts.rav_enabled){
+    if (!opts.rav_enabled){
         write_error(con, AES67_SAPD_ERR_NOTENABLED, NULL);
         return;
     }
@@ -1663,8 +1717,12 @@ static void cmd_rav_list(struct connection_st * con, u8_t * cmdline, size_t len)
 
 static void cmd_rav_publish(struct connection_st * con, u8_t * cmdline, size_t len)
 {
-    if (opts.rav_enabled){
+    if (!opts.rav_enabled){
         write_error(con, AES67_SAPD_ERR_NOTENABLED, NULL);
+        return;
+    }
+    if (opts.rav_auto_publish){
+        write_error(con, AES67_SAPD_ERR_NOTENABLED, "Auto publish is enabled");
         return;
     }
 
@@ -1684,9 +1742,12 @@ static void cmd_rav_publish(struct connection_st * con, u8_t * cmdline, size_t l
     if (session->state == rav_state_sdp_published || session->state == rav_state_sdp_updated){
         // ok, nothing to be done
     } else if (session->state == rav_state_sdp_available){
-        //TODO actually publish
-        //TODO inform clients
-        write(con->sockfd, "asdf\n", 5);
+        aes67_sapsrv_session_t ss = aes67_sapsrv_session_by_origin(sapsrv, &session->origin);
+        if (ss != NULL){
+            write_error(con, AES67_SAPD_ERR_NOTALLOWED, "can not publish existing session");
+            return;
+        }
+        rav_publish_by(session, con);
     } else {
         write_error(con, AES67_SAPD_ERR, "Not in state to be published");
         return;
@@ -1697,7 +1758,7 @@ static void cmd_rav_publish(struct connection_st * con, u8_t * cmdline, size_t l
 
 static void cmd_rav_unpublish(struct connection_st * con, u8_t * cmdline, size_t len)
 {
-    if (opts.rav_enabled){
+    if (!opts.rav_enabled){
         write_error(con, AES67_SAPD_ERR_NOTENABLED, NULL);
         return;
     }
@@ -1760,8 +1821,8 @@ int main(int argc, char * argv[]){
                 {"rav", no_argument, 0, 14},
                 {"rav-pub-delay", required_argument, 0, 15},
                 {"rav-upd-interval", required_argument, 0, 16},
-                {"rav-no-handover", required_argument, 0, 17},
-                {"rav-no-autopub", required_argument, 0, 18},
+                {"rav-no-handover", no_argument, 0, 17},
+                {"rav-no-autopub", no_argument, 0, 18},
 #endif
                 {0,         0,                 0,  0 }
         };

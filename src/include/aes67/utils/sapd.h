@@ -57,6 +57,7 @@ extern "C" {
 #define AES67_SAPD_ERR_TOOBIG       5
 #define AES67_SAPD_ERR_INVALID      6
 #define AES67_SAPD_ERR_NOTENABLED   7
+#define AES67_SAPD_ERR_NOTALLOWED   8
 
 #define AES67_SAPD_MSG_OK           "OK"
 
