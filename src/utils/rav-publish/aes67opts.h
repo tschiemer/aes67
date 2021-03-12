@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "aes67/utils/mdns.h"
+#ifndef AES67_AES67OPTS_H
+#define AES67_AES67OPTS_H
 
-#error TODO see https://www.avahi.org/doxygen/html/client-browse-services_8c-example.html
- 
+#endif //AES67_AES67OPTS_H_H

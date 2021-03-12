@@ -59,6 +59,10 @@ aes67_mdns_resource_t
 aes67_mdns_resolve2_start(aes67_mdns_context_t ctx, const char *type, const char *domain,
                           aes67_mdns_resolve_callback callback, void *user_data);
 
+aes67_mdns_resource_t
+aes67_mdns_publish_start(aes67_mdns_context_t ctx, const char *type, const char *name, const char *domain,
+                          const char * host, u16_t port, u16_t txtlen, const u8_t * txt);
+
 void aes67_mdns_stop(aes67_mdns_resource_t res);
 
 

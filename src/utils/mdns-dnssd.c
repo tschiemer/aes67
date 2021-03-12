@@ -40,6 +40,7 @@ enum restype {
     restype_resolve2_browse,
     restype_resolve2_resolve,
     restype_resolve2_getaddr,
+    restype_publish_service,
 };
 
 #define restype_isvalid(x) ( \
@@ -48,7 +49,8 @@ enum restype {
     (x) == restype_resolve_getaddr || \
     (x) == restype_resolve2_browse || \
     (x) == restype_resolve2_resolve || \
-    (x) == restype_resolve2_getaddr \
+    (x) == restype_resolve2_getaddr ||\
+    (x) == restype_publish_service \
 )
 
 struct resource_st;
@@ -508,6 +510,54 @@ static aes67_mdns_resource_t getaddr_start(resource_t * res, const char * hostna
 
     if (errorCode != kDNSServiceErr_NoError){
 //        printf("%d\n", errorCode);
+        resource_delete(res);
+        return NULL;
+    }
+
+    resource_link(res);
+
+    return res;
+}
+
+static void publish_service_callback(
+        DNSServiceRef sdRef,
+        DNSServiceFlags flags,
+        DNSServiceErrorType errorCode,
+        const char                          *name,
+        const char                          *regtype,
+        const char                          *domain,
+        void                                *context
+)
+{
+    printf("flags = %d, err = %d\n", flags, errorCode);
+}
+
+aes67_mdns_resource_t
+aes67_mdns_publish_start(aes67_mdns_context_t ctx, const char *type, const char *name, const char *domain,
+                         const char * host, u16_t port, u16_t txtlen, const u8_t * txt)
+{
+
+    assert(ctx != NULL);
+    assert(type != NULL);
+    assert(name != NULL);
+
+    context_t * context = ctx;
+
+    resource_t * res = resource_new(context, restype_publish_service, NULL, NULL, NULL);
+
+    // convert to dns-sd style type
+    char regtype[256];
+    to_regtype(regtype, sizeof(regtype), type);
+
+    res->serviceRef = context->sharedRef;
+
+    DNSServiceFlags flags = kDNSServiceFlagsShareConnection;
+    u32_t interfaceIndex = 0; // all possible interfaces
+
+    DNSServiceErrorType errorCode = DNSServiceRegister(&res->serviceRef, flags, interfaceIndex, name, regtype, domain, host, htons(port), txtlen, txt, publish_service_callback, res);
+
+    if (errorCode != kDNSServiceErr_NoError){
+        printf("%d\n", errorCode);
         resource_delete(res);
         return NULL;
     }

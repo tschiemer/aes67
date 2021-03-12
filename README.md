@@ -53,6 +53,7 @@ https://github.com/tschiemer/aes67
   - RAVENNA
     - [ ] ~~RAV2SAP~~ -> [sapd](#sapd)
     - [x] [rav-lookup](#rav-lookup): browse for RAVENNA sessions/devices
+    - [ ] [rav-publish](#rav-publish): publish RAVENNA sessions and optionally serve SDP files
   - PTP
     - [ ] ptp-monitor? -> https://www.ptptrackhound.com/
     - [ ] ptp-server?
@@ -437,6 +438,21 @@ Or similarly using `avahi-browse`
 avahi-browse -r _ravenna_session._sub._rtsp._tcp
 avahi-browse -r _ravenna._sub._rtsp._tcp
 avahi-browse -r _ravenna._sub._http._tcp
+```
+
+### `rav-publish`
+
+```
+Usage: ./rav-publish [-h?] | [-v] [-p <rtsp-port>] [[--host <host>] [--ip <ip>] | [--no-rtsp]] <sdp-file1> ...
+Sets up Ravenna style discovery mechanism for provided SDP files.
+By default sets up a mini-RTSP server serving the given session descriptions.
+Options:
+	 -h,-?		 Outputs this info
+	 -v		 Some status output to STDERR
+	 -p <rtsp-port>	  Port of RTSP server.
+	 --host <host>	 Host of target device (by default will assume self).
+	 --ip <ip>	 IPv4/6 address of target device (create an record for host).
+	 --no-rtsp	 Do not start a RTSP server.
 ```
 
 To quickly register a (test) ravenna session with name `Hello my pretty` on the localhost's port 9191:

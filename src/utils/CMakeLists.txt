@@ -14,5 +14,6 @@ add_subdirectory(sdp-gen)
 add_subdirectory(rtsp-describe)
 
 add_subdirectory(rav-lookup)
+add_subdirectory(rav-publish)
 
 
