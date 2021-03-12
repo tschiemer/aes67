@@ -40,6 +40,10 @@ https://github.com/tschiemer/aes67
     - [x] [sap-pack](#sap-pack): create SAP message(s)
     - [x] [sap-unpack](#sap-unpack): parse SAP message(s) 
     - [ ] [sapd](#sapd): SAP daemon (with Ravenna support)
+      - [x] SAP server
+      - [x] RAV lookup + pass to SAP server
+      - [ ] publish SDP files from config dir
+      - [ ] RAV publish of locally managed sessions 
   - SDP
     - [x] [sdp-parse](#sdp-parse): parse SDP(s)
     - [x] [sdp-gen](#sdp-gen): generate SDP
