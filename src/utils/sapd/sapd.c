@@ -41,7 +41,7 @@
 //#define BUFSIZE 1024
 #define MAX_CMDLINE 256
 
-#define DEFAULT_LISTEN_SCOPES   (AES67_SAPSRV_SCOPE_IPv4 | AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)
+#define DEFAULT_LISTEN_SCOPES   AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED
 #define DEFAULT_SEND_SCOPES     AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED
 
 
@@ -287,7 +287,8 @@ static void help(FILE * fd)
              "\t -h,-?\t\t Prints this info.\n"
              "\t -d,--daemonize\t Daemonize\n"
              "\t -v\t\t Also print syslog to STDERR\n"
-             "\t -p,--port <port>\t Listen on this port (default %hu)\n"
+             "\t -p,--port <port>\n"
+             "\t\t\t Listen/send on this port (default %hu)\n"
              "\t --l<mcast-scope>, --s<mcast-scope>\n"
              "\t\t\t Listens, sends respectively on these IPv4/6 multicast scopes (multiple possible). Scopes:\n"
              "\t\t\t\t 4g\t IPv4 SAP global (" AES67_SAP_IPv4_GLOBAL_STR ")\n"
@@ -296,7 +297,7 @@ static void help(FILE * fd)
              "\t\t\t\t 6ip4\t IPv6 SAP ip4 scope local (" AES67_SAP_IPv6_IP4_STR ")\n"
             "\t\t\t\t 6al\t IPv6 SAP admin local (" AES67_SAP_IPv6_AL_STR ")\n"
             "\t\t\t\t 6sl\t IPv6 SAP site local (" AES67_SAP_IPv6_SL_STR ")\n"
-            "\t\t\t Default listen: 4g + 4a + 6ll\n"
+            "\t\t\t Default listen: 4a\n"
             "\t\t\t Default send: 4a\n"
             "\t --ipv6-if\t IPv6 interface to listen on (default interface can fail)\n"
  #if AES67_SAPD_WITH_RAV == 1
@@ -310,9 +311,8 @@ static void help(FILE * fd)
              "\t\t\t Wait for this many seconds checking for SDP change of already published\n"
              "\t\t\t ravenna device (0 .. %d, default %d)\n"
              "\t --rav-no-handover\n"
-             "\t\t\t Discovered ravenna session that are also found through SAP will give NOT\n"
-             "\t\t\t up local management (assuming another source, possibly the originating device)\n"
-             "\t\t\t will actually handle this)."
+             "\t\t\t Discovered ravenna session that are also found through SAP will NOT give\n"
+             "\t\t\t up local management (ie will NOT continue to announce sessions)."
  #endif
             "\nCompile time options:\n"
             "\t AES67_SAP_MIN_INTERVAL_SEC \t %d \t // +- announce time, depends on SAP traffic\n"
