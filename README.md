@@ -49,7 +49,6 @@ https://github.com/tschiemer/aes67
   - RAVENNA
     - [ ] ~~RAV2SAP~~ -> [sapd](#sapd)
     - [x] [rav-lookup](#rav-lookup): browse for RAVENNA sessions/devices
-    - [ ] rav-register? easily register a specific mDNS service/device 
   - PTP
     - [ ] ptp-monitor? -> https://www.ptptrackhound.com/
     - [ ] ptp-server?
@@ -429,11 +428,22 @@ dns-sd -Z _rtsp._tcp,_ravenna_session
 dns-sd -Z _rtsp._tcp,_ravenna
 dns-sd -Z _http._tcp,_ravenna
 ```
-Or similarly using `ahavi-browse`
+Or similarly using `avahi-browse`
 ```bash
-ahavi-browse _ravenna_session._sub._rtsp._tcp
+avahi-browse -r _ravenna_session._sub._rtsp._tcp
+avahi-browse -r _ravenna._sub._rtsp._tcp
+avahi-browse -r _ravenna._sub._http._tcp
 ```
 
+To quickly register a (test) ravenna session with name `Hello my pretty` on the localhost's port 9191:
+```bash
+dns-sd -R "Hello my pretty" _rtsp._tcp,_ravenna_session local 9191
+avahi-publish -s "Hello my pretty" _rtsp._tcp 9191 --sub _ravenna_session._sub._rtsp._tcp
+```
+
+Please note, that actual Ravenna devices expect to find an actual RTSP service on said host and port
+with an SDP resource retrievable through an RTSP *DESCRIBE* request for URI `/by-name/Hello%20my%20pretty`
+(URL encoded session name).
 
 ## References
 
