@@ -237,6 +237,6 @@ u8_t aes67_net_ipeq(const struct aes67_net_addr * lhs, const struct aes67_net_ad
 
     u16_t l = lhs->ipver == aes67_net_ipver_4 ? 4 : 16;
 
-    return aes67_memcmp(lhs->addr, rhs->addr, l) == 0;
+    return aes67_memcmp(lhs->ip, rhs->ip, l) == 0;
 }
 

@@ -38,11 +38,13 @@ enum aes67_mdns_result {
     aes67_mdns_result_error,
     aes67_mdns_result_discovered,
     aes67_mdns_result_terminated,
+    aes67_mdns_result_registered,
 };
 
 typedef void (*aes67_mdns_browse_callback)(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * domain, void * context);
 typedef void (*aes67_mdns_resolve_callback)(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context);
-
+typedef void (*aes67_mdns_service_callback)(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char *type, const char *name, const char *domain, void * context);
+typedef void (*aes67_mdns_register_callback)(aes67_mdns_resource_t res, enum aes67_mdns_result result, void * user_data);
 
 aes67_mdns_context_t  aes67_mdns_new(void);
 void aes67_mdns_delete(aes67_mdns_context_t ctx);
@@ -60,8 +62,15 @@ aes67_mdns_resolve2_start(aes67_mdns_context_t ctx, const char *type, const char
                           aes67_mdns_resolve_callback callback, void *user_data);
 
 aes67_mdns_resource_t
-aes67_mdns_publish_start(aes67_mdns_context_t ctx, const char *type, const char *name, const char *domain,
-                          const char * host, u16_t port, u16_t txtlen, const u8_t * txt);
+aes67_mdns_service_start(aes67_mdns_context_t ctx, const char *type, const char *name, const char *domain,
+                         const char * host, u16_t port, u16_t txtlen, const u8_t * txt, aes67_mdns_service_callback callback, void *user_data);
+
+aes67_mdns_resource_t
+aes67_mdns_service_addrecord(aes67_mdns_context_t ctx, aes67_mdns_resource_t service, u16_t rrtype, u16_t rdlen, const u8_t * rdata, u32_t ttl);
+
+aes67_mdns_resource_t
+aes67_mdns_register_start(aes67_mdns_context_t ctx, const char *fullname, u16_t rrtype, u16_t rrclass, u16_t rdlen, const u8_t * rdata, u32_t ttl, aes67_mdns_register_callback callback, void *user_data);
+
 
 void aes67_mdns_stop(aes67_mdns_resource_t res);
 

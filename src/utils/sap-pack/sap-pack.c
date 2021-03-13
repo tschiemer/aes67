@@ -192,7 +192,7 @@ static int generate_packet(u8_t * payload, size_t plen, size_t typelen)
     }
 
 
-    uint16_t len = aes67_sap_service_msg(NULL, packet, sizeof(packet), opts.status, hash, ip.ipver, ip.addr,
+    uint16_t len = aes67_sap_service_msg(NULL, packet, sizeof(packet), opts.status, hash, ip.ipver, ip.ip,
                                          payload, totallen, NULL);
 
     if (len == 0){

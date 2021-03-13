@@ -98,7 +98,7 @@ static sapsrv_session_t * session_new(sapsrv_t *server, u8_t managed_by, const u
     session->hash = hash;
 
     session->ip.ipver = ipver;
-    memcpy(session->ip.addr, ip, AES67_NET_IPVER_SIZE(ipver));
+    memcpy(session->ip.ip, ip, AES67_NET_IPVER_SIZE(ipver));
 
     memcpy(&session->origin, origin, sizeof(struct aes67_sdp_originator));
 
@@ -167,7 +167,7 @@ static sapsrv_session_t * aes67_sapsrv_session_by_id(aes67_sapsrv_t sapserver, c
     sapsrv_session_t * current = server->first_session;
 
     for(; current != NULL; current = current->next ){
-        if (current->hash == hash && current->ip.ipver == ipver && memcmp(current->ip.addr, ip, AES67_NET_IPVER_SIZE(ipver)) == 0){
+        if (current->hash == hash && current->ip.ipver == ipver && memcmp(current->ip.ip, ip, AES67_NET_IPVER_SIZE(ipver)) == 0){
             return current;
         }
     }
@@ -398,7 +398,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
 
     u8_t sap[AES67_SAPSRV_SDP_MAXLEN+60];
 
-    u16_t saplen = aes67_sap_service_msg(&server->service, sap, sizeof(sap), opt, session->hash, session->ip.ipver, session->ip.addr, session->payload, session->payloadlen, server);
+    u16_t saplen = aes67_sap_service_msg(&server->service, sap, sizeof(sap), opt, session->hash, session->ip.ipver, session->ip.ip, session->payload, session->payloadlen, server);
 
     if (saplen == 0){
         syslog(LOG_ERR, "failed to generate SAP msg");
@@ -900,7 +900,7 @@ void aes67_sapsrv_session_delete(aes67_sapsrv_t sapserver, aes67_sapsrv_session_
     if (announce) {
         sap_send(server, session, AES67_SAP_STATUS_MSGTYPE_DELETE);
     } else {
-        struct aes67_sap_session * ss = aes67_sap_service_find(&server->service, session->hash, session->ip.ipver, session->ip.addr);
+        struct aes67_sap_session * ss = aes67_sap_service_find(&server->service, session->hash, session->ip.ipver, session->ip.ip);
         if (ss == NULL){
             syslog(LOG_ERR, "sapsrv trying to silently delete a session that isn't registered");
         } else {
@@ -981,7 +981,7 @@ void aes67_sapsrv_session_set_managedby(aes67_sapsrv_t sapserver, aes67_sapsrv_s
     sapsrv_t * server = sapserver;
     sapsrv_session_t * session = sapsession;
 
-    struct aes67_sap_session * ss = aes67_sap_service_find(&server->service, session->hash, session->ip.ipver, session->ip.addr);
+    struct aes67_sap_session * ss = aes67_sap_service_find(&server->service, session->hash, session->ip.ipver, session->ip.ip);
     if (ss != NULL){
         ss->stat = (ss->stat & ~AES67_SAP_SESSION_STAT_SRC) | (managed_by == AES67_SAPSRV_MANAGEDBY_LOCAL ? AES67_SAP_SESSION_STAT_SRC_IS_SELF : AES67_SAP_SESSION_STAT_SRC_IS_OTHER);
     }

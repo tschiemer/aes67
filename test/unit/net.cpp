@@ -37,19 +37,19 @@ TEST(Net_TestGroup, str2addr_ipv4)
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("0.0.0.0")));
     CHECK_EQUAL(aes67_net_ipver_4, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x00\x00\x00", addr.addr, 4);
+    MEMCMP_EQUAL("\x00\x00\x00\x00", addr.ip, 4);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("255.255.255.255")));
     CHECK_EQUAL(aes67_net_ipver_4, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\xFF\xFF\xFF\xFF", addr.addr, 4);
+    MEMCMP_EQUAL("\xFF\xFF\xFF\xFF", addr.ip, 4);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("1.2.3.4")));
     CHECK_EQUAL(aes67_net_ipver_4, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x01\x02\x03\x04", addr.addr, 4);
+    MEMCMP_EQUAL("\x01\x02\x03\x04", addr.ip, 4);
 
 
     RESET_ADDR(addr);
@@ -75,19 +75,19 @@ TEST(Net_TestGroup, str2addr_ipv4)
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("0.0.0.0:123")));
     CHECK_EQUAL(aes67_net_ipver_4, addr.ipver);
     CHECK_EQUAL(123, addr.port);
-    MEMCMP_EQUAL("\x00\x00\x00\x00", addr.addr, 4);
+    MEMCMP_EQUAL("\x00\x00\x00\x00", addr.ip, 4);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("255.255.255.255:456")));
     CHECK_EQUAL(aes67_net_ipver_4, addr.ipver);
     CHECK_EQUAL(456, addr.port);
-    MEMCMP_EQUAL("\xFF\xFF\xFF\xFF", addr.addr, 4);
+    MEMCMP_EQUAL("\xFF\xFF\xFF\xFF", addr.ip, 4);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("1.2.3.4:789")));
     CHECK_EQUAL(aes67_net_ipver_4, addr.ipver);
     CHECK_EQUAL(789, addr.port);
-    MEMCMP_EQUAL("\x01\x02\x03\x04", addr.addr, 4);
+    MEMCMP_EQUAL("\x01\x02\x03\x04", addr.ip, 4);
 
 
     RESET_ADDR(addr);
@@ -123,31 +123,31 @@ TEST(Net_TestGroup, str2addr_ipv6)
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("0:0:0:0:0:0:0:0")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", addr.addr, 16);
+    MEMCMP_EQUAL("\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", addr.addr, 16);
+    MEMCMP_EQUAL("\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("1:2:3:4:5:6:7:8")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("100:200:300:400:500:600:700:800")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08\x00", addr.addr, 16);
+    MEMCMP_EQUAL("\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08\x00", addr.ip, 16);
 
 
 
@@ -157,55 +157,55 @@ TEST(Net_TestGroup, str2addr_ipv6)
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("::")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("::1")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("1::")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("0::0")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("1::8")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("1::7:8")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x07\x00\x08", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x07\x00\x08", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("1::3:4:5:6:7:8")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x01\x00\x00\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x01\x00\x00\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("1:2::8")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x01\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x01\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x08", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("1:2:3:4:5:6::8")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x00\x00\x08", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x00\x00\x08", addr.ip, 16);
 
 
    // bracket format
@@ -214,37 +214,37 @@ TEST(Net_TestGroup, str2addr_ipv6)
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("[0:0:0:0:0:0:0:0]")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("[::]")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("[::1]")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("[1::]")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("[1:2:3:4:5:6:7:8]")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x00\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("[100:200:300:400:500:600:700:800]")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(0, addr.port);
-    MEMCMP_EQUAL("\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08\x00", addr.addr, 16);
+    MEMCMP_EQUAL("\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08\x00", addr.ip, 16);
 
 
     // ports
@@ -253,19 +253,19 @@ TEST(Net_TestGroup, str2addr_ipv6)
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("[0:0:0:0:0:0:0:0]:123")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(123, addr.port);
-    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("[FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF:FFFF]:456")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(456, addr.port);
-    MEMCMP_EQUAL("\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", addr.addr, 16);
+    MEMCMP_EQUAL("\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", addr.ip, 16);
 
     RESET_ADDR(addr);
     CHECK_TRUE(aes67_net_str2addr(&addr, IPSTRLEN("[1:2:3:4:5:6:7:8]:789")));
     CHECK_EQUAL(aes67_net_ipver_6, addr.ipver);
     CHECK_EQUAL(789, addr.port);
-    MEMCMP_EQUAL("\x00\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08", addr.addr, 16);
+    MEMCMP_EQUAL("\x00\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08", addr.ip, 16);
 
 
     // boundaries
@@ -323,19 +323,19 @@ TEST(Net_TestGroup, addr2str_ipv4)
     addr.ipver = aes67_net_ipver_4;
     addr.port = 0;
 
-    std::memcpy(addr.addr,"\x00\x00\x00\x00", 4);
+    std::memcpy(addr.ip, "\x00\x00\x00\x00", 4);
     len = aes67_net_addr2str(str, &addr);
     CHECK_EQUAL(sizeof("0.0.0.0") - 1, len);
     str[len] = '\0';
     STRCMP_EQUAL("0.0.0.0", (const char *)str);
 
-    std::memcpy(addr.addr,"\x01\x02\x03\x04", 4);
+    std::memcpy(addr.ip, "\x01\x02\x03\x04", 4);
     len = aes67_net_addr2str(str, &addr);
     CHECK_EQUAL(sizeof("1.2.3.4") - 1, len);
     str[len] = '\0';
     STRCMP_EQUAL("1.2.3.4", (const char *)str);
 
-    std::memcpy(addr.addr,"\xFF\xFF\xFF\xFF", 4);
+    std::memcpy(addr.ip, "\xFF\xFF\xFF\xFF", 4);
     len = aes67_net_addr2str(str, &addr);
     CHECK_EQUAL(sizeof("255.255.255.255") - 1, len);
     str[len] = '\0';
@@ -343,7 +343,7 @@ TEST(Net_TestGroup, addr2str_ipv4)
 
 
     addr.port = 1;
-    std::memcpy(addr.addr,"\x00\x00\x00\x00", 4);
+    std::memcpy(addr.ip, "\x00\x00\x00\x00", 4);
     len = aes67_net_addr2str(str, &addr);
     CHECK_EQUAL(sizeof("0.0.0.0:1") - 1, len);
     str[len] = '\0';
@@ -381,25 +381,25 @@ TEST(Net_TestGroup, addr2str_ipv6)
 
 #else // AES67_USE_IPv6 == 1
 
-    std::memcpy(addr.addr,"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16);
+    std::memcpy(addr.ip, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16);
     len = aes67_net_addr2str(str, &addr);
     CHECK_EQUAL(sizeof("0:0:0:0:0:0:0:0") - 1, len);
     str[len] = '\0';
     STRCMP_EQUAL("0:0:0:0:0:0:0:0", (const char *)str);
 
-    std::memcpy(addr.addr,"\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", 16);
+    std::memcpy(addr.ip, "\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF", 16);
     len = aes67_net_addr2str(str, &addr);
     CHECK_EQUAL(sizeof("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff") - 1, len);
     str[len] = '\0';
     STRCMP_EQUAL("ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", (const char *)str);
 
-    std::memcpy(addr.addr,"\x00\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08", 16);
+    std::memcpy(addr.ip, "\x00\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08", 16);
     len = aes67_net_addr2str(str, &addr);
     CHECK_EQUAL(sizeof("1:2:3:4:5:6:7:8") - 1, len);
     str[len] = '\0';
     STRCMP_EQUAL("1:2:3:4:5:6:7:8", (const char *)str);
 
-    std::memcpy(addr.addr,"\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08\x00", 16);
+    std::memcpy(addr.ip, "\x01\x00\x02\x00\x03\x00\x04\x00\x05\x00\x06\x00\x07\x00\x08\x00", 16);
     len = aes67_net_addr2str(str, &addr);
     CHECK_EQUAL(sizeof("100:200:300:400:500:600:700:800") - 1, len);
     str[len] = '\0';
@@ -407,7 +407,7 @@ TEST(Net_TestGroup, addr2str_ipv6)
 
 
     addr.port = 1;
-    std::memcpy(addr.addr,"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16);
+    std::memcpy(addr.ip, "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00", 16);
     len = aes67_net_addr2str(str, &addr);
     CHECK_EQUAL(sizeof("[0:0:0:0:0:0:0:0]:1") - 1, len);
     str[len] = '\0';

@@ -62,7 +62,7 @@ u16_t packet2mem(uint8_t data[], sap_packet_t & packet)
     } else {
         data[AES67_SAP_STATUS] |= AES67_SAP_STATUS_ADDRTYPE_IPv6;
     }
-    std::memcpy(&data[AES67_SAP_ORIGIN_SRC], packet.ip.addr, AES67_NET_IPVER_SIZE(packet.ip.ipver));
+    std::memcpy(&data[AES67_SAP_ORIGIN_SRC], packet.ip.ip, AES67_NET_IPVER_SIZE(packet.ip.ipver));
     len += AES67_NET_IPVER_SIZE(packet.ip.ipver);
 
 
@@ -115,7 +115,7 @@ aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event even
 
     sap_event.hash = hash;
     sap_event.src.ipver = ipver;
-    std::memcpy(sap_event.src.addr, ip, AES67_NET_IPVER_SIZE(ipver));
+    std::memcpy(sap_event.src.ip, ip, AES67_NET_IPVER_SIZE(ipver));
 
     sap_event.payloadtype = payloadtype;
     sap_event.payloadtypelen = payloadtypelen;
@@ -271,7 +271,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
@@ -298,7 +298,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
 #endif
     CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver );
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, (AES67_NET_IPVER_SIZE(p1.ip.ipver)));
+    MEMCMP_EQUAL(p1.ip.ip, sap_event.src.ip, (AES67_NET_IPVER_SIZE(p1.ip.ipver)));
 #endif
 
     // re-announce the same packet (ie same msg hash id + originating source)
@@ -331,7 +331,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("o=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
@@ -356,7 +356,7 @@ TEST(SAP_TestGroup, sap_handle_v2)
 #endif
     CHECK_EQUAL(p2.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p2.ip.ipver, sap_event.src.ipver );
-    MEMCMP_EQUAL(p2.ip.addr, sap_event.src.addr, (AES67_NET_IPVER_SIZE(p2.ip.ipver)));
+    MEMCMP_EQUAL(p2.ip.ip, sap_event.src.ip, (AES67_NET_IPVER_SIZE(p2.ip.ipver)));
 #endif
 
     aes67_sap_service_deinit(&sap);
@@ -382,7 +382,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             .typelen = 0,
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
@@ -408,7 +408,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
 #endif
     CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver );
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, (AES67_NET_IPVER_SIZE(p1.ip.ipver)));
+    MEMCMP_EQUAL(p1.ip.ip, sap_event.src.ip, (AES67_NET_IPVER_SIZE(p1.ip.ipver)));
 #endif
 
 
@@ -440,7 +440,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             .typelen = 0,
             PACKET_DATA("o=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
@@ -466,7 +466,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
 #endif
     CHECK_EQUAL(p2.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p2.ip.ipver, sap_event.src.ipver );
-    MEMCMP_EQUAL(p2.ip.addr, sap_event.src.addr, (AES67_NET_IPVER_SIZE(p2.ip.ipver)));
+    MEMCMP_EQUAL(p2.ip.ip, sap_event.src.ip, (AES67_NET_IPVER_SIZE(p2.ip.ipver)));
 #endif
 
 
@@ -477,7 +477,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             .typelen = 0,
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
@@ -504,7 +504,7 @@ TEST(SAP_TestGroup, sap_handle_v1)
             .msg_id_hash = 0,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             .typelen = 0,
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
@@ -544,7 +544,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
             .msg_id_hash = 0,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
@@ -592,7 +592,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
             .msg_id_hash = 0,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("o=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\n")
@@ -631,7 +631,7 @@ TEST(SAP_TestGroup, sap_handle_pooloverflow)
 #endif
     CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver );
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, (AES67_NET_IPVER_SIZE(p1.ip.ipver)));
+    MEMCMP_EQUAL(p1.ip.ip, sap_event.src.ip, (AES67_NET_IPVER_SIZE(p1.ip.ipver)));
 #endif
 
     // resubmit (-> refresh event)
@@ -675,7 +675,7 @@ TEST(SAP_TestGroup, sap_handle_compressed)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
@@ -716,7 +716,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
@@ -745,7 +745,7 @@ TEST(SAP_TestGroup, sap_handle_auth)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
@@ -858,7 +858,7 @@ TEST(SAP_TestGroup, sap_msg)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5,6,7,8}
+                    .ip = {5, 6, 7, 8}
             }
     };
 
@@ -881,7 +881,7 @@ TEST(SAP_TestGroup, sap_msg)
     MEMCMP_EQUAL(auth_data, &data[AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p1.ip.ipver))], 4*data[AES67_SAP_AUTH_LEN]);
 #endif
     CHECK_EQUAL(p1.msg_id_hash, ntohs(*(uint16_t*)&data[AES67_SAP_MSG_ID_HASH]));
-    MEMCMP_EQUAL(p1.ip.addr, &data[AES67_SAP_ORIGIN_SRC], AES67_NET_IPVER_SIZE(p1.ip.ipver));
+    MEMCMP_EQUAL(p1.ip.ip, &data[AES67_SAP_ORIGIN_SRC], AES67_NET_IPVER_SIZE(p1.ip.ipver));
 
     int pos = AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p1.ip.ipver)) + 4*data[AES67_SAP_AUTH_LEN];
     STRCMP_EQUAL(AES67_SDP_MIMETYPE, (const char *)&data[pos]);
@@ -895,7 +895,7 @@ TEST(SAP_TestGroup, sap_msg)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_6,
-                    .addr = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16}
+                    .ip = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
             }
     };
 
@@ -919,7 +919,7 @@ TEST(SAP_TestGroup, sap_msg)
     MEMCMP_EQUAL(auth_data, &data[AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p2.ip.ipver))], 4*data[AES67_SAP_AUTH_LEN]);
 #endif
     CHECK_EQUAL(p2.msg_id_hash, ntohs(*(uint16_t*)&data[AES67_SAP_MSG_ID_HASH]));
-    MEMCMP_EQUAL(p2.ip.addr, &data[AES67_SAP_ORIGIN_SRC], AES67_NET_IPVER_SIZE(p2.ip.ipver));
+    MEMCMP_EQUAL(p2.ip.ip, &data[AES67_SAP_ORIGIN_SRC], AES67_NET_IPVER_SIZE(p2.ip.ipver));
 
     pos = AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p2.ip.ipver)) + 4*data[AES67_SAP_AUTH_LEN];
     STRCMP_EQUAL(AES67_SDP_MIMETYPE, (const char *)&data[pos]);
@@ -932,7 +932,7 @@ TEST(SAP_TestGroup, sap_msg)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5,6,7,8}
+                    .ip = {5, 6, 7, 8}
             }
     };
 
@@ -955,7 +955,7 @@ TEST(SAP_TestGroup, sap_msg)
     MEMCMP_EQUAL(auth_data, &data[AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p1.ip.ipver))], 4*data[AES67_SAP_AUTH_LEN]);
 #endif
     CHECK_EQUAL(p3.msg_id_hash, ntohs(*(uint16_t*)&data[AES67_SAP_MSG_ID_HASH]));
-    MEMCMP_EQUAL(p3.ip.addr, &data[AES67_SAP_ORIGIN_SRC], AES67_NET_IPVER_SIZE(p1.ip.ipver));
+    MEMCMP_EQUAL(p3.ip.ip, &data[AES67_SAP_ORIGIN_SRC], AES67_NET_IPVER_SIZE(p1.ip.ipver));
 
     pos = AES67_SAP_ORIGIN_SRC + (AES67_NET_IPVER_SIZE(p3.ip.ipver)) + 4*data[AES67_SAP_AUTH_LEN];
     STRCMP_EQUAL(AES67_SDP_MIMETYPE, (const char *)&data[pos]);
@@ -1021,7 +1021,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5,6,7,8}
+                    .ip = {5, 6, 7, 8}
             }
     };
 
@@ -1066,7 +1066,7 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     CHECK_EQUAL(aes67_sap_event_announcement_request, sap_event.event);
     CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver);
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, AES67_NET_IPVER_SIZE(p1.ip.ipver));
+    MEMCMP_EQUAL(p1.ip.ip, sap_event.src.ip, AES67_NET_IPVER_SIZE(p1.ip.ipver));
 
 
     aes67_sap_service_deinit(&sap);
@@ -1101,7 +1101,7 @@ TEST(SAP_TestGroup, sap_timeouts)
             .msg_id_hash = 1234,
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
@@ -1128,7 +1128,7 @@ TEST(SAP_TestGroup, sap_timeouts)
             .msg_id_hash = 12345, // another hash!
             .ip = {
                     .ipver = aes67_net_ipver_4,
-                    .addr = {5, 6, 7, 8},
+                    .ip = {5, 6, 7, 8},
             },
             PACKET_TYPE("application/sdp"),
             PACKET_DATA("v=0\r\no=jdoe 2890844526 2890842807 IN IP4 10.47.16.5\r\ns=SDP Seminar\r\nc=IN IP4 224.2.17.12/127\r\nm=audio 49170 RTP/AVP 0\r\n")
@@ -1218,7 +1218,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_EQUAL(aes67_sap_event_timeout, sap_event.event);
     CHECK_EQUAL(p1.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p1.ip.ipver, sap_event.src.ipver);
-    MEMCMP_EQUAL(p1.ip.addr, sap_event.src.addr, AES67_NET_IPVER_SIZE(p1.ip.ipver));
+    MEMCMP_EQUAL(p1.ip.ip, sap_event.src.ip, AES67_NET_IPVER_SIZE(p1.ip.ipver));
 
 
     // step another half a timeout into the future
@@ -1234,7 +1234,7 @@ TEST(SAP_TestGroup, sap_timeouts)
     CHECK_EQUAL(aes67_sap_event_timeout, sap_event.event);
     CHECK_EQUAL(p2.msg_id_hash, sap_event.hash);
     CHECK_EQUAL(p2.ip.ipver, sap_event.src.ipver);
-    MEMCMP_EQUAL(p2.ip.addr, sap_event.src.addr, AES67_NET_IPVER_SIZE(p2.ip.ipver));
+    MEMCMP_EQUAL(p2.ip.ip, sap_event.src.ip, AES67_NET_IPVER_SIZE(p2.ip.ipver));
 
 
     aes67_sap_service_deinit(&sap);

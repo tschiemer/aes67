@@ -100,7 +100,7 @@ struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap
 
 #if AES67_SAP_MEMORY == AES67_MEMORY_POOL
     for(u16_t i = 0; i < AES67_SAP_MEMORY_MAX_SESSIONS; i++){
-        if ((sap->sessions[i].stat & AES67_SAP_SESSION_STAT_SET) && sap->sessions[i].hash == hash && sap->sessions[i].src.ipver == ipver && 0 == aes67_memcmp(sap->sessions[i].src.addr, ip, AES67_NET_IPVER_SIZE(ipver))){
+        if ((sap->sessions[i].stat & AES67_SAP_SESSION_STAT_SET) && sap->sessions[i].hash == hash && sap->sessions[i].src.ipver == ipver && 0 == aes67_memcmp(sap->sessions[i].src.ip, ip, AES67_NET_IPVER_SIZE(ipver))){
             return &sap->sessions[i];
         }
     }
@@ -173,7 +173,7 @@ struct aes67_sap_session * aes67_sap_service_register(struct aes67_sap_service *
     session->stat = AES67_SAP_SESSION_STAT_SET | (src & AES67_SAP_SESSION_STAT_SRC);
     session->hash = hash;
     session->src.ipver = ipver;
-    aes67_memcpy(session->src.addr, ip, AES67_NET_IPVER_SIZE(ipver));
+    aes67_memcpy(session->src.ip, ip, AES67_NET_IPVER_SIZE(ipver));
 
     // never let overflow
     if ((src & AES67_SAP_SESSION_STAT_SRC) == AES67_SAP_SESSION_STAT_SRC_IS_SELF) {
@@ -394,7 +394,7 @@ void aes67_sap_service_announcement_check(struct aes67_sap_service *sap, void *u
             if (timeout_after < age){
 
                 aes67_sap_service_event(sap, aes67_sap_event_announcement_request, sap->sessions[i].hash,
-                                        sap->sessions[i].src.ipver, sap->sessions[i].src.addr, NULL, 0, NULL, 0,
+                                        sap->sessions[i].src.ipver, sap->sessions[i].src.ip, NULL, 0, NULL, 0,
                                         user_data);
             }
         }
@@ -479,7 +479,7 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service *sap, void *use
             if (timeout_after < age){
 
                 aes67_sap_service_event(sap, aes67_sap_event_timeout, sap->sessions[i].hash,
-                                        sap->sessions[i].src.ipver, sap->sessions[i].src.addr, NULL, 0, NULL, 0,
+                                        sap->sessions[i].src.ipver, sap->sessions[i].src.ip, NULL, 0, NULL, 0,
                                         user_data);
 
                 aes67_sap_service_unregister(sap, &sap->sessions[i]);
@@ -922,5 +922,5 @@ u16_t aes67_sap_service_msg_sdp(struct aes67_sap_service *sap, u8_t *msg, u16_t 
 
     payloadlen += sizeof(AES67_SDP_MIMETYPE);
 
-    return aes67_sap_service_msg(sap, msg, maxlen, opt, hash, ip->ipver, ip->addr, &msg[offset], payloadlen, user_data);
+    return aes67_sap_service_msg(sap, msg, maxlen, opt, hash, ip->ipver, ip->ip, &msg[offset], payloadlen, user_data);
 }

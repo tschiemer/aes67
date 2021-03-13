@@ -102,10 +102,10 @@ static int lookup2(char * rtsp)
         }
         if (he->h_addrtype == AF_INET){
             addr.ipver = aes67_net_ipver_4;
-            *(u32_t*)addr.addr = ((struct in_addr *) he->h_addr_list[0])->s_addr;
+            *(u32_t*)addr.ip = ((struct in_addr *) he->h_addr_list[0])->s_addr;
         } else if (he->h_addrtype == AF_INET6){
             addr.ipver = aes67_net_ipver_6;
-            memcpy(addr.addr, (struct in6_addr *) he->h_addr_list[0], 16);
+            memcpy(addr.ip, (struct in6_addr *) he->h_addr_list[0], 16);
         } else {
             return EXIT_FAILURE;
         }
@@ -133,7 +133,7 @@ static int lookup2(char * rtsp)
 
     aes67_rtsp_dsc_init(&res, true);
 
-    if (aes67_rtsp_dsc_start(&res, addr.ipver, addr.addr, addr.port, uri)){
+    if (aes67_rtsp_dsc_start(&res, addr.ipver, addr.ip, addr.port, uri)){
         return EXIT_FAILURE;
     }
 

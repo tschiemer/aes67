@@ -55,7 +55,7 @@ enum aes67_net_ipver {
 struct aes67_net_addr {
     enum aes67_net_ipver ipver;
     u16_t port;
-    u8_t addr[AES67_NET_ADDR_SIZE];
+    u8_t ip[AES67_NET_ADDR_SIZE];
 };
 
 
@@ -65,24 +65,24 @@ u16_t aes67_net_ip2str(u8_t * str, enum aes67_net_ipver ipver, u8_t * addr, u16_
 
 inline s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
 {
-    return aes67_net_str2ip(&addr->ipver, addr->addr, &addr->port, str, slen);
+    return aes67_net_str2ip(&addr->ipver, addr->ip, &addr->port, str, slen);
 }
 
 inline u16_t aes67_net_addr2str(u8_t * str, struct aes67_net_addr * addr)
 {
-    return aes67_net_ip2str(str, addr->ipver, addr->addr, addr->port);
+    return aes67_net_ip2str(str, addr->ipver, addr->ip, addr->port);
 }
 
 inline u8_t aes67_net_addr2mem(u8_t * to, const struct aes67_net_addr * from)
 {
     if (from->ipver == aes67_net_ipver_4){
-        ((u32_t*)to)[0] = ((u32_t*)from->addr)[0];
+        ((u32_t*)to)[0] = ((u32_t*)from->ip)[0];
         return 4;
     } else if (from->ipver == aes67_net_ipver_6){
-        ((u32_t*)to)[0] = ((u32_t*)from->addr)[0];
-        ((u32_t*)to)[1] = ((u32_t*)from->addr)[1];
-        ((u32_t*)to)[2] = ((u32_t*)from->addr)[2];
-        ((u32_t*)to)[3] = ((u32_t*)from->addr)[3];
+        ((u32_t*)to)[0] = ((u32_t*)from->ip)[0];
+        ((u32_t*)to)[1] = ((u32_t*)from->ip)[1];
+        ((u32_t*)to)[2] = ((u32_t*)from->ip)[2];
+        ((u32_t*)to)[3] = ((u32_t*)from->ip)[3];
         return 16;
     }
     return 0;
@@ -110,7 +110,7 @@ inline u8_t aes67_net_ismcastip(const enum aes67_net_ipver ipver, const u8_t * i
 
 inline u8_t aes67_net_ismcastip_addr(const struct aes67_net_addr * addr)
 {
-    return aes67_net_ismcastip(addr->ipver, (u8_t *)addr->addr);
+    return aes67_net_ismcastip(addr->ipver, (u8_t *)addr->ip);
 }
 
 inline u8_t aes67_net_isallip(const enum aes67_net_ipver ipver, const u8_t * ip)
@@ -124,7 +124,7 @@ inline u8_t aes67_net_isallip(const enum aes67_net_ipver ipver, const u8_t * ip)
 }
 inline u8_t aes67_net_isallip_addr(const struct aes67_net_addr * addr)
 {
-    return aes67_net_isallip(addr->ipver, addr->addr);
+    return aes67_net_isallip(addr->ipver, addr->ip);
 }
 
 inline u8_t aes67_net_addreq(const struct aes67_net_addr * lhs, const struct aes67_net_addr * rhs)

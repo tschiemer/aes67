@@ -64,6 +64,8 @@ extern "C" {
 #define AES67_RAV_MDNS_SUBTYPE_DEVICE       "_ravenna"
 #define AES67_RAV_MDNS_SUBTYPE_SESSION      "_ravenna_session"
 
+#define AES67_RAV_MDNS_SESSION              "_ravenna_session._sub._rtsp._tcp"
+
 
 
 #ifdef __cplusplus

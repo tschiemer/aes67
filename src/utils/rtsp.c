@@ -389,14 +389,14 @@ ssize_t aes67_rtsp_dsc_easy(
     struct aes67_net_addr addr;
 
     addr.ipver = ipver;
-    memcpy(addr.addr, ip, AES67_NET_IPVER_SIZE(ipver));
+    memcpy(addr.ip, ip, AES67_NET_IPVER_SIZE(ipver));
     addr.port = port;
 
     struct aes67_rtsp_dsc_res_st res;
 
     aes67_rtsp_dsc_init(&res, true);
 
-    if (aes67_rtsp_dsc_start(&res, addr.ipver, addr.addr, addr.port, uri)){
+    if (aes67_rtsp_dsc_start(&res, addr.ipver, addr.ip, addr.port, uri)){
         return EXIT_FAILURE;
     }
 
@@ -478,7 +478,7 @@ ssize_t aes67_rtsp_dsc_easy_url(const char *url, u8_t *sdp, size_t maxlen)
         }
 
         ip.ipver = aes67_net_ipver_4;
-        *(u32_t*)ip.addr = ((struct in_addr **)he->h_addr_list)[0]->s_addr;
+        *(u32_t*)ip.ip = ((struct in_addr **)he->h_addr_list)[0]->s_addr;
     }
 
     // if no port is given, use default port
@@ -488,5 +488,5 @@ ssize_t aes67_rtsp_dsc_easy_url(const char *url, u8_t *sdp, size_t maxlen)
 
 //    printf("%d.%d.%d.%d:%d (%d) %s (%lu)\n", ip.addr[0], ip.addr[1], ip.addr[2], ip.addr[3], ip.port, ip.ipver, (char*)uri, strlen((char*)uri));
 //    return 0;
-    return aes67_rtsp_dsc_easy(ip.addr, ip.ipver, ip.port, uri, sdp, maxlen);
+    return aes67_rtsp_dsc_easy(ip.ip, ip.ipver, ip.port, uri, sdp, maxlen);
 }

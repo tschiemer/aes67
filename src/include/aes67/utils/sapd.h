@@ -35,10 +35,12 @@ extern "C" {
 #endif
 
 
-#define AES67_SAPD_NAME        "sapd"
+#define AES67_SAPD_NAME        "sapd.d"
 #define AES67_SAPD_VERSION     "0.1.0"
 
 #define AES67_SAPD_NAME_LONG   AES67_SAPD_NAME "-" AES67_SAPD_VERSION
+
+#define AES67_SAPD_ETC_DIR      "etc"
 
 #define AES67_SAPD_SYSLOG_IDENT     AES67_SAPD_NAME
 #define AES67_SAPD_SYSLOG_OPTION    0

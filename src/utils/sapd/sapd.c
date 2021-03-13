@@ -37,6 +37,7 @@
 #include <sys/un.h>
 #include <net/if.h>
 #include <assert.h>
+#include <dirent.h>
 
 //#define BUFSIZE 1024
 #define MAX_CMDLINE 256
@@ -133,6 +134,9 @@ static void rav_process();
 static void rav_publish_by(struct rav_session_st * session, struct connection_st * con);
 static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context);
 #endif //AES67_SAPD_WITH_RAV == 1
+
+
+static int load_sdp_dir(const char * dname);
 
 static struct connection_st * connection_new(int sockfd, struct sockaddr_un * addr, socklen_t socklen);
 static void connection_close(struct connection_st * con);
@@ -604,7 +608,7 @@ static struct rav_session_st * rav_session_new(const char * name, const char * h
     strcpy(session->hosttarget, hosttarget);
 
     session->addr.ipver = ipver;
-    memcpy(session->addr.addr, ip, AES67_NET_IPVER_SIZE(ipver));
+    memcpy(session->addr.ip, ip, AES67_NET_IPVER_SIZE(ipver));
     session->addr.port = port;
 
     session->ttl = ttl;
@@ -849,7 +853,7 @@ static void rav_process()
             char uri[256];
             snprintf(uri, sizeof(uri), "/by-name/%s", name);
 
-            if (aes67_rtsp_dsc_start(&rav.rtsp, session->addr.ipver, session->addr.addr, session->addr.port, uri)){
+            if (aes67_rtsp_dsc_start(&rav.rtsp, session->addr.ipver, session->addr.ip, session->addr.port, uri)){
 
                 //TODO what can a start fail signify?
                 // - a device gone offline without telling anyone
@@ -942,7 +946,7 @@ static void rav_publish_by(struct rav_session_st * session, struct connection_st
 
     u16_t hash = rand();//atoi((char*)session->origin.session_id.data);
 
-    aes67_sapsrv_session_t * ss = aes67_sapsrv_session_add(sapsrv, hash, session->addr.ipver, session->addr.addr, session->sdp, session->sdplen);
+    aes67_sapsrv_session_t * ss = aes67_sapsrv_session_add(sapsrv, hash, session->addr.ipver, session->addr.ip, session->sdp, session->sdplen);
 
     session->state = rav_state_sdp_published;
 
@@ -1010,6 +1014,29 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
     }
 }
 #endif //AES67_SAPD_WITH_RAV == 1
+
+static int load_sdp_dir(const char * dname)
+{
+    DIR *d;
+    struct dirent *dir;
+    d = opendir(dname);
+
+    if (d == NULL){
+        syslog(LOG_NOTICE, "SDP directory %s does not exist, skipping", dname);
+        return EXIT_SUCCESS;
+    }
+
+    while ((dir = readdir(d)) != NULL) {
+        u8_t l = dir->d_namlen;
+        if (l >= sizeof(".sdp") && strcmp(&dir->d_name[l - sizeof(".sdp")], ".sdp")){
+            printf("%s\n", dir->d_name);
+        }
+    }
+    closedir(d);
+
+    return EXIT_SUCCESS;
+}
+
 
 static struct connection_st * connection_new(int sockfd, struct sockaddr_un * addr, socklen_t socklen)
 {
@@ -1597,7 +1624,7 @@ static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len)
         // that is, device might choose to base the hash off the session id which might lead to problems
         // when handing over management to a remote source because the locally managed session (sap_service..)
         u16_t hash = rand(); //atoi((char*)origin.session_id.data);
-        session = aes67_sapsrv_session_add(sapsrv, hash, addr.ipver, addr.addr, sdp, sdplen);
+        session = aes67_sapsrv_session_add(sapsrv, hash, addr.ipver, addr.ip, sdp, sdplen);
     } else {
         // make sure it is a newer version.
         struct aes67_sdp_originator * sorigin = aes67_sapsrv_session_get_origin(session);
@@ -1765,7 +1792,7 @@ static void write_rav_new(struct rav_session_st * session)
 
     u8_t ipstr[AES67_NET_ADDR_STR_MAX];
 
-    u16_t len = aes67_net_ip2str(ipstr, session->addr.ipver, session->addr.addr, 0);
+    u16_t len = aes67_net_ip2str(ipstr, session->addr.ipver, session->addr.ip, 0);
     ipstr[len] = '\0';
 
 
@@ -1813,7 +1840,7 @@ static void write_rav_list_entry(struct connection_st * con, struct rav_session_
 {
     u8_t ipstr[AES67_NET_ADDR_STR_MAX];
 
-    u16_t len = aes67_net_ip2str(ipstr, session->addr.ipver, session->addr.addr, 0);
+    u16_t len = aes67_net_ip2str(ipstr, session->addr.ipver, session->addr.ip, 0);
     ipstr[len] = '\0';
 
     u8_t buf[256];
@@ -2153,20 +2180,21 @@ int main(int argc, char * argv[]){
 
     if (local_setup(AES67_SAPD_LOCAL_SOCK)){
         syslog(LOG_ERR, "Failed to open AF_LOCAL sock: " AES67_SAPD_LOCAL_SOCK);
-        return EXIT_FAILURE;
+        goto sapd_stop;
     }
 
     if (sapsrv_setup()){
-        local_teardown();
-        return EXIT_FAILURE;
+        goto sapd_stop;
+    }
+
+    if (load_sdp_dir(AES67_SAPD_ETC_DIR)){
+        goto sapd_stop;
     }
 
 #if AES67_SAPD_WITH_RAV == 1
     if (opts.rav_enabled && rav_setup()){
         syslog(LOG_ERR, "Failed to start mdns resolver");
-        sapsrv_teardown();
-        local_teardown();
-        return EXIT_FAILURE;
+        goto sapd_stop;
     }
 #endif //AES67_SAPD_WITH_RAV == 1
 
@@ -2186,6 +2214,8 @@ int main(int argc, char * argv[]){
         }
 #endif
     }
+
+sapd_stop:
 
     syslog(LOG_INFO, "stopping");
 

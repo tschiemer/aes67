@@ -40,7 +40,10 @@ enum restype {
     restype_resolve2_browse,
     restype_resolve2_resolve,
     restype_resolve2_getaddr,
-    restype_publish_service,
+    restype_register_pending,
+    restype_register_done,
+    restype_publish_service_pending,
+    restype_publish_service_done,
 };
 
 #define restype_isvalid(x) ( \
@@ -49,8 +52,11 @@ enum restype {
     (x) == restype_resolve_getaddr || \
     (x) == restype_resolve2_browse || \
     (x) == restype_resolve2_resolve || \
-    (x) == restype_resolve2_getaddr ||\
-    (x) == restype_publish_service \
+    (x) == restype_resolve2_getaddr || \
+    (x) == restype_register_pending || \
+    (x) == restype_register_done || \
+    (x) == restype_publish_service_pending || \
+    (x) == restype_publish_service_done \
 )
 
 struct resource_st;
@@ -66,9 +72,10 @@ typedef struct resource_st {
     struct resource_st * next;
     struct resource_st * parent;
 
-    enum restype type;
+    volatile enum restype type;
 
     DNSServiceRef serviceRef;
+    DNSRecordRef recordRef;
     DNSServiceErrorType errorCode;
 
     aes67_mdns_browse_callback callback;
@@ -100,7 +107,7 @@ static aes67_mdns_resource_t resolve_start(resource_t * res, const char * name, 
 static void getaddr_callback(DNSServiceRef sdRef, DNSServiceFlags flags, uint32_t interfaceIndex, DNSServiceErrorType errorCode, const char *hostname, const struct sockaddr *address, uint32_t ttl, void *context);
 static aes67_mdns_resource_t getaddr_start(resource_t * res, const char * hostname);
 
-static resource_t * resource_new(context_t * ctx, enum restype restype, void *callback, void *context, resource_t *parent)
+static resource_t * resource_new(context_t * ctx, enum restype restype, void *callback, void *user_data, resource_t *parent)
 {
     assert(ctx != NULL);
     assert(restype_isvalid(restype));
@@ -110,9 +117,11 @@ static resource_t * resource_new(context_t * ctx, enum restype restype, void *ca
     res->ctx = ctx;
     res->type = restype;
     res->callback = callback;
-    res->user_data = context;
+    res->user_data = user_data;
 
     res->serviceRef = NULL;
+    res->recordRef = NULL;
+
     res->serviceName = NULL;
     res->regType = NULL;
     res->hostTarget = NULL;
@@ -140,6 +149,8 @@ static void resource_delete(resource_t *res)
 
     context_t * ctx = res->ctx;
 
+    assert(ctx != NULL);
+
     if (ctx->first_resource == res){
         ctx->first_resource = res->next;
     } else {
@@ -164,8 +175,9 @@ static void resource_delete(resource_t *res)
         }
     }
 
-
-    if (res->serviceRef != NULL){
+    if (res->type == restype_register_pending || res->type == restype_register_done){
+        DNSServiceRemoveRecord( res->serviceRef, res->recordRef, 0);
+    } else if (res->serviceRef != NULL){
         DNSServiceRefDeallocate( res->serviceRef );
     }
     if (res->serviceName != NULL){
@@ -529,12 +541,27 @@ static void publish_service_callback(
         void                                *context
 )
 {
-    printf("flags = %d, err = %d\n", flags, errorCode);
+//    printf("flags = %d, err = %d\n", flags, errorCode);
+
+    resource_t * res = context;
+
+    assert(res != NULL);
+
+    enum aes67_mdns_result result = aes67_mdns_result_error;
+
+    if (errorCode == kDNSServiceErr_NoError){
+        res->type = restype_publish_service_done;
+        result = aes67_mdns_result_registered;
+    } else {
+        res->type = restype_undefined;
+    }
+
+    ((aes67_mdns_service_callback)res->callback)(res, result, regtype, name, domain, res->user_data);
 }
 
 aes67_mdns_resource_t
-aes67_mdns_publish_start(aes67_mdns_context_t ctx, const char *type, const char *name, const char *domain,
-                         const char * host, u16_t port, u16_t txtlen, const u8_t * txt)
+aes67_mdns_service_start(aes67_mdns_context_t ctx, const char *type, const char *name, const char *domain,
+                         const char * host, u16_t port, u16_t txtlen, const u8_t * txt, aes67_mdns_service_callback callback, void *user_data)
 {
 
     assert(ctx != NULL);
@@ -543,7 +570,7 @@ aes67_mdns_publish_start(aes67_mdns_context_t ctx, const char *type, const char 
 
     context_t * context = ctx;
 
-    resource_t * res = resource_new(context, restype_publish_service, NULL, NULL, NULL);
+    resource_t * res = resource_new(context, restype_publish_service_pending, callback, user_data, NULL);
 
     // convert to dns-sd style type
     char regtype[256];
@@ -557,7 +584,7 @@ aes67_mdns_publish_start(aes67_mdns_context_t ctx, const char *type, const char 
     DNSServiceErrorType errorCode = DNSServiceRegister(&res->serviceRef, flags, interfaceIndex, name, regtype, domain, host, htons(port), txtlen, txt, publish_service_callback, res);
 
     if (errorCode != kDNSServiceErr_NoError){
-        printf("%d\n", errorCode);
+//        printf("%d\n", errorCode);
         resource_delete(res);
         return NULL;
     }
@@ -566,6 +593,84 @@ aes67_mdns_publish_start(aes67_mdns_context_t ctx, const char *type, const char 
 
     return res;
 }
+
+static void register_callback(DNSServiceRef sdRef, DNSRecordRef RecordRef, DNSServiceFlags flags, DNSServiceErrorType errorCode, void * context)
+{
+//    printf("flags = %d, err = %d\n", flags, errorCode);
+
+    resource_t * res = context;
+
+    assert(res != NULL);
+
+    enum aes67_mdns_result result;
+
+    if (errorCode == kDNSServiceErr_NoError){
+        result = aes67_mdns_result_registered;
+    } else {
+        result = aes67_mdns_result_error;
+    }
+
+    ((aes67_mdns_register_callback)res->callback)(res, result, res->user_data);
+}
+
+aes67_mdns_resource_t
+aes67_mdns_service_addrecord(aes67_mdns_context_t ctx, aes67_mdns_resource_t service, u16_t rrtype, u16_t rdlen, const u8_t * rdata, u32_t ttl)
+{
+    assert(ctx != NULL);
+    assert(service != NULL);
+
+    context_t * context = ctx;
+    resource_t * service_res = service;
+
+    resource_t * res = resource_new(context, restype_register_done, NULL, NULL, service);
+
+    res->serviceRef = service_res->serviceRef;
+
+    DNSServiceFlags flags = 0; // unused
+
+    DNSServiceErrorType errorCode = DNSServiceAddRecord(res->serviceRef, &res->recordRef, flags, rrtype, rdlen, rdata, ttl);
+
+    if (errorCode != kDNSServiceErr_NoError){
+//        printf("%d\n", errorCode);
+        resource_delete(res);
+        return NULL;
+    }
+
+    resource_link(res);
+
+    return res;
+}
+
+aes67_mdns_resource_t
+aes67_mdns_register_start(aes67_mdns_context_t ctx, const char *fullname, u16_t rrtype, u16_t rrclass, u16_t rdlen, const u8_t * rdata, u32_t ttl, aes67_mdns_register_callback callback, void *user_data)
+{
+    assert(ctx != NULL);
+    assert(fullname != NULL);
+
+    context_t * context = ctx;
+
+    resource_t * res = resource_new(context, restype_register_pending, callback, user_data, NULL);
+
+    res->serviceRef = context->sharedRef;
+
+    DNSServiceFlags flags = 0; // unused
+    u32_t interfaceIndex = 0; // all possible interfaces
+
+    // NOTE not reference
+    DNSServiceErrorType errorCode = DNSServiceRegisterRecord(res->serviceRef, &res->recordRef, flags, interfaceIndex, fullname, rrtype, rrclass, rdlen, rdata, ttl, register_callback, res);
+
+    if (errorCode != kDNSServiceErr_NoError){
+//        printf("%d\n", errorCode);
+        resource_delete(res);
+        return NULL;
+    }
+
+    resource_link(res);
+
+    return res;
+}
+
+
 
 void aes67_mdns_stop(aes67_mdns_resource_t res)
 {
