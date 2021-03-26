@@ -12,7 +12,7 @@ add_executable(rav-lookup
         rav-lookup.c
         aes67opts.h
         ${AES67_DIR}/src/include/aes67/utils/mdns.h
-        ${AES67_DIR}/src/utils/mdns-${AES67_MDNS}.c
+        ${AES67_MDNS_SOURCE_FILES}
         ${AES67_DIR}/src/third_party/dnmfarrell/URI-Encode-C/src/uri_encode.h
         ${AES67_DIR}/src/third_party/dnmfarrell/URI-Encode-C/src/uri_encode.c
         ${AES67_INCLUDES}

@@ -9,7 +9,9 @@ set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 set(AES67_PORT "macos")
 
 # Which mDNS utility implementation to use
-# expects a file at src/utils/mdns-${AES67_MDNS}.c
+# - dnssd
+# - avahi
+# - avahi-dnssd-compat
 set(AES67_MDNS "dnssd")
 
 
@@ -43,7 +45,7 @@ set(AES67_INCLUDES
         ${AES67_DIR}/src/include/aes67/host/timer.h
 
         #        src/include/aes67/host/sock.h
-        )
+)
 
 set(AES67_SOURCE_FILES
 
@@ -54,19 +56,38 @@ set(AES67_SOURCE_FILES
         ${AES67_DIR}/src/core/sap.c
         ${AES67_DIR}/src/core/rtp.c
 
-        )
+)
 
-
-if (${AES67_MDNS} STREQUAL dnssd)
-    message(STATUS "mDNS: DNS-SD")
+message(STATUS "mDNS backend: ${AES67_MDNS}")
+if (${AES67_MDNS} STREQUAL "dnssd")
 
     find_package(DNSSD REQUIRED)
 
+    set(AES67_MDNS_SOURCE_FILES
+            ${AES67_DIR}/src/utils/mdns-dnssd.c
+    )
     set(AES67_MDNS_INCLUDE_DIRS ${DNSSD_INCLUDE_DIRS})
     set(AES67_MDNS_LIBRARIES ${DNSSD_LIBRARIES})
 
-#    message(STATUS " ${AES67_MDNS_INCLUDE_DIRS}")
-#    message(STATUS "libs ${DNSSD_LIBRARIES}")
+elseif(${AES67_MDNS} STREQUAL "avahi")
+
+    find_package(Avahi REQUIRED)
+
+    message(FATAL_ERROR "pure avahi client not yet supported")
+
+    set(AES67_MDNS_SOURCE_FILES ${AES67_DIR}/src/utils/mdns-avahi.c)
+    set(AES67_MDNS_INCLUDE_DIRS ${Avahi_INCLUDE_DIRS})
+    set(AES67_MDNS_LIBRARIES ${Avahi_LIBRARIES})
+
+elseif(${AES67_MDNS} STREQUAL "avahi-dnssd-compat")
+
+    find_package(Avahi REQUIRED)
+
+    set(AES67_MDNS_SOURCE_FILES ${AES67_DIR}/src/utils/mdns-dnssd.c)
+    set(AES67_MDNS_INCLUDE_DIRS ${Avahi_INCLUDE_DIRS})
+    set(AES67_MDNS_LIBRARIES ${Avahi_LIBRARIES})
+else()
+    message(FATAL_ERROR "mDNS option ${AES67_MDNS} unknown")
 endif()
 
 if(AES67_PORT)
