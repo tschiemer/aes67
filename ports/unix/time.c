@@ -30,12 +30,12 @@ void aes67_time_deinit_system(void)
 
 }
 
-void aes67_timestamp_now(aes67_time_t *timestamp)
+void aes67_time_now(aes67_time_t *timestamp)
 {
     clock_gettime(CLOCK_TAI, timestamp);
 }
 
-s32_t aes67_timestamp_diffmsec(aes67_time_t *lhs, aes67_time_t *rhs)
+s32_t aes67_time_diffmsec(aes67_time_t *lhs, aes67_time_t *rhs)
 {
     return (1000 * rhs->tv_sec + rhs->tv_nsec / 1000000) - (1000*lhs->tv_sec + lhs->tv_nsec / 1000000) ;
 }
