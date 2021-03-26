@@ -16,24 +16,27 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AES67_CC_H
-#define AES67_CC_H
+#ifndef AES67_ARCH_TIMER_H
+#define AES67_ARCH_TIMER_H
 
-#include <stdlib.h>
-
+#include <signal.h>
+#include <time.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define AES67_RAND() rand()
+struct aes67_timer {
+    enum aes67_timer_state state;
 
-#define AES67_TIME_DECLARATION_INC 1
-#define AES67_TIMER_DECLARATION_INC 1
+    timer_t timerid;
+//    struct sigevent sevp;
+};
+
+#define AES67_TIMER_GETSTATE(ptimer) (ptimer)->state
 
 #ifdef __cplusplus
 }
 #endif
 
-
-#endif //AES67_CC_H
+#endif //AES67_ARCH_TIMER_H

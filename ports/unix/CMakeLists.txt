@@ -6,12 +6,11 @@ project(aes67-port-unix)
 
 set(AES67_PORT_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/include" PARENT_SCOPE)
 
+set(AES67_PORT_LIBRARIES ${PROJECT_NAME})
+
 set(INCLUDES
 
 )
-
-message("aes ${AES67_INCLUDE_DIRS}")
-message("aesport ${AES67_PORT_INCLUDE_DIRS} ")
 
 set(SOURCE_FILES
         time.c
@@ -21,6 +20,8 @@ set(SOURCE_FILES
 add_library(${PROJECT_NAME} STATIC
         ${SOURCE_FILES}
 )
+
+target_link_libraries(${PROJECT_NAME} PUBLIC rt pthread)
 
 target_include_directories(${PROJECT_NAME}
         PRIVATE

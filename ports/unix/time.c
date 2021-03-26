@@ -16,24 +16,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AES67_CC_H
-#define AES67_CC_H
+#include "aes67/host/time.h"
 
-#include <stdlib.h>
+#include "arch/time.h"
 
+void aes67_time_init_system(void)
+{
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define AES67_RAND() rand()
-
-#define AES67_TIME_DECLARATION_INC 1
-#define AES67_TIMER_DECLARATION_INC 1
-
-#ifdef __cplusplus
 }
-#endif
 
+void aes67_time_deinit_system(void)
+{
 
-#endif //AES67_CC_H
+}
+
+void aes67_timestamp_now(aes67_time_t *timestamp)
+{
+    clock_gettime(CLOCK_TAI, timestamp);
+}
+
+s32_t aes67_timestamp_diffmsec(aes67_time_t *lhs, aes67_time_t *rhs)
+{
+    return (1000 * rhs->tv_sec + rhs->tv_nsec / 1000000) - (1000*lhs->tv_sec + lhs->tv_nsec / 1000000) ;
+}

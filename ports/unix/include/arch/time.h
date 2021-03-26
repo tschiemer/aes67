@@ -16,24 +16,20 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef AES67_CC_H
-#define AES67_CC_H
+#ifndef AES67_ARCH_TIME_H
+#define AES67_ARCH_TIME_H
 
-#include <stdlib.h>
 
+#include <time.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define AES67_RAND() rand()
-
-#define AES67_TIME_DECLARATION_INC 1
-#define AES67_TIMER_DECLARATION_INC 1
+typedef struct timespec aes67_time_t;
 
 #ifdef __cplusplus
 }
 #endif
 
-
-#endif //AES67_CC_H
+#endif //AES67_ARCH_TIME_H
