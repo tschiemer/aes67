@@ -28,6 +28,7 @@
 #include <assert.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <signal.h>
 
 static char * argv0;
 
@@ -127,14 +128,14 @@ void session_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result r
 
             if (opts.no_encode){
 
-                strncpy((char*)name_enc, (char*)name, sizeof(name_enc));
+                strncpy((char*)name_enc, (char*)name, sizeof(name_enc)-1);
 
             } else {
 
                 ssize_t r = uri_encode((char*)name, namelen, (char*)name_enc, sizeof(name_enc));
                 if (r == -1){
                     fprintf(stderr, "name_enc[%lu] too short for url-encoded name\n", sizeof(name_enc));
-                    strncpy((char*)name_enc, (char*)name, sizeof(name_enc));
+                    strncpy((char*)name_enc, (char*)name, sizeof(name_enc)-1);
                 } else {
                     namelen = r;
                 }
