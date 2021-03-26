@@ -140,6 +140,13 @@ void aes67_bintohex(u8_t * bytes, u32_t nbytes, u8_t * str)
 }
 #endif
 
+u16_t aes67_hextobyte(u8_t hex[2])
+{
+    u8_t msn = aes67_hextonibble(hex[0]);
+    u8_t lsn = aes67_hextonibble(hex[1]);
+    if ((msn | lsn) == 0xffff) return 0xffff;
+    return (msn << 4) | lsn;
+}
 
 #ifndef aes67_hextobin
 u8_t aes67_hextobin(u8_t * str, u32_t nbytes, u8_t * bytes)
