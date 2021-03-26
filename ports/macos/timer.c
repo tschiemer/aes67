@@ -27,7 +27,7 @@ static void timer_event_handler(struct aes67_timer * timer)
 {
     assert(timer);
 
-    raise(SIGALRM);
+    raise(SIGCONT);
 
     dispatch_source_cancel(timer->dispatchSource);
 
