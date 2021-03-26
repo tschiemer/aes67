@@ -69,14 +69,15 @@ int aes67_rtsp_dsc_start(
 
     struct sockaddr_storage server;
 
+    uint8_t in_len = 0;
     if (ipver == aes67_net_ipver_4){
-        ((struct sockaddr_in *)&server)->sin_len = sizeof(struct sockaddr_in);
+        in_len = sizeof(struct sockaddr_in);
         ((struct sockaddr_in *)&server)->sin_family = AF_INET;
         ((struct sockaddr_in *)&server)->sin_port = htons(port);
         ((struct sockaddr_in *)&server)->sin_addr.s_addr = *(u32_t *) ip;
 //        server.s
     } else if (ipver == aes67_net_ipver_6){
-        ((struct sockaddr_in6 *)&server)->sin6_len = sizeof(struct sockaddr_in6);
+        in_len = sizeof(struct sockaddr_in6);
         ((struct sockaddr_in6 *)&server)->sin6_family = AF_INET6;
         ((struct sockaddr_in6 *)&server)->sin6_port = htons(port);
         memcpy(&((struct sockaddr_in6 *)&server)->sin6_addr, ip, AES67_NET_IPVER_SIZE(ipver));
@@ -91,7 +92,7 @@ int aes67_rtsp_dsc_start(
         return EXIT_FAILURE;
     }
 
-    if (connect(res->sockfd, (struct sockaddr *) &server, server.ss_len) < 0) {
+    if (connect(res->sockfd, (struct sockaddr *) &server, in_len) < 0) {
         res->statuscode = errno;
         res->state = aes67_rtsp_dsc_state_bored;
         syslog(LOG_ERR, "rtsp connect(): %s", strerror(errno));
