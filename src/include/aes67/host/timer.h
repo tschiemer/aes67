@@ -30,9 +30,10 @@ extern "C" {
 #endif
 
 enum aes67_timer_state {
-    aes67_timer_state_unset = 0,
-    aes67_timer_state_set = 1,
-    aes67_timer_state_expired = 2
+    aes67_timer_state_undefined = 0,
+    aes67_timer_state_unset,
+    aes67_timer_state_set,
+    aes67_timer_state_expired
 };
 
 #define AES67_TIMER_IS_VALID(x) ( \
