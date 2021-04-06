@@ -335,7 +335,7 @@ void aes67_sdp_origin_init(struct aes67_sdp_originator * origin);
  */
 void aes67_sdp_init(struct aes67_sdp * sdp);
 
-inline u16_t aes67_sdp_origin_size(struct aes67_sdp_originator * origin)
+INLINE_FUN u16_t aes67_sdp_origin_size(struct aes67_sdp_originator * origin)
 {
 #if 0 < AES67_SDP_MAXUSERNAME
     return sizeof("o=   IN IP4 \n") + (origin->username.length ? origin->username.length : 1) + origin->session_id.length + origin->session_version.length +  + origin->address.length;
@@ -350,7 +350,7 @@ inline u16_t aes67_sdp_origin_size(struct aes67_sdp_originator * origin)
  * @param sdp
  * @return
  */
-inline u8_t aes67_sdp_get_ptpdomain(struct aes67_sdp * sdp)
+INLINE_FUN u8_t aes67_sdp_get_ptpdomain(struct aes67_sdp * sdp)
 {
     return AES67_SDP_PTPDOMAIN_VALUE & sdp->ptp_domain;
 }
@@ -362,7 +362,7 @@ inline u8_t aes67_sdp_get_ptpdomain(struct aes67_sdp * sdp)
  * @param domain
  * @return
  */
-inline u8_t aes67_sdp_set_ptpdomain(struct aes67_sdp * sdp, u8_t domain)
+INLINE_FUN u8_t aes67_sdp_set_ptpdomain(struct aes67_sdp * sdp, u8_t domain)
 {
     return sdp->ptp_domain = AES67_SDP_PTPDOMAIN_SET | (AES67_SDP_PTPDOMAIN_VALUE & domain);
 }
@@ -374,7 +374,7 @@ inline u8_t aes67_sdp_set_ptpdomain(struct aes67_sdp * sdp, u8_t domain)
  * @param domain
  * @return
  */
-inline u8_t aes67_sdp_unset_ptpdomain(struct aes67_sdp * sdp)
+INLINE_FUN u8_t aes67_sdp_unset_ptpdomain(struct aes67_sdp * sdp)
 {
     return sdp->ptp_domain = 0;
 }
@@ -387,7 +387,7 @@ inline u8_t aes67_sdp_unset_ptpdomain(struct aes67_sdp * sdp)
  * @param sdp
  * @return
  */
-inline u8_t aes67_sdp_get_connection_count(struct aes67_sdp * sdp)
+INLINE_FUN u8_t aes67_sdp_get_connection_count(struct aes67_sdp * sdp)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
 
@@ -415,7 +415,7 @@ struct aes67_sdp_connection * aes67_sdp_get_connection(struct aes67_sdp * sdp, a
  * @param di
  * @return
  */
-inline struct aes67_sdp_connection * aes67_sdp_add_connection(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+INLINE_FUN struct aes67_sdp_connection * aes67_sdp_add_connection(struct aes67_sdp * sdp, aes67_sdp_flags flags)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
     AES67_ASSERT("sdp->connections.count < AES67_SDP_MAXCONNECTIONS", sdp->connections.count < AES67_SDP_MAXCONNECTIONS);
@@ -435,7 +435,7 @@ inline struct aes67_sdp_connection * aes67_sdp_add_connection(struct aes67_sdp *
  * @param sdp
  * @return
  */
-inline u8_t aes67_sdp_get_stream_count(struct aes67_sdp * sdp)
+INLINE_FUN u8_t aes67_sdp_get_stream_count(struct aes67_sdp * sdp)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
 
@@ -449,7 +449,7 @@ inline u8_t aes67_sdp_get_stream_count(struct aes67_sdp * sdp)
  * @param si    stream index
  * @return
  */
-inline struct aes67_sdp_stream * aes67_sdp_get_stream(struct aes67_sdp * sdp, u8_t si)
+INLINE_FUN struct aes67_sdp_stream * aes67_sdp_get_stream(struct aes67_sdp * sdp, u8_t si)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
     AES67_ASSERT("si < sdp->streams.count", si < sdp->streams.count);
@@ -464,7 +464,7 @@ inline struct aes67_sdp_stream * aes67_sdp_get_stream(struct aes67_sdp * sdp, u8
  * @param si        if not NULL, is set to stream index
  * @return
  */
-inline struct aes67_sdp_stream * aes67_sdp_add_stream(struct aes67_sdp * sdp, u8_t * si)
+INLINE_FUN struct aes67_sdp_stream * aes67_sdp_add_stream(struct aes67_sdp * sdp, u8_t * si)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
     AES67_ASSERT("si < sdp->streams.count", sdp->streams.count < AES67_SDP_MAXSTREAMS);
@@ -486,7 +486,7 @@ inline struct aes67_sdp_stream * aes67_sdp_add_stream(struct aes67_sdp * sdp, u8
  * @param si    stream index
  * @return
  */
-inline u8_t aes67_sdp_get_stream_encoding_count(struct aes67_sdp * sdp, u8_t si)
+INLINE_FUN u8_t aes67_sdp_get_stream_encoding_count(struct aes67_sdp * sdp, u8_t si)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
     AES67_ASSERT("si < sdp->streams.count", si < sdp->streams.count);
@@ -511,7 +511,7 @@ struct aes67_sdp_attr_encoding * aes67_sdp_get_stream_encoding(struct aes67_sdp 
  * @param si
  * @return
  */
-inline struct aes67_sdp_attr_encoding * aes67_sdp_add_stream_encoding(struct aes67_sdp * sdp, u8_t si)
+INLINE_FUN struct aes67_sdp_attr_encoding * aes67_sdp_add_stream_encoding(struct aes67_sdp * sdp, u8_t si)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
     AES67_ASSERT("si < sdp->streams.count", si < sdp->streams.count);
@@ -529,7 +529,7 @@ inline struct aes67_sdp_attr_encoding * aes67_sdp_add_stream_encoding(struct aes
 }
 
 
-inline u8_t aes67_sdp_get_refclk_count(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+INLINE_FUN u8_t aes67_sdp_get_refclk_count(struct aes67_sdp * sdp, aes67_sdp_flags flags)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
 
@@ -571,7 +571,7 @@ struct aes67_sdp_attr_refclk * aes67_sdp_get_refclk(struct aes67_sdp * sdp, aes6
  * @param pi
  * @return
  */
-inline struct aes67_sdp_attr_refclk * aes67_sdp_add_refclk(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+INLINE_FUN struct aes67_sdp_attr_refclk * aes67_sdp_add_refclk(struct aes67_sdp * sdp, aes67_sdp_flags flags)
 {
     AES67_ASSERT("sdp != NULL", sdp != NULL);
     AES67_ASSERT("(flags & AES67_SDP_FLAG_DEFLVL_MASK) != 0", (flags & AES67_SDP_FLAG_DEFLVL_MASK) != 0);
@@ -600,7 +600,7 @@ inline struct aes67_sdp_attr_refclk * aes67_sdp_add_refclk(struct aes67_sdp * sd
  * @param flags     either AES67_SDP_FLAG_DEFLVL_SESSION or AES67_SDP_FLAG_DEFLVL_STREAM | <stream-index>
  * @return
  */
-inline enum aes67_sdp_attr_mode aes67_sdp_get_mode(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+INLINE_FUN enum aes67_sdp_attr_mode aes67_sdp_get_mode(struct aes67_sdp * sdp, aes67_sdp_flags flags)
 {
     // if specifically requested session level mode return it
     if ((flags & AES67_SDP_FLAG_DEFLVL_SESSION) == AES67_SDP_FLAG_DEFLVL_SESSION){
@@ -621,7 +621,7 @@ inline enum aes67_sdp_attr_mode aes67_sdp_get_mode(struct aes67_sdp * sdp, aes67
  * @param flags
  * @param mode
  */
-inline void aes67_sdp_set_mode(struct aes67_sdp * sdp, aes67_sdp_flags flags, enum aes67_sdp_attr_mode mode)
+INLINE_FUN void aes67_sdp_set_mode(struct aes67_sdp * sdp, aes67_sdp_flags flags, enum aes67_sdp_attr_mode mode)
 {
     if ((flags & AES67_SDP_FLAG_DEFLVL_SESSION) == AES67_SDP_FLAG_DEFLVL_SESSION){
         sdp->mode = mode;
@@ -639,7 +639,7 @@ inline void aes67_sdp_set_mode(struct aes67_sdp * sdp, aes67_sdp_flags flags, en
  * @param flags
  * @return
  */
-inline struct aes67_sdp_attr_mediaclk * aes67_sdp_get_mediaclock(struct aes67_sdp * sdp, aes67_sdp_flags flags)
+INLINE_FUN struct aes67_sdp_attr_mediaclk * aes67_sdp_get_mediaclock(struct aes67_sdp * sdp, aes67_sdp_flags flags)
 {
     // if specifically requested session level mode return it
     if ((flags & AES67_SDP_FLAG_DEFLVL_SESSION) == AES67_SDP_FLAG_DEFLVL_SESSION){
@@ -661,7 +661,7 @@ inline struct aes67_sdp_attr_mediaclk * aes67_sdp_get_mediaclock(struct aes67_sd
  * @param set
  * @param offset
  */
-inline void aes67_sdp_set_mediaclock(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t set, u32_t offset)
+INLINE_FUN void aes67_sdp_set_mediaclock(struct aes67_sdp * sdp, aes67_sdp_flags flags, u8_t set, u32_t offset)
 {
     if ((flags & AES67_SDP_FLAG_DEFLVL_SESSION) == AES67_SDP_FLAG_DEFLVL_SESSION){
         sdp->mediaclock.set = set;

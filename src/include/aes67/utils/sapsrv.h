@@ -30,6 +30,8 @@
 #include "aes67/opt.h"
 //#include "aes67/debug.h"
 
+#include <stdbool.h>
+
 #if AES67_SAP_MEMORY != AES67_MEMORY_DYNAMIC
 #error sap-server requires dynamic memory allocation (at this point in time)
 #endif

@@ -63,17 +63,17 @@ struct aes67_net_addr {
 s32_t aes67_net_str2ip(enum aes67_net_ipver * ipver, u8_t * addr, u16_t * port, u8_t * str, u16_t slen);
 u16_t aes67_net_ip2str(u8_t * str, enum aes67_net_ipver ipver, u8_t * addr, u16_t port);
 
-inline s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
+INLINE_FUN s32_t aes67_net_str2addr(struct aes67_net_addr * addr, u8_t * str, u16_t slen)
 {
     return aes67_net_str2ip(&addr->ipver, addr->ip, &addr->port, str, slen);
 }
 
-inline u16_t aes67_net_addr2str(u8_t * str, struct aes67_net_addr * addr)
+INLINE_FUN u16_t aes67_net_addr2str(u8_t * str, struct aes67_net_addr * addr)
 {
     return aes67_net_ip2str(str, addr->ipver, addr->ip, addr->port);
 }
 
-inline u8_t aes67_net_addr2mem(u8_t * to, const struct aes67_net_addr * from)
+INLINE_FUN u8_t aes67_net_addr2mem(u8_t * to, const struct aes67_net_addr * from)
 {
     if (from->ipver == aes67_net_ipver_4){
         ((u32_t*)to)[0] = ((u32_t*)from->ip)[0];
@@ -88,7 +88,7 @@ inline u8_t aes67_net_addr2mem(u8_t * to, const struct aes67_net_addr * from)
     return 0;
 }
 
-inline void aes67_net_addrcp(struct aes67_net_addr * to, const struct aes67_net_addr * from)
+INLINE_FUN void aes67_net_addrcp(struct aes67_net_addr * to, const struct aes67_net_addr * from)
 {
     aes67_memcmp(to, from, sizeof(struct aes67_net_addr));
 }
@@ -96,7 +96,7 @@ inline void aes67_net_addrcp(struct aes67_net_addr * to, const struct aes67_net_
 
 u8_t aes67_net_ipeq(const struct aes67_net_addr * lhs, const struct aes67_net_addr * rhs);
 
-inline u8_t aes67_net_ismcastip(const enum aes67_net_ipver ipver, const u8_t * ip)
+INLINE_FUN u8_t aes67_net_ismcastip(const enum aes67_net_ipver ipver, const u8_t * ip)
 {
     if (ipver == aes67_net_ipver_4){
         // 224.0.0.0 - 239.255.255.255
@@ -108,12 +108,12 @@ inline u8_t aes67_net_ismcastip(const enum aes67_net_ipver ipver, const u8_t * i
     return 0;
 }
 
-inline u8_t aes67_net_ismcastip_addr(const struct aes67_net_addr * addr)
+INLINE_FUN u8_t aes67_net_ismcastip_addr(const struct aes67_net_addr * addr)
 {
     return aes67_net_ismcastip(addr->ipver, (u8_t *)addr->ip);
 }
 
-inline u8_t aes67_net_isallip(const enum aes67_net_ipver ipver, const u8_t * ip)
+INLINE_FUN u8_t aes67_net_isallip(const enum aes67_net_ipver ipver, const u8_t * ip)
 {
     if (ipver == aes67_net_ipver_4){
         return ((u32_t*)ip)[0] == 0;
@@ -122,12 +122,12 @@ inline u8_t aes67_net_isallip(const enum aes67_net_ipver ipver, const u8_t * ip)
     }
     return 0;
 }
-inline u8_t aes67_net_isallip_addr(const struct aes67_net_addr * addr)
+INLINE_FUN u8_t aes67_net_isallip_addr(const struct aes67_net_addr * addr)
 {
     return aes67_net_isallip(addr->ipver, addr->ip);
 }
 
-inline u8_t aes67_net_addreq(const struct aes67_net_addr * lhs, const struct aes67_net_addr * rhs)
+INLINE_FUN u8_t aes67_net_addreq(const struct aes67_net_addr * lhs, const struct aes67_net_addr * rhs)
 {
     if (aes67_net_ipeq(lhs, rhs) == false) return false;
     if (lhs->port != rhs->port) return false;

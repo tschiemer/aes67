@@ -28,7 +28,10 @@
 #include "dnmfarrell/URI-Encode-C/src/uri_encode.h"
 #endif
 
+#include <stdbool.h>
 #include <stdlib.h>
+#include <unistd.h>
+#include <stddef.h>
 #include <string.h>
 #include <getopt.h>
 #include <signal.h>
@@ -37,6 +40,9 @@
 #include <sys/un.h>
 #include <net/if.h>
 #include <assert.h>
+#include <sys/errno.h>
+#include <fcntl.h>
+#include <sys/select.h>
 #include <dirent.h>
 
 //#define BUFSIZE 1024
@@ -357,18 +363,22 @@ static int sock_nonblock(int sockfd){
 static void block_until_event()
 {
     int nfds = 0;
-    struct fd_set fds;
+    fd_set rfds;
+    fd_set xfds;
 //    sigset_t sigmask;
 
-    FD_ZERO(&fds);
+    FD_ZERO(&rfds);
+    FD_ZERO(&xfds);
 
     // set all AF_LOCAL sockets
-    FD_SET(local.sockfd, &fds);
+    FD_SET(local.sockfd, &rfds);
+    FD_SET(local.sockfd, &xfds);
     nfds = local.sockfd;
 
     struct connection_st * con = local.first_connection;
     for(;con != NULL; con = con->next){
-        FD_SET(con->sockfd, &fds);
+        FD_SET(con->sockfd, &rfds);
+        FD_SET(con->sockfd, &xfds);
         if (con->sockfd > nfds){
             nfds = con->sockfd;
         }
@@ -378,7 +388,8 @@ static void block_until_event()
     size_t count = 0;
     aes67_sapsrv_getsockfds(sapsrv, &sockfds, &count);
     for(size_t i = 0; i < count; i++){
-        FD_SET(sockfds[i], &fds);
+        FD_SET(sockfds[i], &rfds);
+        FD_SET(sockfds[i], &xfds);
         if (sockfds[i] > nfds){
             nfds = sockfds[i];
         }
@@ -389,14 +400,16 @@ static void block_until_event()
 
         aes67_mdns_getsockfds(rav.mdns_context, &sockfds, &count);
         for (size_t i = 0; i < count; i++) {
-            FD_SET(sockfds[i], &fds);
+            FD_SET(sockfds[i], &rfds);
+            FD_SET(sockfds[i], &xfds);
             if (sockfds[i] > nfds) {
                 nfds = sockfds[i];
             }
         }
 
         if (rav.rtsp.state == aes67_rtsp_dsc_state_awaiting_response && rav.rtsp.sockfd != -1){
-            FD_SET(rav.rtsp.sockfd, &fds);
+            FD_SET(rav.rtsp.sockfd, &rfds);
+            FD_SET(rav.rtsp.sockfd, &xfds);
             if (rav.rtsp.sockfd > nfds){
                 nfds = rav.rtsp.sockfd;
             }
@@ -408,7 +421,7 @@ static void block_until_event()
     nfds++;
 
     // just wait until something interesting happens
-    select(nfds, &fds, NULL, &fds, NULL);
+    select(nfds, &rfds, NULL, &xfds, NULL);
 }
 
 static int sapsrv_setup()
@@ -1027,7 +1040,7 @@ static int load_sdp_dir(const char * dname)
     }
 
     while ((dir = readdir(d)) != NULL) {
-        u8_t l = dir->d_namlen;
+        u8_t l = strlen(dir->d_name);
         if (l >= sizeof(".sdp") && strcmp(&dir->d_name[l - sizeof(".sdp")], ".sdp")){
             printf("%s\n", dir->d_name);
         }
@@ -1059,7 +1072,7 @@ static struct connection_st * connection_new(int sockfd, struct sockaddr_un * ad
     con->euid = 0;
     con->egid = 0;
 
-    getpeereid(sockfd, &con->euid, &con->egid);
+//    getpeereid(sockfd, &con->euid, &con->egid);
 
     con->next = local.first_connection;
 
@@ -1115,10 +1128,10 @@ static int local_setup(const char * fname)
     strncpy (local.addr.sun_path, AES67_SAPD_LOCAL_SOCK, sizeof (local.addr.sun_path));
     local.addr.sun_path[sizeof (local.addr.sun_path) - 1] = '\0';
 
-    local.addr.sun_len = (offsetof (struct sockaddr_un, sun_path)
+    socklen_t un_len = (offsetof (struct sockaddr_un, sun_path)
                           + strlen (local.addr.sun_path));
 
-    if (bind (local.sockfd, (struct sockaddr *) &local.addr, local.addr.sun_len) < 0){
+    if (bind (local.sockfd, (struct sockaddr *) &local.addr, un_len) < 0){
         close(local.sockfd);
         local.sockfd = -1;
         perror ("bind(AF_LOCAL)");
@@ -1193,7 +1206,9 @@ static void local_accept()
 
             struct connection_st * con = connection_new(sockfd, &addr, socklen);
 
-            write(sockfd, MSG_VERSIONWELCOME "\n", sizeof(MSG_VERSIONWELCOME));
+            if (write(sockfd, MSG_VERSIONWELCOME "\n", sizeof(MSG_VERSIONWELCOME)) == -1){
+                syslog(LOG_ERR, "local_accept(): %s", strerror(errno));
+            }
 
             syslog(LOG_INFO, "client connected: uid %d gid %d (count = %d)", con->euid, con->egid, local.nconnections);
 
@@ -1322,12 +1337,16 @@ static void write_error(struct connection_st * con, const u32_t code, const char
         return;
     }
 
-    write(con->sockfd, buf, len);
+    if (write(con->sockfd, buf, len) == -1){
+        syslog(LOG_ERR, "write_error(): %s", strerror(errno));
+    }
 }
 
 static void write_ok(struct connection_st * con)
 {
-    write(con->sockfd, AES67_SAPD_MSG_OK "\n", sizeof(AES67_SAPD_MSG_OK));
+    if (write(con->sockfd, AES67_SAPD_MSG_OK "\n", sizeof(AES67_SAPD_MSG_OK)) == -1){
+        syslog(LOG_ERR, "write_ok(): %s", strerror(errno));
+    }
 }
 
 static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * except)
@@ -1337,7 +1356,10 @@ static void write_toall_except(u8_t * msg, u16_t len, struct connection_st * exc
     while(current != NULL){
 
         if (current != except){
-            write(current->sockfd, msg, len);
+            if (write(current->sockfd, msg, len) == -1){
+                syslog(LOG_ERR, "write_toall_except(): %s", strerror(errno));
+            }
+
         }
 
         current = current->next;
@@ -1511,7 +1533,9 @@ static void write_list_entry(struct connection_st * con, aes67_sapsrv_session_t 
         blen += payloadlen;
     }
 
-    write(con->sockfd, buf, blen);
+    if (write(con->sockfd, buf, blen) == -1){
+        syslog(LOG_ERR, "write_list_entry: %s", strerror(errno));
+    }
 }
 
 static void cmd_list(struct connection_st * con, u8_t * cmdline, size_t len)
@@ -1582,7 +1606,9 @@ static void cmd_set(struct connection_st * con, u8_t * cmdline, size_t len)
         // consume sdp data
         u8_t t;
         while(len--){
-            read(con->sockfd, &t, 1);
+            if (read(con->sockfd, &t, 1) == -1){
+                syslog(LOG_ERR, "cmd_set(): %s", strerror(errno));
+            }
         }
 
         return;
@@ -1857,12 +1883,16 @@ static void write_rav_list_entry(struct connection_st * con, struct rav_session_
                           session->name
     );
 
-    write(con->sockfd, buf, blen);
+    if (write(con->sockfd, buf, blen) == -1){
+        syslog(LOG_ERR,"write_rav_list_entry() %s", strerror(errno));
+    }
 
     if (return_payload && session->sdplen > 0){
         assert(session->sdp != NULL);
 
-        write(con->sockfd, session->sdp, session->sdplen);
+        if (write(con->sockfd, session->sdp, session->sdplen) == -1){
+            syslog(LOG_ERR,"write_rav_list_entry() %s", strerror(errno));
+        }
     }
 }
 

@@ -77,4 +77,8 @@ typedef struct {
 #define WEAK_FUN __attribute__((weak))
 #endif
 
+#ifndef INLINE_FUN
+#define INLINE_FUN __attribute__((always_inline)) inline
+#endif
+
 #endif //AES67_ARCH_H

@@ -282,7 +282,7 @@ void aes67_sap_service_unregister(struct aes67_sap_service * sap, struct aes67_s
 #define aes67_sap_service_unregister(session, sap)
 #endif
 
-inline u16_t aes67_sap_no_of_ads(struct aes67_sap_service * sap)
+INLINE_FUN u16_t aes67_sap_no_of_ads(struct aes67_sap_service * sap)
 {
     return sap->no_of_ads_other + sap->no_of_ads_self;
 }
@@ -307,7 +307,7 @@ void aes67_sap_compute_times_sec(s32_t no_of_ads, s32_t announcement_size, u32_t
  * @param sap
  * @return true iff announcement may/should occur now
  */
-inline enum aes67_timer_state aes67_sap_service_announcement_timer_state(struct aes67_sap_service * sap)
+INLINE_FUN enum aes67_timer_state aes67_sap_service_announcement_timer_state(struct aes67_sap_service * sap)
 {
     return aes67_timer_getstate(&sap->announcement_timer);
 }
@@ -330,7 +330,7 @@ void aes67_sap_service_set_announcement_timer(struct aes67_sap_service * sap);
  * @param sap
  * @return true iff the timeout timer expired
  */
-inline enum aes67_timer_state aes67_sap_service_timeout_timer_state(struct aes67_sap_service * sap)
+INLINE_FUN enum aes67_timer_state aes67_sap_service_timeout_timer_state(struct aes67_sap_service * sap)
 {
     return aes67_timer_getstate(&sap->timeout_timer);
 }

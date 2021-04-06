@@ -19,8 +19,12 @@
 #include "aes67/sap.h"
 #include "aes67/sdp.h"
 
-#include <getopt.h>
+#include <stdbool.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <string.h>
+#include <getopt.h>
+#include <fcntl.h>
 
 enum extract_mode {
     explicit_with_sdp_fallback,
@@ -128,7 +132,7 @@ static int generate_packet(u8_t * payload, size_t plen, size_t typelen)
         parsed_sdp = get_originator(&payload[typelen], plen, &origin);
     }
 
-    u16_t hash;
+    u16_t hash = 0;
 
     if (opts.extractMode == sdp_with_explicit_fallback){
         if (parsed_sdp){
@@ -201,7 +205,9 @@ static int generate_packet(u8_t * payload, size_t plen, size_t typelen)
         return EXIT_FAILURE;
     }
 
-    write(STDOUT_FILENO, packet, len);
+    if (write(STDOUT_FILENO, packet, len) == -1){
+        fprintf(stderr, "error writing to stdout\n");
+    }
 
     return EXIT_SUCCESS;
 }

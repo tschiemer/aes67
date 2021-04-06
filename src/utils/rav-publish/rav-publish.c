@@ -31,6 +31,8 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <sys/stat.h>
+#include <sys/socket.h>
+#include <dns_util.h>
 
 typedef struct sdpres_st {
     char * name;
@@ -60,6 +62,10 @@ static struct {
 };
 
 static volatile bool keep_running;
+
+static struct {
+    int sockfd;
+} rtsp;
 
 static aes67_mdns_context_t mdns;
 
@@ -96,6 +102,97 @@ static void publish_callback(aes67_mdns_resource_t res, enum aes67_mdns_result r
         fprintf(stderr, "Failed to register service %s._ravenna_session._sub._rtsp._tcp.%s\n", name, domain);
     } else {
         fprintf(stderr, "Registered service %s._ravenna_session._sub._rtsp._tcp.%s\n", name, domain);
+    }
+}
+
+static void fd_blocking(int fd, bool yes){
+
+    // set non-blocking
+    int flags = fcntl(fd, F_GETFL, 0);
+    flags = (flags & ~O_NONBLOCK) | (yes ? 0 : O_NONBLOCK);
+    if (fcntl(fd, F_SETFL, flags) == -1){
+        perror("fcntl()");
+        close(fd);
+        exit(EXIT_FAILURE);
+    }
+}
+
+static int rtsp_setup()
+{
+    rtsp.sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (rtsp.sockfd == -1){
+        perror("socket()");
+        return EXIT_FAILURE;
+    }
+
+    struct sockaddr_in addr;
+
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(opts.port);
+    addr.sin_addr.s_addr = INADDR_ANY;
+
+    if (bind(rtsp.sockfd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1){
+        perror("bind()");
+        close(rtsp.sockfd);
+        rtsp.sockfd = - 1;
+        return EXIT_FAILURE;
+    }
+
+    if (listen(rtsp.sockfd, 10) == -1){
+        close(rtsp.sockfd);
+        rtsp.sockfd = -1;
+        perror ("listen()");
+        return EXIT_FAILURE;
+    }
+
+    fd_blocking(rtsp.sockfd, false);
+
+    return EXIT_SUCCESS;
+}
+
+static void rtsp_teardown() {
+    if (!opts.rtsp || rtsp.sockfd == -1) {
+        return;
+    }
+
+    close(rtsp.sockfd);
+    rtsp.sockfd = -1;
+
+
+}
+
+static void rtsp_process()
+{
+    static int sockfd = -1;
+
+    if (sockfd == -1){
+        struct sockaddr_in addr;
+        socklen_t socklen;
+
+        memset(&addr, 0, sizeof(struct sockaddr_in));
+
+        if ((sockfd = accept(rtsp.sockfd, (struct sockaddr *)&addr, &socklen)) != -1) {
+
+            fd_blocking(sockfd, true);
+
+            u8_t ip[4];
+            *(u32_t*)ip = addr.sin_addr.s_addr;
+            u16_t port = ntohs(addr.sin_port);
+
+            printf("Connected! from %d.%d.%d.%d:%hu\n", ip[0], ip[1], ip[2], ip[3], port);
+
+            u8_t buf[1024];
+
+            ssize_t rlen = read(sockfd, buf, sizeof(buf));
+
+            if (rlen > 0){
+                buf[rlen] = '\0';
+                printf("%s\n", buf);
+            }
+
+            close(sockfd);
+            sockfd = -1;
+        }
     }
 }
 
@@ -280,6 +377,14 @@ int main(int argc, char * argv[])
         }
     }
 
+    if (opts.rtsp){
+        if (rtsp_setup()){
+            fprintf(stderr, "failed rtsp setup\n");
+            goto shutdown;
+        }
+    }
+
+
     mdns = aes67_mdns_new();
 
 
@@ -324,13 +429,49 @@ int main(int argc, char * argv[])
     signal(SIGTERM, sig_stop);
     keep_running = true;
     while(keep_running){
-        aes67_mdns_process(mdns, NULL);
+
+        int nfds = rtsp.sockfd;
+        struct fd_set fds;
+//    sigset_t sigmask;
+
+        FD_ZERO(&fds);
+
+        // set all AF_LOCAL sockets
+        FD_SET(rtsp.sockfd, &fds);
+
+        int * sockfds;
+        size_t count = 0;
+        aes67_mdns_getsockfds(mdns, &sockfds, &count);
+        for (size_t i = 0; i < count; i++) {
+            FD_SET(sockfds[i], &fds);
+            if (sockfds[i] > nfds) {
+                nfds = sockfds[i];
+            }
+        }
+
+        nfds++;
+
+        // just wait until something interesting happens
+        select(nfds, &fds, NULL, &fds, NULL);
+
+
+
+        struct timeval tv = {
+                .tv_usec = 0,
+                .tv_sec = 0
+        };
+        aes67_mdns_process(mdns, &tv);
+
+        rtsp_process();
     }
 
 shutdown:
 
-    aes67_mdns_delete(mdns);
+    if (mdns) {
+        aes67_mdns_delete(mdns);
+    }
 
+    rtsp_teardown();
 
     cleanup_sdpres();
 

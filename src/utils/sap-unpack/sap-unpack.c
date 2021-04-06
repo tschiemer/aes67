@@ -18,11 +18,12 @@
 
 #include "aes67/sap.h"
 
-#include <getopt.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/errno.h>
+#include <getopt.h>
 
 
 static char * argv0;
@@ -83,7 +84,9 @@ aes67_sap_service_event(struct aes67_sap_service *sap, enum aes67_sap_event even
         printf("\n");
     }
 
-    write(STDOUT_FILENO, payload, payloadlen);
+    if (write(STDOUT_FILENO, payload, payloadlen) == -1){
+        fprintf(stderr, "error writing to stdout\n");
+    }
 
     fflush(stdout);
 }

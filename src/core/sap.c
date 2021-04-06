@@ -108,7 +108,7 @@ struct aes67_sap_session * aes67_sap_service_find(struct aes67_sap_service * sap
     struct aes67_sap_session * current = sap->first_session;
 
     while(current != NULL){
-        if ((current->stat & AES67_SAP_SESSION_STAT_SET) && current->hash == hash && current->src.ipver == ipver && 0 == aes67_memcmp(current->src.addr, ip, AES67_NET_IPVER_SIZE(ipver))){
+        if ((current->stat & AES67_SAP_SESSION_STAT_SET) && current->hash == hash && current->src.ipver == ipver && 0 == aes67_memcmp(current->src.ip, ip, AES67_NET_IPVER_SIZE(ipver))){
             return current;
         }
         current = current->next;
@@ -413,7 +413,7 @@ void aes67_sap_service_announcement_check(struct aes67_sap_service *sap, void *u
 
             if (timeout_after < age){
 
-                aes67_sap_service_event(sap, aes67_sap_event_announcement_request, current->hash, current->src.ipver, current->src.addr, NULL, 0, NULL, 0, user_data);
+                aes67_sap_service_event(sap, aes67_sap_event_announcement_request, current->hash, current->src.ipver, current->src.ip, NULL, 0, NULL, 0, user_data);
 
             }
         }
@@ -500,7 +500,7 @@ void aes67_sap_service_timeouts_cleanup(struct aes67_sap_service *sap, void *use
 
             if (timeout_after < age){
 
-                aes67_sap_service_event(sap, aes67_sap_event_timeout, current->hash, current->src.ipver, current->src.addr, NULL, 0, NULL, 0, user_data);
+                aes67_sap_service_event(sap, aes67_sap_event_timeout, current->hash, current->src.ipver, current->src.ip, NULL, 0, NULL, 0, user_data);
 
                 aes67_sap_service_unregister(sap, current);
             }

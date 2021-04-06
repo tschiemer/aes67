@@ -144,15 +144,21 @@ static int lookup2(char * rtsp)
     if (opts.verbose){
         char str[256];
         ssize_t l = snprintf(str, sizeof(str), "RTSP-DESCRIBE %s %s\n", res.statuscode == AES67_RTSP_STATUS_OK ? "OK" : "FAIL", rtsp);
-        write(STDERR_FILENO,str, l);
+        if (write(STDERR_FILENO,str, l) == -1){
+            //
+        }
     }
 
     if (opts.print_rtsp && res.hdrlen > 0){
-        write(STDERR_FILENO, res.buf, res.hdrlen);
+        if (write(STDERR_FILENO, res.buf, res.hdrlen) == -1){
+            //
+        }
     }
 
     if (res.contentlen > 0){
-        write(STDOUT_FILENO, aes67_rtsp_dsc_content(&res), res.contentlen);
+        if (write(STDOUT_FILENO, aes67_rtsp_dsc_content(&res), res.contentlen) == -1){
+            //
+        }
     }
 
     aes67_rtsp_dsc_deinit(&res);

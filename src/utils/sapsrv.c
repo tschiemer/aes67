@@ -21,10 +21,13 @@
 #include "aes67/sap.h"
 #include "aes67/sdp.h"
 
-#include "assert.h"
+#include <unistd.h>
+#include <assert.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <netdb.h>
-#include <libproc.h>
+#include <fcntl.h>
+//#include <libproc.h>
 #include <ifaddrs.h>
 #include <syslog.h>
 #include <errno.h>
@@ -306,7 +309,7 @@ int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if
         return EXIT_FAILURE;
     }
 
-    if (setsockopt(sockfd, IPPROTO_IP, optname, &mreq, optlen) < 0){
+    if (setsockopt(sockfd, proto, optname, &mreq, optlen) < 0){
         syslog(LOG_ERR, "setsockopt(IP_DROP_MEMBERSHIP/IPV6_LEAVE_GROUP): %s", strerror(errno));
         return EXIT_FAILURE;
     }
@@ -408,11 +411,9 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
     struct sockaddr_in addr_in;
     struct sockaddr_in6 addr_in6;
 
-    addr_in.sin_len = sizeof(struct sockaddr_in);
     addr_in.sin_family = AF_INET;
     addr_in.sin_port = htons(server->port);
 
-    addr_in6.sin6_len = sizeof(struct sockaddr_in6);
     addr_in6.sin6_family = AF_INET6;
     addr_in6.sin6_port = htons(server->port);
 
@@ -420,7 +421,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
 
     if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL)){
         memcpy(&addr_in.sin_addr, (u8_t[])AES67_SAP_IPv4_GLOBAL, 4);
-        if ( (s = sendto(server->sockfd4, sap, saplen, 0, (struct sockaddr*)&addr_in, addr_in.sin_len)) != saplen){
+        if ( (s = sendto(server->sockfd4, sap, saplen, 0, (struct sockaddr*)&addr_in, sizeof(struct sockaddr_in))) != saplen){
             syslog(LOG_ERR, "ipv4-g tx (%zd)", s);
         } else {
             syslog(LOG_DEBUG, "ipv4-g tx %zd", s);
@@ -428,7 +429,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
     }
     if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv4_ADMINISTERED)){
         memcpy(&addr_in.sin_addr, (u8_t[])AES67_SAP_IPv4_ADMIN, 4);
-        if ( (s = sendto(server->sockfd4, sap, saplen, 0, (struct sockaddr*)&addr_in, addr_in.sin_len)) != saplen){
+        if ( (s = sendto(server->sockfd4, sap, saplen, 0, (struct sockaddr*)&addr_in, sizeof(struct sockaddr_in))) != saplen){
             syslog(LOG_ERR, "ipv4-a tx (%zd)", s);
         } else {
             syslog(LOG_DEBUG, "ipv4-a tx %zd", s);
@@ -436,7 +437,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
     }
     if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv6_LINKLOCAL)){
         memcpy(&addr_in6.sin6_addr, (u8_t[])AES67_SAP_IPv6_LL, 16);
-        if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, addr_in6.sin6_len)) != saplen){
+        if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, sizeof(struct sockaddr_in6))) != saplen){
             syslog(LOG_ERR, "ipv6-ll tx (%zd)", s);
         } else {
             syslog(LOG_DEBUG, "ipv6-ll tx %zd", s);
@@ -444,7 +445,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
     }
     if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv6_ADMINLOCAL)){
         memcpy(&addr_in6.sin6_addr, (u8_t[])AES67_SAP_IPv6_AL, 16);
-        if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, addr_in6.sin6_len)) != saplen){
+        if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, sizeof(struct sockaddr_in6))) != saplen){
             syslog(LOG_ERR, "ipv6-al tx (%zd)", s);
         } else {
             syslog(LOG_DEBUG, "ipv6-al tx %zd", s);
@@ -452,7 +453,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
     }
     if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv6_IPv4)){
         memcpy(&addr_in6.sin6_addr, (u8_t[])AES67_SAP_IPv6_IP4, 16);
-        if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, addr_in6.sin6_len)) != saplen){
+        if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, sizeof(struct sockaddr_in6))) != saplen){
             syslog(LOG_ERR, "ipv6-v4 tx (%zd)", s);
         } else {
             syslog(LOG_DEBUG, "ipv6-v4 tx %zd", s);
@@ -460,7 +461,7 @@ static void sap_send(sapsrv_t * server, sapsrv_session_t * session, u8_t opt)
     }
     if ( (server->send_scopes & AES67_SAPSRV_SCOPE_IPv6_SITELOCAL)){
         memcpy(&addr_in6.sin6_addr, (u8_t[])AES67_SAP_IPv6_SL, 16);
-        if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, addr_in6.sin6_len)) != saplen){
+        if ( (s = sendto(server->sockfd6, sap, saplen, 0, (struct sockaddr*)&addr_in6, sizeof(struct sockaddr_in6))) != saplen){
             syslog(LOG_ERR, "ipv6-sl tx (%zd)", s);
         } else {
             syslog(LOG_DEBUG, "ipv6-sl tx %zd", s);
@@ -667,7 +668,6 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
     server->first_session = NULL;
 
     if ((listen_scopes | send_scopes) & AES67_SAPSRV_SCOPE_IPv4){
-        server->addr4.sin_len = sizeof(struct sockaddr_in);
         server->addr4.sin_family = AF_INET;
         server->addr4.sin_port = htons(port);
 
@@ -684,7 +684,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
             return NULL;
         }
 
-        if (bind(server->sockfd4, (struct sockaddr*)&server->addr4, server->addr4.sin_len) == -1){
+        if (bind(server->sockfd4, (struct sockaddr*)&server->addr4, sizeof(struct sockaddr_in)) == -1){
             syslog(LOG_ERR, "sapsrv ipv4 bind(): %s", strerror(errno));
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
@@ -707,7 +707,6 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
     }
 
     if ((listen_scopes | send_scopes) & AES67_SAPSRV_SCOPE_IPv6){
-        server->addr6.sin6_len = sizeof(struct sockaddr_in6);
         server->addr6.sin6_family = AF_INET6;
         server->addr6.sin6_port = htons(port);
 
@@ -729,7 +728,7 @@ aes67_sapsrv_start(u32_t send_scopes, u16_t port, u32_t listen_scopes, unsigned 
             free(server);
         }
 
-        if (bind(server->sockfd6, (struct sockaddr*)&server->addr6, server->addr6.sin6_len) == -1){
+        if (bind(server->sockfd6, (struct sockaddr*)&server->addr6, sizeof(struct sockaddr_in6)) == -1){
             syslog(LOG_ERR, "sapsrv ipv6 bind(): %s", strerror(errno));
             if (server->sockfd4 != -1){
                 close(server->sockfd4);
@@ -805,17 +804,22 @@ void aes67_sapsrv_process(aes67_sapsrv_t sapserver)
     if (server->blocking){
 
         int nfds = (server->sockfd4 > server->sockfd6 ? server->sockfd4 : server->sockfd6) + 1;
-        struct fd_set fds;
+        fd_set rfds;
+        fd_set xfds;
 
-        FD_ZERO(&fds);
+        FD_ZERO(&rfds);
+        FD_ZERO(&xfds);
+
         if (server->sockfd4 != -1){
-            FD_SET(server->sockfd4, &fds);
+            FD_SET(server->sockfd4, &rfds);
+            FD_SET(server->sockfd4, &xfds);
         }
         if (server->sockfd6 != -1){
-            FD_SET(server->sockfd6, &fds);
+            FD_SET(server->sockfd6, &rfds);
+            FD_SET(server->sockfd6, &xfds);
         }
 
-        int s = select(nfds, &fds, NULL, &fds, NULL);
+        int s = select(nfds, &rfds, NULL, &xfds, NULL);
         if (s > 0){
             if ( (rlen = recv(s, buf, sizeof(buf), 0)) > 0){
                 syslog(LOG_DEBUG, "sapsrv %s rx %zd", s == server->sockfd4 ? "ipv4" : "ipv6", rlen);

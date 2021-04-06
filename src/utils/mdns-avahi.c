@@ -27,7 +27,7 @@
 #include <avahi-common/malloc.h>
 #include <avahi-common/error.h>
 
-#error TODO see https://www.avahi.org/doxygen/html/client-browse-services_8c-example.html
+//#error TODO see https://www.avahi.org/doxygen/html/client-browse-services_8c-example.html
 
 typedef struct {
     AvahiServiceBrowser *sb;
@@ -36,7 +36,7 @@ typedef struct {
 typedef struct {
     AvahiSimplePoll *simple_poll;
     AvahiClient *client;
-} ahavi_context_t;
+} avahi_context_t;
 
 
 static void resolve_callback(
@@ -134,7 +134,7 @@ static void client_callback(AvahiClient *c, AvahiClientState state, AVAHI_GCC_UN
 
 aes67_mdns_context_t  aes67_mdns_new(void)
 {
-    ahavi_context_t * context = calloc(1, sizeof(ahavi_context_t);
+    avahi_context_t * context = calloc(1, sizeof(avahi_context_t);
 
     /* Allocate main loop object */
     if (!(context->simple_poll = avahi_simple_poll_new())) {
@@ -160,7 +160,7 @@ void aes67_mdns_delete(aes67_mdns_context_t ctx)
 {
     assert(ctx != NULL);
 
-    ahavi_context_t * context = ctx;
+    avahi_context_t * context = ctx;
 
 
 

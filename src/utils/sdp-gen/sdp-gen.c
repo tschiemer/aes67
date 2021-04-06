@@ -404,7 +404,9 @@ int main(int argc, char * argv[])
         return EXIT_FAILURE;
     }
 
-    write(STDOUT_FILENO, str, len);
+    if (write(STDOUT_FILENO, str, len) == -1){
+        fprintf(stderr, "error writing to stdout\n");
+    }
 
     return EXIT_SUCCESS;
 }

@@ -52,20 +52,25 @@ https://github.com/tschiemer/aes67
     - [ ] rtsp/http combo server?
   - RAVENNA
     - [ ] ~~RAV2SAP~~ -> [sapd](#sapd)
-    - [x] [rav-lookup](#rav-lookup): browse for RAVENNA sessions/devices
-    - [ ] [rav-publish](#rav-publish): publish RAVENNA sessions and optionally serve SDP files
+    - [x] [rav-lookup](#rav-lookup): browse for sessions/devices
+    - [ ] [rav-publish](#rav-publish): publish sessions and optionally serve SDP files
   - PTP
-    - [ ] ptp-monitor? -> https://www.ptptrackhound.com/
+    - [ ] ptp-monitor? -> [ptptrackhound](https://www.ptptrackhound.com/) & [ptpmonkey](https://github.com/martim01/ptpmonkey)
     - [ ] ptp-server?
   - RTP/RTCP
     - [ ] rtp-send: send RTP (from STDIN)
     - [ ] rtp-recv: receive RTP (to STDOUT)
   - Support
-    - mDNS (abstraction for service *discovery*)
-      - [ ] dns-sd
+    - mDNS (abstraction for mdns service)
+      - [x] dns-sd
          - [x] discovery
-         - [ ] registration (?)
-      - [ ] ahavi
+         - [x] registration
+      - [ ] avahi
+         - [ ] dns-sd compat layer
+    - [ ] RTSP describe
+      - [x] retrieve SDP from server
+      - [ ] serve SDPs  on request
+    
 
 
 

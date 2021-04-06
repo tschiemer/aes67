@@ -3,6 +3,9 @@ cmake_minimum_required(VERSION 3.11)
 set (CMAKE_CONFIGURATION_TYPES "Debug;Release")
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
+#set(dir ${CMAKE_CURRENT_SOURCE_DIR}/build)
+
+
 project(aes67)
 
 ################
@@ -130,8 +133,8 @@ elseif("${AES67_MDNS}" STREQUAL "avahi")
     set(AES67_MDNS_INCLUDE_DIRS ${Avahi_CLIENT_INCLUDE_DIRS})
     set(AES67_MDNS_LIBRARIES ${Avahi_COMMON_LIBRARY} ${Avahi_CLIENT_LIBRARY})
 
-else()
-    message(FATAL_ERROR "mDNS option '${AES67_MDNS}' unknown")
+elseif(DEFINED AES67_MDNS)
+    message(ERROR "mDNS option '${AES67_MDNS}' unknown")
 endif()
 
 
@@ -172,15 +175,17 @@ set_property(TARGET aes67 PROPERTY LINKER_LANGUAGE C)
 
 add_subdirectory("${AES67_DIR}/test" EXCLUDE_FROM_ALL)
 
-add_subdirectory("${AES67_DIR}/src/utils")
+#if(NOT ${AES67_WITHOUT_UTILS})
+    add_subdirectory("${AES67_DIR}/src/utils")
+#endif()
 
-list(APPEND AES67_TARGET_LIST mytest)
-add_executable(mytest test.c)
-target_include_directories(mytest PRIVATE
-        ${AES67_DIR}
-        ${AES67_PORT_INCLUDE_DIRS}
-        )
-target_link_libraries(mytest aes67 ${AES67_PORT_LIB})
+#list(APPEND AES67_TARGET_LIST mytest)
+#add_executable(mytest test.c)
+#target_include_directories(mytest PRIVATE
+#        ${AES67_DIR}
+#        ${AES67_PORT_INCLUDE_DIRS}
+#        )
+#target_link_libraries(mytest aes67 ${AES67_PORT_LIB})
 
 if(CMAKE_BUILD_TYPE MATCHES Debug)
     foreach(TARGET IN LISTS AES67_TARGET_LIST)
