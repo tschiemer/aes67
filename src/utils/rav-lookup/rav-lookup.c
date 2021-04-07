@@ -96,11 +96,11 @@ void session_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result r
 
             fprintf(stderr, "%s %s._session_ravenna._sub._rtsp._tcp @ %s:%hu (%s) [%d](", result == aes67_mdns_result_discovered ? "DISCOVERED" : "TERMINATED", name, hosttarget, port, ipstr, txtlen);
 
-            for (int i = 0; i < txtlen-1; i++){
+            for (int i = 0; i < txtlen; i++){
                 if (isprint(txt[i])){
                     fprintf(stderr, "%c", txt[i]);
                 } else {
-                    fprintf(stderr, " ");
+                    fprintf(stderr, " [%d]", txt[i]);
                 }
             }
             fprintf(stderr, ")\n");
@@ -110,7 +110,7 @@ void session_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result r
         if (result == opts.result_filter){
 
             char host[256];
-            size_t hostlen = strlen((char*)hosttarget) - 1;
+            size_t hostlen = strlen((char*)hosttarget);
 
             assert( hostlen < sizeof(host) - 1);
 
@@ -160,11 +160,11 @@ void receiver_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result 
 
             fprintf(stderr, "DISCOVERED %s._ravenna._http._tcp @ %s:%hu (%s) [%d](", name, hosttarget, port, ipstr, txtlen);
 
-            for (int i = 0; i < txtlen-1; i++){
+            for (int i = 0; i < txtlen; i++){
                 if (isprint(txt[i])){
                     fprintf(stderr, "%c", txt[i]);
                 } else {
-                    fprintf(stderr, " ");
+                    fprintf(stderr, " [%d]", txt[i]);
                 }
             }
             fprintf(stderr, ")\n");
@@ -173,9 +173,9 @@ void receiver_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result 
         }
         if (result == opts.result_filter){
             char host[256];
-            size_t hostlen = strlen((char*)hosttarget) - 1;
+            size_t hostlen = strlen((char*)hosttarget);
 
-            assert( hostlen < sizeof(host) - 1);
+            assert( hostlen < sizeof(host)-1);
 
             memcpy(host, hosttarget, hostlen);
             host[hostlen] = '\0';
@@ -200,11 +200,11 @@ void sender_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result re
 
             fprintf(stderr, "DISCOVERED %s._ravenna._rtsp._tcp @ %s:%hu (%s) [%d](", name, hosttarget, port, ipstr, txtlen);
 
-            for (int i = 0; i < txtlen-1; i++){
+            for (int i = 0; i < txtlen; i++){
                 if (isprint(txt[i])){
                     fprintf(stderr, "%c", txt[i]);
                 } else {
-                    fprintf(stderr, " ");
+                    fprintf(stderr, " [%d]", txt[i]);
                 }
             }
             fprintf(stderr, ")\n");
@@ -214,9 +214,9 @@ void sender_lookup_callback(aes67_mdns_resource_t res, enum aes67_mdns_result re
         if (result == opts.result_filter){
 
             char host[256];
-            size_t hostlen = strlen((char*)hosttarget) - 1;
+            size_t hostlen = strlen((char*)hosttarget);
 
-            assert( hostlen < sizeof(host) - 1);
+            assert( hostlen < sizeof(host)-1);
 
             memcpy(host, hosttarget, hostlen);
             host[hostlen] = '\0';
@@ -341,7 +341,7 @@ int main(int argc, char * argv[])
     signal(SIGINT, sig_int);
     keep_running = true;
     while(keep_running){
-        aes67_mdns_process(ctx, NULL);
+        aes67_mdns_process(ctx, 0);
     }
 
     aes67_mdns_delete(ctx);

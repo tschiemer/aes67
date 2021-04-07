@@ -403,11 +403,12 @@ static void resolve_callback(DNSServiceRef ref, DNSServiceFlags flags, u32_t int
         if (hosttarget != NULL){
             res2->hostTarget = calloc(1, strlen(hosttarget)+1);
             strcpy(res2->hostTarget, hosttarget);
+            res2->hostTarget[strlen(hosttarget)-1] = '\0';
         }
         res2->port = ntohs(port);
-        res2->txtlen = txtlen;
 
-        if (txtlen > 0){
+        if (txtlen > 1){
+            res2->txtlen = txtlen;
             res2->txt = calloc(1, txtlen);
             memcpy(res2->txt, txt, txtlen);
         }
@@ -681,7 +682,7 @@ void aes67_mdns_stop(aes67_mdns_resource_t res)
 
 
 
-void aes67_mdns_process(aes67_mdns_context_t ctx, struct timeval *timeout)
+void aes67_mdns_process(aes67_mdns_context_t ctx, int timeout_msec)
 {
     assert(ctx != NULL);
 
@@ -693,7 +694,7 @@ void aes67_mdns_process(aes67_mdns_context_t ctx, struct timeval *timeout)
     FD_ZERO(&fds);
     FD_SET(__ctx->sockfd, &fds);
 
-    int retval = select(nfds, &fds, NULL, &fds, timeout);
+    int retval = select(nfds, &fds, NULL, &fds, NULL);
     if (retval > 0){
         DNSServiceProcessResult(__ctx->sharedRef);
     }
