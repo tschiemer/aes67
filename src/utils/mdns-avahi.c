@@ -37,8 +37,7 @@ enum restype {
     restype_undefined,
     restype_browse,
     restype_resolve,
-    restype_resolve2_browse,
-    restype_resolve2_resolve,
+    restype_resolve2,
     restype_register_pending,
     restype_register_done,
     restype_publish_service_pending,
@@ -49,6 +48,8 @@ typedef struct resource_st {
     struct context_st * context;
     void * res;
     enum restype type;
+    enum aes67_mdns_result result;
+    int errno;
 
     void * callback;
     void * user_data;
@@ -182,8 +183,13 @@ static void resolve_callback(
 
         case AVAHI_RESOLVER_FOUND: {
 //            fprintf(stderr, "Service '%s' of type '%s' in domain '%s':\n", name, type, domain);
-            result = aes67_mdns_result_discovered;
+            if (res->type == restype_resolve2){
+                result = res->result;
+            } else {
+                result = aes67_mdns_result_discovered;
+            }
             txtstr = avahi_string_list_to_raw(txt, &txtlen);
+            break;
         }
     }
 
@@ -254,12 +260,14 @@ static void browse_callback(
     if (res->type == restype_browse){
         ((aes67_mdns_browse_callback)res->callback)(res, result, type, name, domain, res->user_data);
     }
-    else if (res->type == restype_resolve2_browse){
+    else if (res->type == restype_resolve2){
 
         if (result == aes67_mdns_result_error){
             ((aes67_mdns_resolve_callback)res->callback)(res, aes67_mdns_result_error, NULL, NULL, NULL, 0, 0, NULL, aes67_net_ipver_undefined, NULL, 0, res->user_data);
             return;
         }
+
+        res->result = result;
 
         if (!(avahi_service_resolver_new(res->context->client, interface, protocol, name, type, domain, AVAHI_PROTO_UNSPEC, 0, resolve_callback, res))) {
             fprintf(stderr, "Failed to resolve service '%s': %s\n", name,
@@ -394,7 +402,7 @@ aes67_mdns_resolve2_start(aes67_mdns_context_t ctx, const char *type, const char
 
     AvahiLookupFlags flags = 0;
 
-    resource_t * res = resource_new(context, restype_resolve2_browse, callback, user_data);
+    resource_t * res = resource_new(context, restype_resolve2, callback, user_data);
 
     AvahiServiceBrowser * sb = res->res = avahi_service_browser_new(context->client, interface, protocol, type, domain, flags, browse_callback, res);
 
@@ -434,7 +442,6 @@ void aes67_mdns_stop(aes67_mdns_resource_t res)
 
     resource_t * r = res;
 
-
     resource_delete(r->context, r);
 }
 
@@ -450,5 +457,9 @@ void aes67_mdns_process(aes67_mdns_context_t ctx, int timeout_msec)
 
 int aes67_mdns_geterrcode(aes67_mdns_resource_t res)
 {
-    return 0;
+    assert(res);
+
+    resource_t * r = res;
+
+    return r->errno;
 }
