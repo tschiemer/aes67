@@ -694,7 +694,14 @@ void aes67_mdns_process(aes67_mdns_context_t ctx, int timeout_msec)
     FD_ZERO(&fds);
     FD_SET(__ctx->sockfd, &fds);
 
-    int retval = select(nfds, &fds, NULL, &fds, NULL);
+    struct timeval tv = {
+            .tv_usec = (timeout_msec % 1000) * 1000,
+            .tv_sec = timeout_msec / 1000
+    };
+
+    struct timeval * ptv = timeout_msec < 0 ? NULL : &tv;
+
+    int retval = select(nfds, &fds, NULL, &fds, ptv);
     if (retval > 0){
         DNSServiceProcessResult(__ctx->sharedRef);
     }

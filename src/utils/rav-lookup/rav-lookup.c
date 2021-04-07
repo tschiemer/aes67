@@ -341,7 +341,7 @@ int main(int argc, char * argv[])
     signal(SIGINT, sig_int);
     keep_running = true;
     while(keep_running){
-        aes67_mdns_process(ctx, 0);
+        aes67_mdns_process(ctx, 1000);
     }
 
     aes67_mdns_delete(ctx);

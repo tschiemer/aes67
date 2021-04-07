@@ -29,10 +29,12 @@
 #include <stdbool.h>
 #include <assert.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <ctype.h>
 #include <sys/stat.h>
 #include <sys/socket.h>
-#include <dns_util.h>
+#include <netinet/in.h>
+//#include <dns_util.h>
 
 typedef struct sdpres_st {
     char * name;
@@ -431,7 +433,7 @@ int main(int argc, char * argv[])
     while(keep_running){
 
         int nfds = rtsp.sockfd;
-        struct fd_set fds;
+        fd_set fds;
 //    sigset_t sigmask;
 
         FD_ZERO(&fds);
@@ -454,13 +456,7 @@ int main(int argc, char * argv[])
         // just wait until something interesting happens
         select(nfds, &fds, NULL, &fds, NULL);
 
-
-
-        struct timeval tv = {
-                .tv_usec = 0,
-                .tv_sec = 0
-        };
-        aes67_mdns_process(mdns, &tv);
+        aes67_mdns_process(mdns, 0);
 
         rtsp_process();
     }

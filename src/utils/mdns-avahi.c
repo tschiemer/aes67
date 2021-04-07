@@ -24,6 +24,7 @@
 
 #include <avahi-client/client.h>
 #include <avahi-client/lookup.h>
+#include <avahi-client/publish.h>
 #include <avahi-common/simple-watch.h>
 #include <avahi-common/malloc.h>
 #include <avahi-common/error.h>
@@ -282,9 +283,32 @@ static void client_callback(AvahiClient *c, AvahiClientState state, AVAHI_GCC_UN
     context_t * context = userdata;
 
     /* Called whenever the client or server state changes */
-    if (state == AVAHI_CLIENT_FAILURE) {
-        fprintf(stderr, "Server connection failure: %s\n", avahi_strerror(avahi_client_errno(context->client)));
-        avahi_simple_poll_quit(context->simple_poll);
+
+    switch (state) {
+        case AVAHI_CLIENT_S_RUNNING:
+            /* The server has startup successfully and registered its host
+             * name on the network, so it's time to create our services */
+//            create_services(c);
+            break;
+        case AVAHI_CLIENT_FAILURE:
+            fprintf(stderr, "Client failure: %s\n", avahi_strerror(avahi_client_errno(c)));
+            avahi_simple_poll_quit(context->simple_poll);
+            break;
+        case AVAHI_CLIENT_S_COLLISION:
+            /* Let's drop our registered services. When the server is back
+             * in AVAHI_SERVER_RUNNING state we will register them
+             * again with the new host name. */
+        case AVAHI_CLIENT_S_REGISTERING:
+            /* The server records are now being established. This
+             * might be caused by a host name change. We need to wait
+             * for our own records to register until the host name is
+             * properly esatblished. */
+            //TODO reset all registered services
+//            if (group)
+//                avahi_entry_group_reset(group);
+            break;
+        case AVAHI_CLIENT_CONNECTING:
+            ;
     }
 }
 
@@ -416,11 +440,83 @@ aes67_mdns_resolve2_start(aes67_mdns_context_t ctx, const char *type, const char
     return res;
 }
 
+
+static void entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state, AVAHI_GCC_UNUSED void *userdata) {
+    assert(userdata);
+
+    resource_t * res = userdata;
+
+    /* Called whenever the entry group state changes */
+    switch (state) {
+        case AVAHI_ENTRY_GROUP_ESTABLISHED :
+            /* The entry group has been established successfully */
+            fprintf(stderr, "Service 'asdf' successfully established.\n");
+            res->type = restype_register_done;
+            break;
+
+        case AVAHI_ENTRY_GROUP_COLLISION : {
+//            char *n;
+//            /* A service name collision with a remote service
+//             * happened. Let's pick a new name */
+//            n = avahi_alternative_service_name(name);
+//            avahi_free(name);
+//            name = n;
+//            fprintf(stderr, "Service name collision, renaming service to '%s'\n", name);
+//            /* And recreate the services */
+//            create_services(avahi_entry_group_get_client(g));
+            break;
+        }
+        case AVAHI_ENTRY_GROUP_FAILURE :
+            fprintf(stderr, "Entry group failure: %s\n", avahi_strerror(avahi_client_errno(avahi_entry_group_get_client(g))));
+            /* Some kind of failure happened while we were registering our services */
+//            avahi_simple_poll_quit(res->context->simple_poll);
+            break;
+        case AVAHI_ENTRY_GROUP_UNCOMMITED:
+        case AVAHI_ENTRY_GROUP_REGISTERING:
+            ;
+    }
+}
+
 aes67_mdns_resource_t
 aes67_mdns_service_start(aes67_mdns_context_t ctx, const char *type, const char *name, const char *domain,
                          const char * host, u16_t port, u16_t txtlen, const u8_t * txt, aes67_mdns_service_callback callback, void *user_data)
 {
-    return NULL;
+    assert(ctx);
+
+    context_t * context = ctx;
+
+    if (avahi_client_get_state(context->client) != AVAHI_CLIENT_S_RUNNING){
+        return NULL;
+    }
+
+    resource_t * res = resource_new(context, restype_register_pending, callback, user_data);
+
+    AvahiEntryGroup * group = res->res = avahi_entry_group_new(context->client, entry_group_callback, res);
+
+    if (!group) {
+        fprintf(stderr, "avahi_entry_group_new() failed: %s\n", avahi_strerror(avahi_client_errno(context->client)));
+        free(res);
+        return NULL;
+    }
+
+    AvahiIfIndex interface = AVAHI_IF_UNSPEC;
+    AvahiProtocol protocol = AVAHI_PROTO_UNSPEC;
+
+    AvahiPublishFlags flags = 0;
+
+    int ret = avahi_entry_group_add_service(group, interface, protocol, flags, name, type, domain, host, port, txt, txtlen, NULL);
+    if (ret < 0){
+        if (ret == AVAHI_ERR_COLLISION){
+
+        }
+        free(res);
+        return NULL;
+    }
+
+
+    resource_link(context, res);
+
+    return res;
 }
 
 aes67_mdns_resource_t
