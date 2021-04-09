@@ -63,6 +63,8 @@ typedef struct resource_st {
     enum aes67_mdns_result result;
     int error_code;
 
+    char * hostname;
+
     void * callback;
     void * user_data;
 
@@ -75,6 +77,7 @@ typedef struct context_st {
     AvahiClient *client;
 
     resource_t * first_resource;
+
 
     int thread_fd, main_fd;
 
@@ -231,11 +234,18 @@ static void resource_delete(context_t * context, resource_t * res)
         }
     }
 
+    if (res->hostname){
+        avahi_free(res->hostname);
+    }
+
     if (res->type == restype_browse && res->res){
         avahi_service_browser_free(res->res);
     }
     else if (res->type == restype_resolve && res->res){
         avahi_service_resolver_free(res->res);
+    }
+    else if ((res->type == restype_publish_service_pending || res->type == restype_publish_service_done) && res->res){
+        avahi_entry_group_free(res->res);
     }
 
     free(res);
@@ -498,6 +508,7 @@ aes67_mdns_context_t  aes67_mdns_new(void)
         goto fail;
     }
 
+
     return context;
 
 fail:
@@ -622,7 +633,7 @@ static void entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
         case AVAHI_ENTRY_GROUP_ESTABLISHED :
             /* The entry group has been established successfully */
             fprintf(stderr, "Service 'asdf' successfully established.\n");
-            res->type = restype_register_done;
+            res->type = restype_publish_service_done;
             break;
 
         case AVAHI_ENTRY_GROUP_COLLISION : {
@@ -661,7 +672,7 @@ aes67_mdns_service_start(aes67_mdns_context_t ctx, const char *type, const char 
         return NULL;
     }
 
-    resource_t * res = resource_new(context, restype_register_pending, callback, user_data);
+    resource_t * res = resource_new(context, restype_publish_service_pending, callback, user_data);
 
     AvahiEntryGroup * group = res->res = avahi_entry_group_new(context->client, entry_group_callback, res);
 
@@ -681,7 +692,6 @@ aes67_mdns_service_start(aes67_mdns_context_t ctx, const char *type, const char 
     if (maintype){
         maintype += sizeof("._sub.")-1;
         subtype = type;
-        printf("sub %s main %s\n", subtype, maintype);
     }
 
     int ret;
@@ -707,14 +717,10 @@ aes67_mdns_service_start(aes67_mdns_context_t ctx, const char *type, const char 
         }
     }
 
-    if ((ret = avahi_entry_group_commit(group)) < 0) {
-        fprintf(stderr, "Failed to commit entry group: %s\n", avahi_strerror(ret));
-        avahi_entry_group_free(group);
-        free(res);
-        return NULL;
-    }
 
-    resource_link(context, res);
+    if (host){
+        res->hostname = strdup(host);
+    }
 
     return res;
 }
@@ -722,7 +728,63 @@ aes67_mdns_service_start(aes67_mdns_context_t ctx, const char *type, const char 
 aes67_mdns_resource_t
 aes67_mdns_service_addrecord(aes67_mdns_context_t ctx, aes67_mdns_resource_t service, u16_t rrtype, u16_t rdlen, const u8_t * rdata, u32_t ttl)
 {
-    return NULL;
+    assert(ctx);
+    assert(service);
+
+    context_t * context = ctx;
+    resource_t * res = service;
+
+    if (res->type != restype_publish_service_pending || res->type == restype_publish_service_done){
+        fprintf(stderr, "invalid resource type\n");
+        return NULL;
+    }
+
+    AvahiIfIndex interface = AVAHI_IF_UNSPEC;
+    AvahiProtocol protocol = AVAHI_PROTO_UNSPEC;
+
+    AvahiPublishFlags flags = 0;
+
+    uint16_t clazz = 1; // INternet class
+
+    const char * name = res->hostname;
+
+    if (!name){
+        name = avahi_client_get_host_name_fqdn(context->client);
+    }
+
+    int ret = avahi_entry_group_add_record(res->res, interface, protocol, flags, name,clazz, rrtype, ttl, rdata, rdlen);
+    if (ret < 0){
+        fprintf(stderr, "avahi_entry_group_add_record(): %s\n", avahi_strerror(ret));
+        return NULL;
+    }
+
+
+    // note, the simple avahi interface does not seem to allow for single records to be deleted, so here no new (stoppable)
+    // resource is generated but the basic service resource is returned.
+
+    return res;
+}
+
+aes67_mdns_resource_t
+aes67_mdns_service_commit(aes67_mdns_context_t ctx, aes67_mdns_resource_t service)
+{
+    assert(ctx);
+    assert(service);
+
+    context_t * context = ctx;
+    resource_t * res = service;
+
+    int ret = avahi_entry_group_commit(res->res);
+    if (ret < 0) {
+        fprintf(stderr, "Failed to commit entry group: %s\n", avahi_strerror(ret));
+        avahi_entry_group_free(res->res);
+        free(res);
+        return NULL;
+    }
+
+    resource_link(context, res);
+
+    return res;
 }
 
 aes67_mdns_resource_t

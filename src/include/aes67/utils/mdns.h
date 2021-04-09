@@ -69,6 +69,9 @@ aes67_mdns_resource_t
 aes67_mdns_service_addrecord(aes67_mdns_context_t ctx, aes67_mdns_resource_t service, u16_t rrtype, u16_t rdlen, const u8_t * rdata, u32_t ttl);
 
 aes67_mdns_resource_t
+aes67_mdns_service_commit(aes67_mdns_context_t ctx, aes67_mdns_resource_t service);
+
+aes67_mdns_resource_t
 aes67_mdns_register_start(aes67_mdns_context_t ctx, const char *fullname, u16_t rrtype, u16_t rrclass, u16_t rdlen, const u8_t * rdata, u32_t ttl, aes67_mdns_register_callback callback, void *user_data);
 
 

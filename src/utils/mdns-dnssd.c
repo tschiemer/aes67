@@ -597,7 +597,7 @@ aes67_mdns_service_start(aes67_mdns_context_t ctx, const char *type, const char 
 
 static void register_callback(DNSServiceRef sdRef, DNSRecordRef RecordRef, DNSServiceFlags flags, DNSServiceErrorType errorCode, void * context)
 {
-//    printf("flags = %d, err = %d\n", flags, errorCode);
+//    printf("flags = %d, err =aes67_mdns_service_addrecord %d\n", flags, errorCode);
 
     resource_t * res = context;
 
@@ -640,6 +640,12 @@ aes67_mdns_service_addrecord(aes67_mdns_context_t ctx, aes67_mdns_resource_t ser
     resource_link(res);
 
     return res;
+}
+
+aes67_mdns_resource_t
+aes67_mdns_service_commit(aes67_mdns_context_t ctx, aes67_mdns_resource_t service)
+{
+    return service;
 }
 
 aes67_mdns_resource_t
