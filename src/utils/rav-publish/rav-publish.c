@@ -213,7 +213,7 @@ static int load_sdpres(char * fname, size_t maxlen)
     }
 
     if (st.st_size > maxlen){
-        fprintf(stderr, "ERROR file too big (%lld bytes, max %zu) %s\n", st.st_size, maxlen, fname);
+        fprintf(stderr, "ERROR file too big (%ld bytes, max %zu) %s\n", st.st_size, maxlen, fname);
         return EXIT_FAILURE;
     }
 
@@ -364,6 +364,7 @@ int main(int argc, char * argv[])
 
     if ( optind >= argc ){ // 1 < argc &&
         fprintf(stderr, "Missing arguments. %s -h for help\n", argv0);
+//        help(stdout);
         return EXIT_FAILURE;
     }
 
@@ -374,6 +375,7 @@ int main(int argc, char * argv[])
 
     for (int i = optind; i < argc; i++) {
         if (load_sdpres(argv[i], 1024)) {
+            fprintf(stderr, "sdp load error\n");
             cleanup_sdpres();
             return EXIT_FAILURE;
         }
@@ -397,6 +399,7 @@ int main(int argc, char * argv[])
                                                                  NULL, opts.host, opts.port, 0, NULL, publish_callback, NULL);
 
         if (service == NULL){
+            fprintf(stderr, "failed to create service\n");
             goto shutdown;
         }
 
@@ -418,6 +421,7 @@ int main(int argc, char * argv[])
             rdata = addr->ip;
 
             if (aes67_mdns_service_addrecord(mdns, service, rrtype, rdlen, rdata, opts.ttl) == NULL){
+                fprintf(stderr, "failed to add A/AAAA record\n");
                 goto shutdown;
             }
         }
@@ -433,19 +437,22 @@ int main(int argc, char * argv[])
     while(keep_running){
 
         int nfds = rtsp.sockfd;
-        fd_set fds;
+        fd_set rfds, xfds;
 //    sigset_t sigmask;
 
-        FD_ZERO(&fds);
+        FD_ZERO(&rfds);
+        FD_ZERO(&xfds);
 
         // set all AF_LOCAL sockets
-        FD_SET(rtsp.sockfd, &fds);
+        FD_SET(rtsp.sockfd, &rfds);
+        FD_SET(rtsp.sockfd, &xfds);
 
         int * sockfds;
         size_t count = 0;
         aes67_mdns_getsockfds(mdns, &sockfds, &count);
         for (size_t i = 0; i < count; i++) {
-            FD_SET(sockfds[i], &fds);
+            FD_SET(sockfds[i], &rfds);
+            FD_SET(sockfds[i], &xfds);
             if (sockfds[i] > nfds) {
                 nfds = sockfds[i];
             }
@@ -454,7 +461,7 @@ int main(int argc, char * argv[])
         nfds++;
 
         // just wait until something interesting happens
-        select(nfds, &fds, NULL, &fds, NULL);
+        select(nfds, &rfds, NULL, &xfds, NULL);
 
         aes67_mdns_process(mdns, 0);
 

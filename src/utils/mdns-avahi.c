@@ -632,7 +632,7 @@ static void entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
 //            n = avahi_alternative_service_name(name);
 //            avahi_free(name);
 //            name = n;
-//            fprintf(stderr, "Service name collision, renaming service to '%s'\n", name);
+            fprintf(stderr, "Service name collision\n");
 //            /* And recreate the services */
 //            create_services(avahi_entry_group_get_client(g));
             break;
@@ -644,7 +644,8 @@ static void entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
             break;
         case AVAHI_ENTRY_GROUP_UNCOMMITED:
         case AVAHI_ENTRY_GROUP_REGISTERING:
-            ;
+            fprintf(stderr, "hmmm?\n");
+
     }
 }
 
@@ -675,15 +676,43 @@ aes67_mdns_service_start(aes67_mdns_context_t ctx, const char *type, const char 
 
     AvahiPublishFlags flags = 0;
 
-    int ret = avahi_entry_group_add_service(group, interface, protocol, flags, name, type, domain, host, port, txt, txtlen, NULL);
-    if (ret < 0){
-        if (ret == AVAHI_ERR_COLLISION){
+    const char * maintype = strstr(type, "._sub.");
+    const char * subtype = NULL;
+    if (maintype){
+        maintype += sizeof("._sub.")-1;
+        subtype = type;
+        printf("sub %s main %s\n", subtype, maintype);
+    }
 
-        }
+    int ret;
+
+    ret = avahi_entry_group_add_service(group, interface, protocol, flags, name, maintype, domain, host, port, txt, txtlen, NULL);
+    if (ret < 0){
+//        if (ret == AVAHI_ERR_COLLISION){
+//
+//        }
+        avahi_entry_group_free(group);
         free(res);
+        fprintf(stderr, "avahi_entry_group_add_service(): %s\n", avahi_strerror(avahi_client_errno(context->client)));
         return NULL;
     }
 
+    if (subtype){
+        if ((ret = avahi_entry_group_add_service_subtype(group, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, 0, name, maintype, NULL, subtype) < 0)) {
+            fprintf(stderr, "Failed to add subtype %s: %s\n", subtype, avahi_strerror(ret));
+
+            avahi_entry_group_free(group);
+            free(res);
+            return NULL;
+        }
+    }
+
+    if ((ret = avahi_entry_group_commit(group)) < 0) {
+        fprintf(stderr, "Failed to commit entry group: %s\n", avahi_strerror(ret));
+        avahi_entry_group_free(group);
+        free(res);
+        return NULL;
+    }
 
     resource_link(context, res);
 
