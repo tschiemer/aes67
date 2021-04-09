@@ -318,6 +318,7 @@ int main(int argc, char * argv[])
         fprintf(stderr, "could not create mdns context\n");
         return EXIT_FAILURE;
     }
+
     if (opts.sessions){
         if (aes67_mdns_resolve2_start(ctx,  AES67_RAV_MDNS_SUBTYPE_SESSION "._sub." AES67_RAV_MDNS_TYPE_SENDER,
                                       NULL, session_lookup_callback, NULL) == NULL){

@@ -16,11 +16,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+/**
+ * Source code to allow for FD based polling adapted from avahi dnssd-compat source
+ * https://github.com/lathiat/avahi/blob/master/avahi-compat-libdns_sd/compat.c
+ */
+
 #include "aes67/utils/mdns.h"
 
 #include <assert.h>
 #include <string.h>
+#include <pthread.h>
 //#include <syslog.h>
+#include <unistd.h>
+#include <sys/errno.h>
+#include <signal.h>
+#include <netinet/in.h>
+#include <fcntl.h>
 
 #include <avahi-client/client.h>
 #include <avahi-client/lookup.h>
@@ -50,7 +61,7 @@ typedef struct resource_st {
     void * res;
     enum restype type;
     enum aes67_mdns_result result;
-    int errno;
+    int error_code;
 
     void * callback;
     void * user_data;
@@ -64,7 +75,122 @@ typedef struct context_st {
     AvahiClient *client;
 
     resource_t * first_resource;
+
+    int thread_fd, main_fd;
+
+    pthread_t thread;
+    int thread_running;
+
+    pthread_mutex_t mutex;
 } context_t;
+
+
+enum {
+    COMMAND_POLL = 'p',
+    COMMAND_QUIT = 'q',
+    COMMAND_POLL_DONE = 'P',
+    COMMAND_POLL_FAILED = 'F'
+};
+
+static int read_command(int fd) {
+    ssize_t r;
+    char command;
+
+    assert(fd >= 0);
+
+    if ((r = read(fd, &command, 1)) != 1) {
+        fprintf(stderr, __FILE__": read() failed: %s\n", r < 0 ? strerror(errno) : "EOF");
+        return -1;
+    }
+
+    return command;
+}
+
+static int write_command(int fd, char reply) {
+    assert(fd >= 0);
+
+    if (write(fd, &reply, 1) != 1) {
+        fprintf(stderr, __FILE__": write() failed: %s\n", strerror(errno));
+        return -1;
+    }
+
+    return 0;
+}
+
+static int poll_func(struct pollfd *ufds, unsigned int nfds, int timeout, void *userdata) {
+    context_t * context = userdata;
+    int ret;
+
+    assert(context);
+
+    assert(pthread_mutex_unlock(&context->mutex));
+
+//     fprintf(stderr, "pre-syscall %d\n", timeout);
+    ret = poll(ufds, nfds, timeout);
+//     fprintf(stderr, "post-syscall\n");
+
+    assert(pthread_mutex_lock(&context->mutex));
+
+    return ret;
+}
+
+static void * thread_func(void *data) {
+    context_t  * sdref = data;
+    sigset_t mask;
+
+    sigfillset(&mask);
+    pthread_sigmask(SIG_BLOCK, &mask, NULL);
+
+    sdref->thread = pthread_self();
+    sdref->thread_running = 1;
+
+    for (;;) {
+        char command;
+
+        if ((command = read_command(sdref->thread_fd)) < 0)
+            break;
+
+//         fprintf(stderr, "Command: %c\n", command);
+
+        switch (command) {
+
+            case COMMAND_POLL: {
+                int ret;
+
+                assert(pthread_mutex_lock(&sdref->mutex));
+
+                for (;;) {
+                    errno = 0;
+
+                    if ((ret = avahi_simple_poll_run(sdref->simple_poll)) < 0) {
+
+                        if (errno == EINTR)
+                            continue;
+
+                        fprintf(stderr, __FILE__": avahi_simple_poll_run() failed: %s\n", strerror(errno));
+                    }
+
+                    break;
+                }
+
+                assert(pthread_mutex_unlock(&sdref->mutex));
+
+                if (write_command(sdref->thread_fd, ret < 0 ? COMMAND_POLL_FAILED : COMMAND_POLL_DONE) < 0)
+                    break;
+
+                break;
+            }
+
+            case COMMAND_QUIT:
+                return NULL;
+        }
+
+    }
+
+    fprintf(stderr, "quitting thread\n");
+
+    return NULL;
+}
 
 static resource_t * resource_new(context_t * context, enum restype restype, void *callback, void * user_data)
 {
@@ -319,12 +445,47 @@ aes67_mdns_context_t  aes67_mdns_new(void)
 
     context_t * context = calloc(1, sizeof(context_t));
 
+    int fd[2] = { -1, -1 };
+    pthread_mutexattr_t mutex_attr;
+
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, fd) < 0)
+        goto fail;
+
+//    context->n_ref = 1;
+    context->thread_fd = fd[0];
+    context->main_fd = fd[1];
+
+    assert(pthread_mutexattr_init(&mutex_attr));
+    pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+    assert(pthread_mutex_init(&context->mutex, &mutex_attr));
+
+    context->thread_running = 0;
+
     /* Allocate main loop object */
     if (!(context->simple_poll = avahi_simple_poll_new())) {
         fprintf(stderr, "Failed to create simple poll object.\n");
-        free(context);
-        return NULL;
+        goto fail;
+//        free(context);
+//        return NULL;
     }
+
+    avahi_simple_poll_set_func(context->simple_poll, poll_func, context);
+
+    /* Start simple poll */
+    if (avahi_simple_poll_prepare(context->simple_poll, -1) < 0)
+        goto fail;
+
+    /* Queue an initial POLL command for the thread */
+    if (write_command(context->main_fd, COMMAND_POLL) < 0)
+        goto fail;
+
+    if (pthread_create(&context->thread, NULL, thread_func, context) != 0)
+        goto fail;
+
+    context->thread_running = 1;
+
+
+    assert(pthread_mutex_lock(&context->mutex));
 
     /* Allocate a new client */
     context->client = avahi_client_new(avahi_simple_poll_get(context->simple_poll), 0, client_callback, context, &error);
@@ -332,11 +493,21 @@ aes67_mdns_context_t  aes67_mdns_new(void)
     /* Check wether creating the client object succeeded */
     if (!context->client) {
         fprintf(stderr, "Failed to create client: %s\n", avahi_strerror(error));
-        aes67_mdns_delete(context);
-        return NULL;
+//        aes67_mdns_delete(context);
+//        return NULL;
+        goto fail;
     }
 
     return context;
+
+fail:
+    if (context != NULL){
+        aes67_mdns_delete(context);
+    }
+
+    assert(pthread_mutex_unlock(&context->mutex));
+
+    return NULL;
 }
 
 void aes67_mdns_delete(aes67_mdns_context_t ctx)
@@ -548,7 +719,70 @@ void aes67_mdns_process(aes67_mdns_context_t ctx, int timeout_msec)
 
     context_t * context = ctx;
 
-    avahi_simple_poll_iterate(context->simple_poll, timeout_msec);
+    int nfds = context->main_fd + 1;
+    fd_set rfds;
+    fd_set xfds;
+
+    FD_ZERO(&rfds);
+    FD_ZERO(&xfds);
+
+    FD_SET(context->main_fd, &rfds);
+    FD_SET(context->main_fd, &xfds);
+
+    struct timeval tv = {
+            .tv_usec = (timeout_msec % 1000) * 1000,
+            .tv_sec = timeout_msec / 1000
+    };
+
+    struct timeval * ptv = timeout_msec < 0 ? NULL : &tv;
+
+    int retval = select(nfds, &rfds, NULL, &xfds, ptv);
+    if (retval <= 0){
+        return;
+    }
+
+//    avahi_simple_poll_iterate(context->simple_poll, timeout_msec);
+
+    assert(pthread_mutex_lock(&context->mutex));
+
+    /* Cleanup notification socket */
+    if (read_command(context->main_fd) != COMMAND_POLL_DONE)
+        goto finish;
+
+    if (avahi_simple_poll_dispatch(context->simple_poll) < 0)
+        goto finish;
+
+//    if (sdref->n_ref > 1) /* Perhaps we should die */{
+//        /* Dispatch events */
+        if (avahi_simple_poll_prepare(context->simple_poll, -1) < 0)
+            goto finish;
+//    }
+
+//    if (sdref->n_ref > 1) {
+//        /* Request the poll */
+        if (write_command(context->main_fd, COMMAND_POLL) < 0)
+            goto finish;
+//    }
+
+finish:
+
+    assert(pthread_mutex_unlock(&context->mutex));
+
+//    sdref_unref(sdref);
+
+//    return ret;
+}
+
+void aes67_mdns_getsockfds(aes67_mdns_context_t ctx, int * fds[], size_t *count)
+{
+    assert(ctx);
+    assert(fds);
+    assert(count);
+
+    context_t * context = ctx;
+
+    *fds = &context->main_fd;
+    *count = 1;
 }
 
 int aes67_mdns_geterrcode(aes67_mdns_resource_t res)
@@ -557,5 +791,5 @@ int aes67_mdns_geterrcode(aes67_mdns_resource_t res)
 
     resource_t * r = res;
 
-    return r->errno;
+    return r->error_code;
 }
