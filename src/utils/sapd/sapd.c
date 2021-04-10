@@ -723,13 +723,8 @@ static void rav_teardown()
 
 static void rav_process()
 {
-    //// update sessions according to mDNS
-    struct timeval tv = {
-            .tv_sec = 0,
-            .tv_usec = 0
-    };
     // non-blocking processing
-    aes67_mdns_process(rav.mdns_context, &tv);
+    aes67_mdns_process(rav.mdns_context, 0);
 
     //// check if rtsp sdp lookup has anything to do
     // first process pending
