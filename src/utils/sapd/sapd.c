@@ -465,7 +465,7 @@ static int sapsrv_setup()
 
 static void sapsrv_teardown()
 {
-    if (sapsrv == NULL){
+    if (sapsrv){
         aes67_sapsrv_stop(sapsrv);
         sapsrv = NULL;
     }
@@ -663,7 +663,9 @@ static void rav_session_delete(struct rav_session_st * session)
 
     // if registered with sapsrv, remove
     if (session->state == rav_state_sdp_updated || session->state == rav_state_sdp_published){
+        fprintf(stderr, "asdf\n");
         aes67_sapsrv_session_t sapsrvSession = aes67_sapsrv_session_by_origin(sapsrv, &session->origin);
+        fprintf(stderr, "asdf2\n");
         if (sapsrvSession != NULL){
             aes67_sapsrv_session_delete(sapsrv, sapsrvSession, true);
         } else {
@@ -1168,10 +1170,11 @@ static int local_setup(const char * fname)
 
 static void local_teardown()
 {
-    if (local.sockfd != -1){
-        close(local.sockfd);
-        local.sockfd = -1;
+    if (local.sockfd == -1) {
+        return;
     }
+    close(local.sockfd);
+    local.sockfd = -1;
 
     if( access(AES67_SAPD_LOCAL_SOCK, F_OK ) == 0 ){
         //TODO is this generally safe??

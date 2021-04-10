@@ -269,6 +269,7 @@ static int join_mcast_groups(sapsrv_t * server, u32_t scopes)
 
 int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if)
 {
+    assert(sockfd>0);
     // only
     assert( ((scope & AES67_SAPSRV_SCOPE_IPv4) == AES67_SAPSRV_SCOPE_IPv4) + ((scope & AES67_SAPSRV_SCOPE_IPv6) == AES67_SAPSRV_SCOPE_IPv6) == 1);
 
@@ -320,6 +321,8 @@ int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if
 
 static int leave_mcast_groups(sapsrv_t * server, u32_t scopes)
 {
+    assert(server);
+
     if ( (scopes & AES67_SAPSRV_SCOPE_IPv4_GLOBAL) && aes67_sapsrv_leave_mcast_group(server->sockfd4, AES67_SAPSRV_SCOPE_IPv4_GLOBAL, server->ipv6_if)){
         return EXIT_FAILURE;
     }
