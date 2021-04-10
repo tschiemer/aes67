@@ -420,7 +420,6 @@ int main(int argc, char * argv[])
             }
             rdata = addr->ip;
 
-            usleep(1000);
             if (aes67_mdns_service_addrecord(mdns, service, rrtype, rdlen, rdata, opts.ttl) == NULL){
                 fprintf(stderr, "failed to add A/AAAA record\n");
                 goto shutdown;

@@ -63,6 +63,9 @@ typedef struct resource_st {
     enum aes67_mdns_result result;
     int error_code;
 
+    char * domain;
+    char * name;
+    char * rrtype;
     char * hostname;
 
     void * callback;
@@ -122,6 +125,8 @@ static int write_command(int fd, char reply) {
 
 static int poll_func(struct pollfd *ufds, unsigned int nfds, int timeout, void *userdata) {
     context_t * context = userdata;
+    assert(context);
+
     int ret;
 
     assert(context);
@@ -234,8 +239,17 @@ static void resource_delete(context_t * context, resource_t * res)
         }
     }
 
+    if (res->domain){
+        free(res->domain);
+    }
+    if (res->name){
+        free(res->name);
+    }
+    if (res->rrtype){
+        free(res->rrtype);
+    }
     if (res->hostname){
-        avahi_free(res->hostname);
+        free(res->hostname);
     }
 
     if (res->type == restype_browse && res->res){
@@ -628,22 +642,32 @@ static void entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
 
     resource_t * res = userdata;
 
+    assert(res->type == restype_publish_service_pending || res->type == restype_publish_service_done || res->type == restype_register_pending || res->type == restype_register_done);
+
     /* Called whenever the entry group state changes */
     switch (state) {
         case AVAHI_ENTRY_GROUP_ESTABLISHED :
             /* The entry group has been established successfully */
-            fprintf(stderr, "Service 'asdf' successfully established.\n");
-            res->type = restype_publish_service_done;
+//            fprintf(stderr, "Service 'asdf' successfully established.\n");
+            if (res->type == restype_publish_service_pending){
+                res->type = restype_publish_service_done;
+            } else if (res->type == restype_register_pending){
+                res->type = restype_register_done;
+            }
             break;
 
         case AVAHI_ENTRY_GROUP_COLLISION : {
-//            char *n;
-//            /* A service name collision with a remote service
-//             * happened. Let's pick a new name */
-//            n = avahi_alternative_service_name(name);
-//            avahi_free(name);
-//            name = n;
-            fprintf(stderr, "Service name collision\n");
+//            fprintf(stderr, "Service name collision\n");
+
+            if (res->type == restype_publish_service_pending){
+                ((aes67_mdns_service_callback)res->callback)(res, aes67_mdns_result_collision, res->rrtype, res->name, res->domain, res->user_data);
+            } else if (res->type == restype_register_pending){
+                ((aes67_mdns_register_callback)res->callback)(res, aes67_mdns_result_collision, res->user_data);
+            }
+
+            resource_delete(res->context, res);
+
+
 //            /* And recreate the services */
 //            create_services(avahi_entry_group_get_client(g));
             break;
@@ -652,10 +676,21 @@ static void entry_group_callback(AvahiEntryGroup *g, AvahiEntryGroupState state,
             fprintf(stderr, "Entry group failure: %s\n", avahi_strerror(avahi_client_errno(avahi_entry_group_get_client(g))));
             /* Some kind of failure happened while we were registering our services */
 //            avahi_simple_poll_quit(res->context->simple_poll);
+
+            if (res->type == restype_publish_service_pending){
+                ((aes67_mdns_service_callback)res->callback)(res, aes67_mdns_result_error, res->rrtype, res->name, res->domain, res->user_data);
+            } else if (res->type == restype_register_pending){
+                ((aes67_mdns_register_callback)res->callback)(res, aes67_mdns_result_error, res->user_data);
+            }
+
+            resource_delete(res->context, res);
+
             break;
+
         case AVAHI_ENTRY_GROUP_UNCOMMITED:
         case AVAHI_ENTRY_GROUP_REGISTERING:
-            fprintf(stderr, "hmmm?\n");
+//            fprintf(stderr, "hmmm?\n");
+            break;
 
     }
 }
@@ -717,6 +752,12 @@ aes67_mdns_service_start(aes67_mdns_context_t ctx, const char *type, const char 
         }
     }
 
+    res->name = strdup(name);
+    res->rrtype = strdup(type);
+
+    if (domain){
+        res->domain = strdup(domain);
+    }
 
     if (host){
         res->hostname = strdup(host);
@@ -790,7 +831,54 @@ aes67_mdns_service_commit(aes67_mdns_context_t ctx, aes67_mdns_resource_t servic
 aes67_mdns_resource_t
 aes67_mdns_register_start(aes67_mdns_context_t ctx, const char *fullname, u16_t rrtype, u16_t rrclass, u16_t rdlen, const u8_t * rdata, u32_t ttl, aes67_mdns_register_callback callback, void *user_data)
 {
-    return NULL;
+    assert(ctx);
+    assert(fullname);
+
+    context_t * context = ctx;
+
+    if (avahi_client_get_state(context->client) != AVAHI_CLIENT_S_RUNNING){
+        return NULL;
+    }
+
+    resource_t * res = resource_new(context, restype_register_pending, callback, user_data);
+
+    AvahiEntryGroup * group = res->res = avahi_entry_group_new(context->client, entry_group_callback, res);
+
+    if (!group) {
+        fprintf(stderr, "avahi_entry_group_new() failed: %s\n", avahi_strerror(avahi_client_errno(context->client)));
+        free(res);
+        return NULL;
+    }
+
+    AvahiIfIndex interface = AVAHI_IF_UNSPEC;
+    AvahiProtocol protocol = AVAHI_PROTO_UNSPEC;
+
+    AvahiPublishFlags flags = 0;
+
+    int ret;
+
+    ret = avahi_entry_group_add_record	(group, interface, protocol, flags, fullname, rrclass, rrtype, ttl,rdata,rdlen);
+    if (ret < 0){
+//        if (ret == AVAHI_ERR_COLLISION){
+//
+//        }
+        avahi_entry_group_free(group);
+        free(res);
+        fprintf(stderr, "avahi_entry_group_add_service(): %s\n", avahi_strerror(avahi_client_errno(context->client)));
+        return NULL;
+    }
+
+    ret = avahi_entry_group_commit(res->res);
+    if (ret < 0) {
+        fprintf(stderr, "Failed to commit entry group: %s\n", avahi_strerror(ret));
+        avahi_entry_group_free(res->res);
+        free(res);
+        return NULL;
+    }
+
+    resource_link(context, res);
+
+    return res;
 }
 
 

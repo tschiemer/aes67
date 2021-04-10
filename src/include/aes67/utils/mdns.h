@@ -39,6 +39,7 @@ enum aes67_mdns_result {
     aes67_mdns_result_discovered,
     aes67_mdns_result_terminated,
     aes67_mdns_result_registered,
+    aes67_mdns_result_collision
 };
 
 typedef void (*aes67_mdns_browse_callback)(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * domain, void * context);
