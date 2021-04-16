@@ -17,8 +17,8 @@ if (${SAPD_WITH_RAV})
     set(RAV_SOURCE_FILES
             ${AES67_DIR}/src/include/aes67/utils/mdns.h
             ${AES67_MDNS_SOURCE_FILES}
-            ${AES67_DIR}/src/include/aes67/utils/rtsp.h
-            ${AES67_DIR}/src/utils/rtsp.c
+            ${AES67_DIR}/src/include/aes67/utils/rtsp-dsc.h
+            ${AES67_DIR}/src/utils/rtsp-dsc.c
             ${AES67_DIR}/src/third_party/dnmfarrell/URI-Encode-C/src/uri_encode.h
             ${AES67_DIR}/src/third_party/dnmfarrell/URI-Encode-C/src/uri_encode.c
     )

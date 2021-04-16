@@ -27,18 +27,16 @@
 #ifndef AES67_UTILS_RTSP_H
 #define AES67_UTILS_RTSP_H
 
-#include <stdbool.h>
 #include "aes67/arch.h"
 #include "aes67/net.h"
+#include "aes67/rtsp.h"
+
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define AES67_RTSP_DEFAULT_PORT     554
-#define AES67_RTSP_SCHEME           "rtsp"
-
-#define AES67_RTSP_STATUS_OK        200
 
 #define AES67_RTSP_BUFSIZE          1500
     

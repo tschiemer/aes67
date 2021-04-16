@@ -25,7 +25,7 @@
 #define AES67_UTILS_MDNS_H
 
 #include "aes67/arch.h"
-#include "rtsp.h"
+#include "aes67/net.h"
 
 #ifdef __cplusplus
 extern "C" {

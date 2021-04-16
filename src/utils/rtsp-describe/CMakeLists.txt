@@ -7,8 +7,8 @@ project(rtsp-describe)
 add_executable(rtsp-describe
         rtsp-describe.c
         aes67opts.h
-        ${AES67_DIR}/src/include/aes67/utils/rtsp.h
-        ${AES67_DIR}/src/utils/rtsp.c
+        ${AES67_DIR}/src/include/aes67/utils/rtsp-dsc.h
+        ${AES67_DIR}/src/utils/rtsp-dsc.c
         ${AES67_INCLUDES}
         ${AES67_SOURCE_FILES}
         )

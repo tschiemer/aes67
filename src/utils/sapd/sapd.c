@@ -24,6 +24,7 @@
 
 #if AES67_SAPD_WITH_RAV == 1
 #include "aes67/utils/mdns.h"
+#include "aes67/utils/rtsp-dsc.h"
 #include "aes67/rav.h"
 #include "dnmfarrell/URI-Encode-C/src/uri_encode.h"
 #endif
