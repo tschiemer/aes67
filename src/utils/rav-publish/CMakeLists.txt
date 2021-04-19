@@ -13,6 +13,8 @@ add_executable(rav-publish
         aes67opts.h
         ${AES67_DIR}/src/include/aes67/utils/mdns.h
         ${AES67_MDNS_SOURCE_FILES}
+        ${AES67_DIR}/src/include/aes67/utils/rtsp-srv.h
+        ${AES67_DIR}/src/utils/rtsp-srv.c
         ${AES67_DIR}/src/third_party/dnmfarrell/URI-Encode-C/src/uri_encode.h
         ${AES67_DIR}/src/third_party/dnmfarrell/URI-Encode-C/src/uri_encode.c
         ${AES67_INCLUDES}
