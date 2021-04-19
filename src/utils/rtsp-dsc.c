@@ -110,16 +110,16 @@ int aes67_rtsp_dsc_start(
         }
     }
 
-    size_t len = aes67_strncpy((char*)res->buf, "DESCRIBE rtsp://", AES67_RTSP_BUFSIZE);
+    size_t len = aes67_strncpy((char*)res->buf, "DESCRIBE rtsp://", AES67_RTSP_DSC_BUFSIZE);
 
     len += aes67_net_ip2str(&res->buf[len], (enum aes67_net_ipver)ipver, (u8_t*)ip, (u16_t)port);
 
-    len += aes67_strncpy((char*)&res->buf[len], encoded_uri, AES67_RTSP_BUFSIZE - len);
+    len += aes67_strncpy((char*)&res->buf[len], encoded_uri, AES67_RTSP_DSC_BUFSIZE - len);
 
     len += aes67_strncpy((char*)&res->buf[len], " RTSP/1.0\r\n"
                                          "CSeq: 1\r\n"
                                          "Accept: application/sdp\r\n"
-                                         "\r\n", AES67_RTSP_BUFSIZE - len);
+                                         "\r\n", AES67_RTSP_DSC_BUFSIZE - len);
 
     res->buflen = len;
 
@@ -242,7 +242,7 @@ void aes67_rtsp_dsc_process(struct aes67_rtsp_dsc_res_st * res)
         // read complete header
         if (res->hdrlen == 0){
 
-            while( res->buflen < AES67_RTSP_BUFSIZE ){
+            while(res->buflen < AES67_RTSP_DSC_BUFSIZE ){
 
                 r = read(res->sockfd, &c, 1);
 
@@ -317,7 +317,7 @@ void aes67_rtsp_dsc_process(struct aes67_rtsp_dsc_res_st * res)
                     }
                 }
                 // fail if using too much memory
-                if (res->buflen >= AES67_RTSP_BUFSIZE){
+                if (res->buflen >= AES67_RTSP_DSC_BUFSIZE){
                     close(res->sockfd);
                     res->sockfd = -1;
                     res->contentlen = 0;
@@ -337,7 +337,7 @@ void aes67_rtsp_dsc_process(struct aes67_rtsp_dsc_res_st * res)
             }
 
             // sanity check
-            if (res->hdrlen + res->contentlen > AES67_RTSP_BUFSIZE){
+            if (res->hdrlen + res->contentlen > AES67_RTSP_DSC_BUFSIZE){
                 printf("too small buffer to receive complete content!\n");
                 close(res->sockfd);
                 // mark as no content;

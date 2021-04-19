@@ -37,9 +37,9 @@
 extern "C" {
 #endif
 
-
-#define AES67_RTSP_BUFSIZE          1500
-    
+#ifndef AES67_RTSP_DSC_BUFSIZE
+#define AES67_RTSP_DSC_BUFSIZE          1500
+#endif
 
 enum aes67_rtsp_dsc_state {
     aes67_rtsp_dsc_state_bored,
@@ -54,7 +54,7 @@ struct aes67_rtsp_dsc_res_st {
     bool blocking;
     int sockfd;
 
-    u8_t buf[AES67_RTSP_BUFSIZE];
+    u8_t buf[AES67_RTSP_DSC_BUFSIZE];
     u16_t buflen;
 
     u8_t * line;
