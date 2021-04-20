@@ -18,6 +18,7 @@
 
 #include "aes67/utils/mdns.h"
 #include "aes67/rav.h"
+#include "aes67/utils/rtsp-srv.h"
 #include "dnmfarrell/URI-Encode-C/src/uri_encode.h"
 #include "aes67/net.h"
 #include "aes67/sdp.h"
@@ -65,9 +66,7 @@ static struct {
 
 static volatile bool keep_running;
 
-static struct {
-    int sockfd;
-} rtsp;
+static struct aes67_rtsp_srv rtsp_srv;
 
 static aes67_mdns_context_t mdns;
 
@@ -107,95 +106,187 @@ static void publish_callback(aes67_mdns_resource_t res, enum aes67_mdns_result r
     }
 }
 
-static void fd_blocking(int fd, bool yes){
+//static void fd_blocking(int fd, bool yes){
+//
+//    // set non-blocking
+//    int flags = fcntl(fd, F_GETFL, 0);
+//    flags = (flags & ~O_NONBLOCK) | (yes ? 0 : O_NONBLOCK);
+//    if (fcntl(fd, F_SETFL, flags) == -1){
+//        perror("fcntl()");
+//        close(fd);
+//        exit(EXIT_FAILURE);
+//    }
+//}
 
-    // set non-blocking
-    int flags = fcntl(fd, F_GETFL, 0);
-    flags = (flags & ~O_NONBLOCK) | (yes ? 0 : O_NONBLOCK);
-    if (fcntl(fd, F_SETFL, flags) == -1){
-        perror("fcntl()");
-        close(fd);
-        exit(EXIT_FAILURE);
+static void block_until_event(){
+
+    int nfds;
+    fd_set rfds, xfds;
+//    sigset_t sigmask;
+
+    FD_ZERO(&rfds);
+    FD_ZERO(&xfds);
+
+    if (opts.rtsp){
+        nfds = rtsp_srv.listen_sockfd;
+        FD_SET(rtsp_srv.listen_sockfd, &rfds);
+        FD_SET(rtsp_srv.listen_sockfd, &xfds);
+        if (rtsp_srv.client_sockfd != -1){
+            FD_SET(rtsp_srv.client_sockfd, &rfds);
+            FD_SET(rtsp_srv.client_sockfd, &xfds);
+            if (rtsp_srv.client_sockfd > rtsp_srv.listen_sockfd){
+                nfds = rtsp_srv.client_sockfd;
+            }
+        }
     }
+
+    int * sockfds;
+    size_t count = 0;
+    aes67_mdns_getsockfds(mdns, &sockfds, &count);
+    for (size_t i = 0; i < count; i++) {
+        FD_SET(sockfds[i], &rfds);
+        FD_SET(sockfds[i], &xfds);
+        if (sockfds[i] > nfds) {
+            nfds = sockfds[i];
+        }
+    }
+
+    nfds++;
+
+    // just wait until something interesting happens
+    select(nfds, &rfds, NULL, &xfds, NULL);
 }
 
-static int rtsp_setup()
+static int mdns_setup()
 {
-    rtsp.sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (rtsp.sockfd == -1){
-        perror("socket()");
-        return EXIT_FAILURE;
+
+    mdns = aes67_mdns_new();
+
+    sdpres_t * sdpres = first_sdpres;
+    while(sdpres != NULL){
+
+        aes67_mdns_resource_t service = aes67_mdns_service_start(mdns, AES67_RAV_MDNS_SESSION, sdpres->name,
+                                                                 NULL, opts.host, opts.port, 0, NULL, publish_callback, NULL);
+
+        if (service == NULL){
+            fprintf(stderr, "failed to create service\n");
+            return EXIT_FAILURE;
+        }
+
+        if (opts.host != NULL){
+
+            struct aes67_net_addr * addr = opts.addr.ipver == aes67_net_ipver_undefined ? &sdpres->addr : &opts.addr;
+
+            u16_t rrtype;
+            u16_t rdlen;
+            u8_t * rdata;
+
+            if (addr->ipver == aes67_net_ipver_4){
+                rrtype = 1;
+                rdlen = 4;
+            } else { // ipver6
+                rrtype = 28;
+                rdlen = 16;
+            }
+            rdata = addr->ip;
+
+            if (aes67_mdns_service_addrecord(mdns, service, rrtype, rdlen, rdata, opts.ttl) == NULL){
+                fprintf(stderr, "failed to add A/AAAA record\n");
+                return EXIT_FAILURE;
+            }
+
+            if (aes67_mdns_service_commit(mdns, service) == NULL){
+                fprintf(stderr, "error committing service\n");
+                return EXIT_FAILURE;
+            }
+
+        }
+
+        sdpres = sdpres->next;
     }
-
-    struct sockaddr_in addr;
-
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(opts.port);
-    addr.sin_addr.s_addr = INADDR_ANY;
-
-    if (bind(rtsp.sockfd, (struct sockaddr*)&addr, sizeof(struct sockaddr_in)) == -1){
-        perror("bind()");
-        close(rtsp.sockfd);
-        rtsp.sockfd = - 1;
-        return EXIT_FAILURE;
-    }
-
-    if (listen(rtsp.sockfd, 10) == -1){
-        close(rtsp.sockfd);
-        rtsp.sockfd = -1;
-        perror ("listen()");
-        return EXIT_FAILURE;
-    }
-
-    fd_blocking(rtsp.sockfd, false);
 
     return EXIT_SUCCESS;
 }
 
-static void rtsp_teardown() {
-    if (!opts.rtsp || rtsp.sockfd == -1) {
+static void mdns_teardown()
+{
+    if (mdns) {
+        aes67_mdns_delete(mdns);
+    }
+}
+
+static void mdns_process()
+{
+    aes67_mdns_process(mdns, 0);
+}
+
+static int rtsp_setup()
+{
+    aes67_rtsp_srv_init(&rtsp_srv, false, NULL);
+
+    aes67_rtsp_srv_blocking(&rtsp_srv, false);
+
+    sdpres_t * sdpres = first_sdpres;
+    while(sdpres != NULL){
+
+        char uri[256];
+        u16_t urilen = sizeof("/by-name");
+
+        memcpy(uri, "/by-name/", sizeof("/by-name"));
+
+        urilen += uri_encode(sdpres->name, strlen(sdpres->name), &uri[urilen], sizeof(uri) - urilen - 1);
+
+        uri[urilen] = '\0';
+
+        printf("final uri [%d]: [%s]\n", urilen, uri);
+
+        aes67_rtsp_srv_sdp_add(&rtsp_srv, uri, urilen, sdpres);
+
+        sdpres = sdpres->next;
+    }
+
+    if (aes67_rtsp_srv_start(&rtsp_srv, opts.addr.ipver, opts.addr.ip, opts.port)){
+        fprintf(stderr, "failed to start rtsp server\n");
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static void rtsp_teardown()
+{
+    if (!opts.rtsp) {
         return;
     }
 
-    close(rtsp.sockfd);
-    rtsp.sockfd = -1;
-
-
+    aes67_rtsp_srv_deinit(&rtsp_srv);
 }
 
 static void rtsp_process()
 {
-    static int sockfd = -1;
+    aes67_rtsp_srv_process(&rtsp_srv);
+}
 
-    if (sockfd == -1){
-        struct sockaddr_in addr;
-        socklen_t socklen;
+void aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t * len, u16_t maxlen)
+{
+    assert(srv);
+    assert(sdpref);
+    assert(buf);
+    assert(len);
+    assert(maxlen);
 
-        memset(&addr, 0, sizeof(struct sockaddr_in));
+    sdpres_t * sdpres = sdpref;
 
-        if ((sockfd = accept(rtsp.sockfd, (struct sockaddr *)&addr, &socklen)) != -1) {
+    fprintf(stderr, "serving rtsp describe for uri %s\n", sdpres->name);
 
-            fd_blocking(sockfd, true);
-
-            u8_t ip[4];
-            *(u32_t*)ip = addr.sin_addr.s_addr;
-            u16_t port = ntohs(addr.sin_port);
-
-            printf("Connected! from %d.%d.%d.%d:%hu\n", ip[0], ip[1], ip[2], ip[3], port);
-
-            u8_t buf[1024];
-
-            ssize_t rlen = read(sockfd, buf, sizeof(buf));
-
-            if (rlen > 0){
-                buf[rlen] = '\0';
-                printf("%s\n", buf);
-            }
-
-            close(sockfd);
-            sockfd = -1;
-        }
+    if (maxlen < sdpres->len){
+        fprintf(stderr, "sdp file too big for compiled in buffer size");
+        *len = 0;
+        return;
     }
+
+    memcpy(buf, sdpres->data, sdpres->len);
+    *len += sdpres->len;
 }
 
 static int load_sdpres(char * fname, size_t maxlen)
@@ -213,7 +304,7 @@ static int load_sdpres(char * fname, size_t maxlen)
     }
 
     if (st.st_size > maxlen){
-        fprintf(stderr, "ERROR file too big (%ld bytes, max %zu) %s\n", st.st_size, maxlen, fname);
+        fprintf(stderr, "ERROR file too big (%lld bytes, max %zu) %s\n", st.st_size, maxlen, fname);
         return EXIT_FAILURE;
     }
 
@@ -389,50 +480,9 @@ int main(int argc, char * argv[])
     }
 
 
-    mdns = aes67_mdns_new();
-
-
-    sdpres_t * sdpres = first_sdpres;
-    while(sdpres != NULL){
-
-        aes67_mdns_resource_t service = aes67_mdns_service_start(mdns, AES67_RAV_MDNS_SESSION, sdpres->name,
-                                                                 NULL, opts.host, opts.port, 0, NULL, publish_callback, NULL);
-
-        if (service == NULL){
-            fprintf(stderr, "failed to create service\n");
-            goto shutdown;
-        }
-
-        if (opts.host != NULL){
-
-            struct aes67_net_addr * addr = opts.addr.ipver == aes67_net_ipver_undefined ? &sdpres->addr : &opts.addr;
-
-            u16_t rrtype;
-            u16_t rdlen;
-            u8_t * rdata;
-
-            if (addr->ipver == aes67_net_ipver_4){
-                rrtype = 1;
-                rdlen = 4;
-            } else { // ipver6
-                rrtype = 28;
-                rdlen = 16;
-            }
-            rdata = addr->ip;
-
-            if (aes67_mdns_service_addrecord(mdns, service, rrtype, rdlen, rdata, opts.ttl) == NULL){
-                fprintf(stderr, "failed to add A/AAAA record\n");
-                goto shutdown;
-            }
-
-            if (aes67_mdns_service_commit(mdns, service) == NULL){
-                fprintf(stderr, "error committing service\n");
-                goto shutdown;
-            }
-
-        }
-
-        sdpres = sdpres->next;
+    if (mdns_setup()){
+        fprintf(stderr, "failed mdns setup\n");
+        goto shutdown;
     }
 
 
@@ -442,43 +492,15 @@ int main(int argc, char * argv[])
     keep_running = true;
     while(keep_running){
 
-        int nfds = rtsp.sockfd;
-        fd_set rfds, xfds;
-//    sigset_t sigmask;
+        block_until_event();
 
-        FD_ZERO(&rfds);
-        FD_ZERO(&xfds);
-
-        // set all AF_LOCAL sockets
-        FD_SET(rtsp.sockfd, &rfds);
-        FD_SET(rtsp.sockfd, &xfds);
-
-        int * sockfds;
-        size_t count = 0;
-        aes67_mdns_getsockfds(mdns, &sockfds, &count);
-        for (size_t i = 0; i < count; i++) {
-            FD_SET(sockfds[i], &rfds);
-            FD_SET(sockfds[i], &xfds);
-            if (sockfds[i] > nfds) {
-                nfds = sockfds[i];
-            }
-        }
-
-        nfds++;
-
-        // just wait until something interesting happens
-        select(nfds, &rfds, NULL, &xfds, NULL);
-
-        aes67_mdns_process(mdns, 0);
-
+        mdns_process();
         rtsp_process();
     }
 
 shutdown:
 
-    if (mdns) {
-        aes67_mdns_delete(mdns);
-    }
+    mdns_teardown();
 
     rtsp_teardown();
 

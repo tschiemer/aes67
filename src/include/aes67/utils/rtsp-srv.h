@@ -50,6 +50,7 @@ enum aes67_rtsp_srv_state {
     aes67_rtsp_srv_state_init = 0,
     aes67_rtsp_srv_state_listening,
     aes67_rtsp_srv_state_receiving,
+    aes67_rtsp_srv_state_processing,
     aes67_rtsp_srv_state_sending
 };
 
@@ -98,6 +99,8 @@ struct aes67_rtsp_srv {
     struct sockaddr_in client_addr;
     int client_sockfd;
 
+    bool blocking;
+
     struct aes67_rtsp_srv_resource * first_res;
 
 
@@ -117,8 +120,8 @@ struct aes67_rtsp_srv {
             u16_t minor;
         } version;
         enum aes67_rtsp_srv_method method;
-//    char * uri;
-//    u8_t urilen;
+        u8_t * uri;
+        u8_t urilen;
         u16_t header_len;
         u16_t content_length;
 
@@ -130,7 +133,7 @@ struct aes67_rtsp_srv {
         u16_t status_code;
         u16_t sent;
         u16_t len;
-        u8_t data[AES67_RTSP_SRV_TXBUFSIZE]
+        u8_t data[AES67_RTSP_SRV_TXBUFSIZE];
     } res; // response
 };
 
@@ -140,12 +143,14 @@ void aes67_rtsp_srv_deinit(struct aes67_rtsp_srv * srv);
 int aes67_rtsp_srv_start(struct aes67_rtsp_srv * srv, const enum aes67_net_ipver ipver, const u8_t *ip, u16_t port);
 void aes67_rtsp_srv_stop(struct aes67_rtsp_srv * srv);
 
+void aes67_rtsp_srv_blocking(struct aes67_rtsp_srv * srv, bool blocking);
+
 void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv);
 
 void aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t * len, u16_t maxlen);
 void aes67_rtsp_srv_http_handler(struct aes67_rtsp_srv * srv, const enum aes67_rtsp_srv_method method, const char * uri, const u8_t urilen, u8_t * buf, u16_t * len, u16_t maxlen, void * response_data);
 
-struct aes67_rtsp_srv_resource * aes67_rtsp_srv_sdp_add(struct aes67_rtsp_srv * srv, const char * uri, const u8_t urilen, const void * sdpref);
+struct aes67_rtsp_srv_resource * aes67_rtsp_srv_sdp_add(struct aes67_rtsp_srv * srv, const char * uri, const u8_t urilen, void * sdpref);
 void aes67_rtsp_srv_sdp_remove(struct aes67_rtsp_srv * srv, void * sdpref);
 
 
