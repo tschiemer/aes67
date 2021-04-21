@@ -244,7 +244,7 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
                     if (c == '\n'){
 
                         // basic sanity check
-                        if (srv->req.data_len < 32){
+                        if (srv->req.data_len < 15){
                             close(srv->client_sockfd);
                             srv->client_sockfd = -1;
                             srv->state = aes67_rtsp_srv_state_listening;
@@ -257,6 +257,8 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
 
                         u8_t * s = &srv->req.data[srv->req.data_len - CR - sizeof("HTTP/1.0")];
 
+//                        printf("[%s] [%s]\n", srv->req.data, s);
+
                         if (s[0] == 'H' &&
                             s[1] == 'T' &&
                             s[2] == 'T' &&
@@ -264,7 +266,6 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
                             s[4] == '/' &&
                             s[6] == '.'
                         ){
-
                             if (!srv->http_enabled){
                                 close(srv->client_sockfd);
                                 srv->client_sockfd = -1;
@@ -297,7 +298,9 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
                         srv->req.version.minor = s[7] - '0';
 
                         s = srv->req.data;
-                        fprintf(stderr, "[%s]\n", s);
+
+                        srv->req.data[srv->req.data_len] = '\0';
+                        fprintf(stderr, "REQUEST %s", s);
 
                         if (srv->req.proto == aes67_rtsp_srv_proto_rtsp &&
                             s[0] == 'D' &&
@@ -372,7 +375,7 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
                         srv->req.urilen = &srv->req.data[srv->req.data_len - CR - sizeof(" HTTP/1.0")] - srv->req.uri;
 
                         srv->req.uri[srv->req.urilen] = '\0';
-                        printf("uri[%d] = [%s]\n", srv->req.urilen, srv->req.uri);
+//                        printf("uri[%d] = [%s]\n", srv->req.urilen, srv->req.uri);
                         // if  rtsp, discard scheme and host
                         if (srv->req.proto == aes67_rtsp_srv_proto_rtsp){
 
@@ -404,7 +407,16 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
                             srv->req.urilen -= delim - srv->req.uri;
                             srv->req.uri = delim;
                         }
-                        printf("uri[%d] = [%s]\n", srv->req.urilen, srv->req.uri);
+                        else if (srv->req.proto == aes67_rtsp_srv_proto_http){
+                            // sanity check
+                            if (srv->req.uri[0] != '/'){
+                                close(srv->client_sockfd);
+                                srv->client_sockfd = -1;
+                                srv->state = aes67_rtsp_srv_state_listening;
+                                return;
+                            }
+                        }
+//                        printf("uri[%d] = [%s]\n", srv->req.urilen, srv->req.uri);
 
                         // set line start
                         srv->req.line = &srv->req.data[srv->req.data_len];
@@ -437,7 +449,7 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
                     close(srv->client_sockfd);
                     srv->client_sockfd = -1;
                     srv->state = aes67_rtsp_srv_state_listening;
-                    printf("closed!\n");
+//                    printf("closed!\n");
                     return;
                 } else if (r == 1) {
                     srv->req.data[srv->req.data_len++] = c;
@@ -447,7 +459,7 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
                     if (c == '\n') {
 
                         // end of header? ([CR]NL)
-                        if (srv->req.llen == 1 + CR && (!CR || srv->req.line[0] == '\r') && srv->req.line[1] == '\n') {
+                        if (srv->req.llen == 1 + CR && (!CR || srv->req.line[0] == '\r') && srv->req.line[CR] == '\n') {
                             srv->req.header_len = srv->req.data_len;
                             // break to start reading body
                             break;
@@ -549,7 +561,7 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
 
     if (srv->state == aes67_rtsp_srv_state_processing){
         if (srv->req.proto == aes67_rtsp_srv_proto_rtsp){
-            fprintf(stderr, "is rtsp\n");
+//            fprintf(stderr, "is rtsp\n");
 
             u16_t status_code = AES67_RTSP_STATUS_INTERNAL_ERROR;
             struct aes67_rtsp_srv_resource * res = NULL;
@@ -557,7 +569,6 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
             switch (srv->req.method){
 
                 case aes67_rtsp_srv_method_options:
-                    fprintf(stderr, "method = options\n");
                     status_code = AES67_RTSP_STATUS_OK;
                     break;
 
@@ -674,22 +685,75 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
 
         } // proto == aes67_rtsp_srv_proto_rtsp
         else if (srv->req.proto == aes67_rtsp_srv_proto_http){
-            fprintf(stderr, "is http\n");
+
+            srv->res.more = false;
+            srv->res.len = 0;
+            srv->res.sent = 0;
+            srv->res.response_state = NULL;
+
+            // NULL-terminate just to make simpler for processor (note, we're altering the buffer hereby, obviously..)
+//            srv->req.uri[srv->req.urilen] = '\0';
+
+            aes67_rtsp_srv_http_handler(srv, srv->req.method, (char*)srv->req.uri, srv->req.urilen, srv->res.data, &srv->res.len, AES67_RTSP_SRV_TXBUFSIZE, &srv->res.more, &srv->res.response_state);
+
+            if (srv->res.len == 0){
+//                fprintf(stderr, "no http data, closing\n");
+
+                close(srv->client_sockfd);
+                srv->client_sockfd = -1;
+                srv->state = aes67_rtsp_srv_state_listening;
+            } else {
+                srv->state = aes67_rtsp_srv_state_sending;
+            }
+
         } // proto == aes67_rtsp_srv_proto_http
     } // state == aes67_rtsp_srv_state_processing
 
     if (srv->state == aes67_rtsp_srv_state_sending){
 
         if (srv->res.sent < srv->res.len){
-            fprintf(stderr, "Sending %d bytes..\n", srv->res.len - srv->res.sent);
-            write(srv->client_sockfd, srv->res.data + srv->res.sent, srv->res.len - srv->res.sent);
+//            fprintf(stderr, "Sending %d bytes..\n", srv->res.len - srv->res.sent);
 
-            srv->res.sent = srv->res.len;
+            int r = write(srv->client_sockfd, srv->res.data + srv->res.sent, srv->res.len - srv->res.sent);
 
-            srv->state = aes67_rtsp_srv_state_listening;
+            if (r > 0){
+                srv->res.sent += r;
 
-            close(srv->client_sockfd);
-            srv->client_sockfd = -1;
+                // just some sanity check because I'm not sure how this behaves in real life
+                assert(r == srv->res.len);
+
+                srv->res.len = 0;
+
+                // if http with more data to send, call handler again
+                if (srv->req.proto == aes67_rtsp_srv_proto_http && srv->res.more) {
+                    aes67_rtsp_srv_http_handler(srv, srv->req.method, (char *) srv->req.uri, srv->req.urilen, srv->res.data,
+                                                &srv->res.len, AES67_RTSP_SRV_TXBUFSIZE, &srv->res.more,
+                                                &srv->res.response_state);
+                }
+
+                // no more data, terminate
+                if (srv->res.len == 0){
+
+                    close(srv->client_sockfd);
+                    srv->client_sockfd = -1;
+
+                    srv->state = aes67_rtsp_srv_state_listening;
+                }
+            }
+            // if socket closed
+            else if (r == 0){
+
+                if (srv->req.proto == aes67_rtsp_srv_proto_http){
+                    aes67_rtsp_srv_http_handler(srv, aes67_rtsp_srv_method_undefined, NULL, 0, NULL, NULL, 0, &srv->res.more, &srv->res.response_state);
+                }
+
+                close(srv->client_sockfd);
+                srv->client_sockfd = -1;
+
+                srv->state = aes67_rtsp_srv_state_listening;
+            }
+
+
         }
 
     } //state == aes67_rtsp_srv_state_sending
@@ -698,13 +762,11 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
 WEAK_FUN u16_t aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t maxlen)
 {
     assert(false);
-
-    return AES67_RTSP_STATUS_INTERNAL_ERROR;
 }
 
-WEAK_FUN void aes67_rtsp_srv_http_handler(struct aes67_rtsp_srv * srv, const enum aes67_rtsp_srv_method method, const char * uri, const u8_t urilen, u8_t * buf, u16_t * len, u16_t maxlen, void * response_data)
+WEAK_FUN void aes67_rtsp_srv_http_handler(struct aes67_rtsp_srv * srv, const enum aes67_rtsp_srv_method method, char * uri, u8_t urilen, u8_t * buf, u16_t * len, u16_t maxlen, bool * more, void ** response_state)
 {
-
+    assert(false);
 }
 
 

@@ -61,6 +61,7 @@ enum aes67_rtsp_srv_proto {
 };
 
 enum aes67_rtsp_srv_method {
+    aes67_rtsp_srv_method_undefined = 0,
     aes67_rtsp_srv_method_options   = 1,
     aes67_rtsp_srv_method_describe  = 2,
     aes67_rtsp_srv_method_get       = 4,
@@ -134,6 +135,8 @@ struct aes67_rtsp_srv {
         u16_t sent;
         u16_t len;
         u8_t data[AES67_RTSP_SRV_TXBUFSIZE];
+        void * response_state;
+        bool more;
     } res; // response
 };
 
@@ -148,7 +151,7 @@ void aes67_rtsp_srv_blocking(struct aes67_rtsp_srv * srv, bool blocking);
 void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv);
 
 u16_t aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t maxlen);
-void aes67_rtsp_srv_http_handler(struct aes67_rtsp_srv * srv, const enum aes67_rtsp_srv_method method, const char * uri, const u8_t urilen, u8_t * buf, u16_t * len, u16_t maxlen, void * response_data);
+void aes67_rtsp_srv_http_handler(struct aes67_rtsp_srv * srv, const enum aes67_rtsp_srv_method method, char * uri, u8_t urilen, u8_t * buf, u16_t * len, u16_t maxlen, bool * more, void ** response_state);
 
 struct aes67_rtsp_srv_resource * aes67_rtsp_srv_sdp_add(struct aes67_rtsp_srv * srv, const char * uri, const u8_t urilen, void * sdpref);
 void aes67_rtsp_srv_sdp_remove(struct aes67_rtsp_srv * srv, void * sdpref);

@@ -57,6 +57,7 @@ static struct {
     u32_t ttl;
     bool http;
     char * http_root;
+    char * http_index;
 } opts = {
     .verbose = false,
     .rtsp = true,
@@ -65,7 +66,8 @@ static struct {
     .port = 0,
     .ttl = 100,
     .http = false,
-    .http_root = NULL
+    .http_root = NULL,
+    .http_index = "index.html"
 };
 
 static volatile bool keep_running;
@@ -90,7 +92,11 @@ static void help(FILE * fd)
              "\t --ip <ip>\t (Override) IPv4/6 address of target device (create an record for host).\n"
              "\t --no-rtsp\t Do not start a RTSP server.\n"
              "\t --http <root>\t Start a http server with given root dir (implies RTSP server)\n"
-            , argv0);
+             "\t --http-index <index-file> Index file to serve from directories (default index.html)\n"
+             "Examples\n"
+             "%s -p 9191 --no-rtsp my-session.sdp another-session.sdp\n"
+             "scripts/html-index.sh sdp.d >> sdp.d/index.html && %s -p 9191 --http sdp.d sdp.d/*.sdp\n"
+            , argv0, argv0, argv0);
 }
 
 
@@ -255,6 +261,11 @@ static int rtsp_setup()
         return EXIT_FAILURE;
     }
 
+    fprintf(stderr, "Started RTSP%s server on port %hu\n", opts.http ? "/HTTP" : "", opts.port);
+    if (opts.http){
+        fprintf(stderr, "HTTP root = %s\n", opts.http_root);
+    }
+
     return EXIT_SUCCESS;
 }
 
@@ -295,13 +306,176 @@ u16_t aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t
     return len + sdpres->len;
 }
 
+void aes67_rtsp_srv_http_handler(struct aes67_rtsp_srv * srv, const enum aes67_rtsp_srv_method method, char * uri, u8_t urilen, u8_t * buf, u16_t * len, u16_t maxlen, bool * more, void ** response_state)
+{
+    static struct {
+        int fd;
+        off_t filesize;
+        off_t read;
+    } state = {
+        .fd = -1
+    };
+
+    // if data is set, this is from a previous call but the file to be transmitted was to big for the internal buffer to send at once.
+    // possibly the
+    if (*response_state){
+
+        // premature termination
+        if (state.fd != -1){
+            close(state.fd);
+            return;
+        }
+
+        // continue passing file contents to server
+
+        ssize_t r = read(state.fd, buf + *len, maxlen);
+
+        if (r > 0){
+            *len = r;
+            state.read += r;
+        }
+
+        *more = state.read < state.filesize;
+
+        if (!*more){
+            close(state.fd);
+            state.fd = -1;
+        }
+
+        return;
+    }
+
+
+    uri[urilen] = '\0';
+//    fprintf(stderr, "HTTP request for [%s]\n", uri);
+
+    char uri_decoded[256];
+
+    uri_decode(uri, urilen, uri_decoded);
+
+
+    // basic safety check
+    if (strstr(uri_decoded, "..") != NULL){
+        printf("404 1\n");
+        *len = snprintf((char*)buf, maxlen,
+                        "HTTP/1.1 404 Not Found\r\n"
+                        "Connection: close\r\n"
+                        "\r\n"
+        );
+        return;
+    }
+
+//    u16_t l = 0;
+
+//    if (urilen > 4 && memcmp(uri, "/api", 4) == 0){
+//
+//        // this is mor a proof of concept when trying to implement a restful api
+//        *len = snprintf((char*)buf, maxlen,
+//                        "HTTP/1.1 200 OK\r\n"
+//                        "Connection: close\r\n"
+//                        "Content-Type: application/json\r\n"
+//                        "\r\n"
+//                        "{code: 200, msg: \"proof of concept\"}"
+//        );
+//        return;
+//
+//    }
+
+    char path[256];
+
+    snprintf(path, sizeof(path), "%s%s", opts.http_root, uri_decoded);
+
+//    printf("file = [%s]\n", path);
+
+    // check file existence
+    if (access(path, F_OK) != 0){
+        fprintf(stderr, "ERROR 404 2\n");
+        *len = snprintf((char*)buf, maxlen,
+                 "HTTP/1.1 404 Not Found\r\n"
+                 "Connection: close\r\n"
+                 "\r\n"
+         );
+        return;
+    }
+
+    struct stat st;
+
+    //get file stat
+    if (stat(path, &st)){
+        fprintf(stderr, "ERROR 500 1\n");
+        *len = snprintf((char*)buf, maxlen,
+                        "HTTP/1.1 500 Internal Server Error\r\n"
+                        "Connection: close\r\n"
+                        "\r\n"
+        );
+        return;
+    }
+
+    // forbid directories (no listing)
+    if ((st.st_mode & S_IFMT) == S_IFDIR){
+        // check if there is an index file
+
+        snprintf(path, sizeof(path), "%s%s/%s", opts.http_root, uri, opts.http_index);
+
+        if (access(path, F_OK) || stat(path, &st) || (st.st_mode & S_IFMT) != S_IFREG){
+
+            fprintf(stderr, "ERROR 403 1\n");
+            *len = snprintf((char*)buf, maxlen,
+                            "HTTP/1.1 403 Forbidden\r\n"
+                            "Connection: close\r\n"
+                            "\r\n"
+            );
+            return;
+        }
+    }
+
+    state.fd = open(path, O_RDONLY);
+    if (state.fd == -1){
+        fprintf(stderr, "ERROR 500 2 \n");
+        *len = snprintf((char*)buf, maxlen,
+                        "HTTP/1.1 500 Internal Server Error\r\n"
+                        "Connection: close\r\n"
+                        "\r\n"
+        );
+        return;
+    }
+
+    state.filesize = st.st_size;
+
+    *len = snprintf((char*)buf, maxlen,
+                    "HTTP/1.1 200 OK\r\n"
+                    "Connection: close\r\n"
+                    "Content-Length: %lld\r\n"
+                    "\r\n"
+                    , st.st_size
+    );
+
+    state.read = 0;
+
+    ssize_t remaining = maxlen - *len;
+    ssize_t r = read(state.fd, buf + *len, remaining);
+
+    if (r > 0){
+        *len += r;
+        state.read += r;
+    }
+
+    *more = state.read < state.filesize;
+
+    if (!*more){
+        close(state.fd);
+        state.fd = -1;
+    }
+
+    *response_state = &state;
+}
+
 static int load_sdpres(char * fname, size_t maxlen)
 {
     if (access(fname, F_OK) != 0){
         fprintf(stderr, "ERROR file exists? %s\n", fname);
         return EXIT_FAILURE;
     }
-
     struct stat st;
 
     if (stat(fname, &st)){
@@ -402,6 +576,7 @@ int main(int argc, char * argv[])
                 {"no-rtsp",  no_argument,       0,  3 },
                 {"ttl", required_argument, 0, 4},
                 {"http", required_argument, 0, 5},
+                {"http-index", required_argument, 0, 6},
                 {0,         0,                 0,  0 }
         };
 
@@ -449,21 +624,31 @@ int main(int argc, char * argv[])
                 }
                 break;
 
-            case 5:
-                if (access(optarg, F_OK) != 0){
+            case 5: {
+                if (access(optarg, F_OK) != 0) {
                     fprintf(stderr, "ERROR http root does not exists? %s\n", optarg);
                     return EXIT_FAILURE;
                 }
+
+                struct stat st;
+
+                if (stat(optarg, &st)){
+                    fprintf(stderr, "ERROR failed to get filesize %s\n", optarg);
+                    return EXIT_FAILURE;
+                }
+                if ((st.st_mode & S_IFMT) != S_IFDIR){
+                    fprintf(stderr, "ERROR http root is not a directory: %s\n", optarg);
+                    return EXIT_FAILURE;
+                }
+
                 opts.http = true;
                 opts.http_root = optarg;
 
+                break;
+            }
 
-//                struct stat st;
-
-//                if (stat(fname, &st)){
-//                    fprintf(stderr, "ERROR failed to get filesize %s\n", fname);
-//                    return EXIT_FAILURE;
-//                }
+            case 6:
+                opts.http_index = optarg;
                 break;
 
             case '?':

@@ -49,7 +49,7 @@ https://github.com/tschiemer/aes67
     - [x] [sdp-gen](#sdp-gen): generate SDP
   - RTSP/HTTP
     - [x] [rtsp-describe](#rtsp-describe): retrieve SDP from RTSP service
-    - [ ] rtsp/http combo server?
+    - [ ] ~~rtsp/http combo server?~~ -> [rav-publish](#rav-publish)
   - RAVENNA
     - [ ] ~~RAV2SAP~~ -> [sapd](#sapd)
     - [x] [rav-lookup](#rav-lookup): browse for sessions/devices
@@ -63,16 +63,10 @@ https://github.com/tschiemer/aes67
   - Support
     - mDNS (abstraction for mdns service)
       - [x] dns-sd
-         - [x] discovery
-         - [x] registration
-      - [ ] avahi
-         - [ ] dns-sd compat layer
-    - [ ] RTSP describe
-      - [x] retrieve SDP from server
-      - [ ] serve SDPs  on request
+      - [x] avahi (to be tested further)
+    - [x] RTSP describe client + server
     
-
-
+  
 
 ## In a Nutshell
 
@@ -454,10 +448,15 @@ By default sets up a mini-RTSP server serving the given session descriptions.
 Options:
 	 -h,-?		 Outputs this info
 	 -v		 Some status output to STDERR
-	 -p <rtsp-port>	  Port of RTSP server.
-	 --host <host>	 Host of target device (by default will assume self).
-	 --ip <ip>	 IPv4/6 address of target device (create an record for host).
+	 -p, --port <rtsp-port>	  Port of RTSP server.
+	 --host <host>	 Host of target device (by default will assume self; if given will try to use originator IPv4/6 from SDP file).
+	 --ip <ip>	 (Override) IPv4/6 address of target device (create an record for host).
 	 --no-rtsp	 Do not start a RTSP server.
+	 --http <root>	 Start a http server with given root dir (implies RTSP server)
+	 --http-index <index-file> Index file to serve from directories (default index.html)
+Examples
+./rav-publish -p 9191 --no-rtsp my-session.sdp another-session.sdp
+scripts/html-index.sh sdp.d >> sdp.d/index.html && ./rav-publish -p 9191 --http sdp.d sdp.d/*.sdp
 ```
 
 To quickly register a (test) ravenna session with name `Hello my pretty` on the localhost's port 9191:
