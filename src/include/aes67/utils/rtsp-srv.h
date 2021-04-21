@@ -130,7 +130,7 @@ struct aes67_rtsp_srv {
     } req; // request
 
     struct {
-        u16_t status_code;
+//        u16_t status_code;
         u16_t sent;
         u16_t len;
         u8_t data[AES67_RTSP_SRV_TXBUFSIZE];
@@ -147,7 +147,7 @@ void aes67_rtsp_srv_blocking(struct aes67_rtsp_srv * srv, bool blocking);
 
 void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv);
 
-void aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t * len, u16_t maxlen);
+u16_t aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t maxlen);
 void aes67_rtsp_srv_http_handler(struct aes67_rtsp_srv * srv, const enum aes67_rtsp_srv_method method, const char * uri, const u8_t urilen, u8_t * buf, u16_t * len, u16_t maxlen, void * response_data);
 
 struct aes67_rtsp_srv_resource * aes67_rtsp_srv_sdp_add(struct aes67_rtsp_srv * srv, const char * uri, const u8_t urilen, void * sdpref);

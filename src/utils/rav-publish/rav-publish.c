@@ -55,13 +55,17 @@ static struct {
     struct aes67_net_addr addr;
     u16_t port;
     u32_t ttl;
+    bool http;
+    char * http_root;
 } opts = {
     .verbose = false,
     .rtsp = true,
     .host = NULL,
     .addr.ipver = aes67_net_ipver_undefined,
     .port = 0,
-    .ttl = 100
+    .ttl = 100,
+    .http = false,
+    .http_root = NULL
 };
 
 static volatile bool keep_running;
@@ -85,6 +89,7 @@ static void help(FILE * fd)
              "\t --host <host>\t Host of target device (by default will assume self; if given will try to use originator IPv4/6 from SDP file).\n"
              "\t --ip <ip>\t (Override) IPv4/6 address of target device (create an record for host).\n"
              "\t --no-rtsp\t Do not start a RTSP server.\n"
+             "\t --http <root>\t Start a http server with given root dir (implies RTSP server)\n"
             , argv0);
 }
 
@@ -222,7 +227,7 @@ static void mdns_process()
 
 static int rtsp_setup()
 {
-    aes67_rtsp_srv_init(&rtsp_srv, false, NULL);
+    aes67_rtsp_srv_init(&rtsp_srv, opts.http, NULL);
 
     aes67_rtsp_srv_blocking(&rtsp_srv, false);
 
@@ -238,7 +243,7 @@ static int rtsp_setup()
 
         uri[urilen] = '\0';
 
-        printf("final uri [%d]: [%s]\n", urilen, uri);
+//        printf("final uri [%d]: [%s]\n", urilen, uri);
 
         aes67_rtsp_srv_sdp_add(&rtsp_srv, uri, urilen, sdpres);
 
@@ -267,26 +272,27 @@ static void rtsp_process()
     aes67_rtsp_srv_process(&rtsp_srv);
 }
 
-void aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t * len, u16_t maxlen)
+u16_t aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t maxlen)
 {
     assert(srv);
     assert(sdpref);
     assert(buf);
-    assert(len);
     assert(maxlen);
 
     sdpres_t * sdpres = sdpref;
 
     fprintf(stderr, "serving rtsp describe for uri %s\n", sdpres->name);
 
-    if (maxlen < sdpres->len){
+    u16_t len = snprintf((char*)buf, maxlen, "Content-Length: %u\r\n\r\n", sdpres->len);
+
+    if (sdpres->len + len > maxlen){
         fprintf(stderr, "sdp file too big for compiled in buffer size");
-        *len = 0;
-        return;
+        return 0;
     }
 
-    memcpy(buf, sdpres->data, sdpres->len);
-    *len += sdpres->len;
+    memcpy(buf + len, sdpres->data, sdpres->len);
+
+    return len + sdpres->len;
 }
 
 static int load_sdpres(char * fname, size_t maxlen)
@@ -395,6 +401,7 @@ int main(int argc, char * argv[])
                 {"ip",  required_argument,       0,  2 },
                 {"no-rtsp",  no_argument,       0,  3 },
                 {"ttl", required_argument, 0, 4},
+                {"http", required_argument, 0, 5},
                 {0,         0,                 0,  0 }
         };
 
@@ -442,6 +449,23 @@ int main(int argc, char * argv[])
                 }
                 break;
 
+            case 5:
+                if (access(optarg, F_OK) != 0){
+                    fprintf(stderr, "ERROR http root does not exists? %s\n", optarg);
+                    return EXIT_FAILURE;
+                }
+                opts.http = true;
+                opts.http_root = optarg;
+
+
+//                struct stat st;
+
+//                if (stat(fname, &st)){
+//                    fprintf(stderr, "ERROR failed to get filesize %s\n", fname);
+//                    return EXIT_FAILURE;
+//                }
+                break;
+
             case '?':
             case 'h':
                 help(stdout);
@@ -461,6 +485,11 @@ int main(int argc, char * argv[])
 
     if (opts.port == 0){
         fprintf(stderr, "No port set\n");
+        return EXIT_FAILURE;
+    }
+
+    if (opts.http && !opts.rtsp){
+        fprintf(stderr, "RTSP server can not be disabled when HTTP server is to run\n");
         return EXIT_FAILURE;
     }
 

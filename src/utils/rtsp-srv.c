@@ -39,7 +39,7 @@ static int sock_set_blocking(int sockfd, bool blocking){
     return EXIT_SUCCESS;
 }
 
-static struct aes67_rtsp_srv_resource * rtsp_resource_by_uri(struct aes67_rtsp_srv * srv, const char * uri, u8_t urilen)
+static struct aes67_rtsp_srv_resource * rtsp_resource_by_uri(struct aes67_rtsp_srv * srv, const u8_t * uri, u8_t urilen)
 {
     assert(srv);
     assert(uri);
@@ -96,7 +96,7 @@ int aes67_rtsp_srv_start(struct aes67_rtsp_srv * srv, const enum aes67_net_ipver
 
     aes67_rtsp_srv_stop(srv);
 
-    srv->listen_sockfd = socket (AF_UNIX, SOCK_STREAM, 0);
+    srv->listen_sockfd = socket (AF_INET, SOCK_STREAM, 0);
 
     if (srv->listen_sockfd < 0){
         perror ("socket()");
@@ -144,23 +144,29 @@ void aes67_rtsp_srv_stop(struct aes67_rtsp_srv * srv)
 {
     assert(srv);
 
+    if (srv->listen_sockfd != -1){
+        sock_set_blocking(srv->listen_sockfd, true);
+        close(srv->listen_sockfd);
+        srv->listen_sockfd = -1;
+    }
+
     if (srv->client_sockfd != -1){
         sock_set_blocking(srv->client_sockfd, true);
         close(srv->client_sockfd);
         srv->client_sockfd = -1;
     }
 
-    if (srv->listen_sockfd != -1){
-        sock_set_blocking(srv->listen_sockfd, true);
-        close(srv->listen_sockfd);
-        srv->listen_sockfd = -1;
-    }
 }
 
 
 void aes67_rtsp_srv_blocking(struct aes67_rtsp_srv * srv, bool blocking)
 {
     assert(srv);
+
+    if (srv->blocking == blocking){
+        return;
+    }
+    srv->blocking = blocking;
 
     if (srv->listen_sockfd != -1){
         sock_set_blocking(srv->listen_sockfd, blocking);
@@ -189,7 +195,7 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
             srv->req.header_len = 0;
             srv->req.content_length = 0;
             srv->req.CR = 0;
-            srv->res.status_code = 0;
+//            srv->res.status_code = 0;
 
             sock_set_blocking(srv->client_sockfd, srv->blocking);
 
@@ -291,6 +297,7 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
                         srv->req.version.minor = s[7] - '0';
 
                         s = srv->req.data;
+                        fprintf(stderr, "[%s]\n", s);
 
                         if (srv->req.proto == aes67_rtsp_srv_proto_rtsp &&
                             s[0] == 'D' &&
@@ -357,13 +364,15 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
                             close(srv->client_sockfd);
                             srv->client_sockfd = -1;
                             srv->state = aes67_rtsp_srv_state_listening;
+                            fprintf(stderr, "method not recognized\n");
                             return;
                         }
 
                         // "RTSP/1.0" - "METHOD .."
-                        srv->req.urilen = &srv->req.data[srv->req.data_len - CR - sizeof("HTTP/1.0")] - srv->req.uri;
+                        srv->req.urilen = &srv->req.data[srv->req.data_len - CR - sizeof(" HTTP/1.0")] - srv->req.uri;
 
-                        printf("uri[%d] = %s", srv->req.urilen, srv->req.uri);
+                        srv->req.uri[srv->req.urilen] = '\0';
+                        printf("uri[%d] = [%s]\n", srv->req.urilen, srv->req.uri);
                         // if  rtsp, discard scheme and host
                         if (srv->req.proto == aes67_rtsp_srv_proto_rtsp){
 
@@ -395,6 +404,7 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
                             srv->req.urilen -= delim - srv->req.uri;
                             srv->req.uri = delim;
                         }
+                        printf("uri[%d] = [%s]\n", srv->req.urilen, srv->req.uri);
 
                         // set line start
                         srv->req.line = &srv->req.data[srv->req.data_len];
@@ -504,7 +514,7 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
         } // header
 
         // read body (if total data is less than header and expected content length..)
-        u16_t missing = srv->req.content_length - (srv->req.data_len - srv->req.content_length);
+        u16_t missing = srv->req.content_length - (srv->req.data_len - srv->req.header_len);
         if (missing > 0) {
 
             // boundary check
@@ -512,7 +522,7 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
                 close(srv->client_sockfd);
                 srv->client_sockfd = -1;
                 srv->state = aes67_rtsp_srv_state_listening;
-                fprintf(stderr, "would overflow\n");
+                fprintf(stderr, "would overflow (has %d, hdr %d, content %d, missing %d)\n", srv->req.data_len, srv->req.header_len, srv->req.content_length, missing);
                 return;
             }
 
@@ -539,21 +549,157 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
 
     if (srv->state == aes67_rtsp_srv_state_processing){
         if (srv->req.proto == aes67_rtsp_srv_proto_rtsp){
-//            struct aes67_rtsp_srv_resource * res = rtsp_resource_by_uri(srv, )
+            fprintf(stderr, "is rtsp\n");
+
+            u16_t status_code = AES67_RTSP_STATUS_INTERNAL_ERROR;
+            struct aes67_rtsp_srv_resource * res = NULL;
+
+            switch (srv->req.method){
+
+                case aes67_rtsp_srv_method_options:
+                    fprintf(stderr, "method = options\n");
+                    status_code = AES67_RTSP_STATUS_OK;
+                    break;
+
+                case aes67_rtsp_srv_method_describe:
+                    res = rtsp_resource_by_uri(srv, srv->req.uri, srv->req.urilen);
+                    if (res == NULL){
+                        status_code  = AES67_RTSP_STATUS_NOT_FOUND;
+                    } else {
+                        status_code = AES67_RTSP_STATUS_OK;
+                    }
+                    break;
+
+                default:
+                    // well, in principle this is what would be the answer (not necessarily RFC conform)
+                    // but this case should be caught earlier on and execution should never reach here
+                    status_code = AES67_RTSP_STATUS_NOT_IMPLEMENTED;
+            }
+
+
+            u8_t * d = srv->res.data;
+            u16_t l = 0;
+
+            d[0] = 'R';
+            d[1] = 'T';
+            d[2] = 'S';
+            d[3] = 'P';
+            d[4] = '/';
+            d[5] = '0' + srv->req.version.major;
+            d[6] = '.';
+            d[7] = '0' + srv->req.version.minor;
+            d[8] = ' ';
+            l = 9;
+
+            l += aes67_itoa(status_code, d + l , 10);
+
+            d[l++] = ' ';
+
+            switch(status_code){
+                case AES67_RTSP_STATUS_OK:
+                    d[l++] = 'O';
+                    d[l++] = 'K';
+                    break;
+                case AES67_RTSP_STATUS_NOT_FOUND:
+                    d[l++] = 'N';
+                    d[l++] = 'O';
+                    d[l++] = 'T';
+                    d[l++] = ' ';
+                    d[l++] = 'F';
+                    d[l++] = 'O';
+                    d[l++] = 'U';
+                    d[l++] = 'N';
+                    d[l++] = 'D';
+                    break;
+                case AES67_RTSP_STATUS_NOT_IMPLEMENTED:
+                    d[l++] = 'N';
+                    d[l++] = 'O';
+                    d[l++] = 'T';
+                    d[l++] = ' ';
+                    d[l++] = 'I';
+                    d[l++] = 'M';
+                    d[l++] = 'P';
+                    d[l++] = 'L';
+                    d[l++] = 'E';
+                    d[l++] = 'M';
+                    d[l++] = 'T';
+                    d[l++] = 'E';
+                    d[l++] = 'D';
+                    break;
+                default:
+                    d[l++] = '?';
+            }
+
+            d[l++] = '\r';
+            d[l++] = '\n';
+
+            d[l++] = 'C';
+            d[l++] = 'S';
+            d[l++] = 'e';
+            d[l++] = 'q';
+            d[l++] = ':';
+            d[l++] = ' ';
+            l += aes67_itoa(srv->req.cseq, d + l, 10);
+            d[l++] = '\r';
+            d[l++] = '\n';
+
+            switch (srv->req.method){
+
+                case aes67_rtsp_srv_method_options:
+                    aes67_memcpy(d + l, "Public: DESCRIBE\r\n\r\n", sizeof("Public: DESCRIBE\r\n\r\n")-1);
+                    l += sizeof("Public: DESCRIBE\r\n\r\n")-1;
+                    break;
+
+                case aes67_rtsp_srv_method_describe:
+                    if (res){
+                        l += aes67_rtsp_srv_sdp_getter(srv, res->sdpref, d + l, AES67_RTSP_SRV_TXBUFSIZE - l);
+                    } else {
+                        // add end of header / empty line
+                        d[l++] = '\r';
+                        d[l++] = '\n';
+                    }
+                    break;
+
+                default:
+                    // add end of header / empty line
+                    d[l++] = '\r';
+                    d[l++] = '\n';
+                    break;
+            }
+
+            srv->res.len = l;
+            srv->res.sent = 0;
+
+            srv->state = aes67_rtsp_srv_state_sending;
+
         } // proto == aes67_rtsp_srv_proto_rtsp
         else if (srv->req.proto == aes67_rtsp_srv_proto_http){
-
+            fprintf(stderr, "is http\n");
         } // proto == aes67_rtsp_srv_proto_http
     } // state == aes67_rtsp_srv_state_processing
 
     if (srv->state == aes67_rtsp_srv_state_sending){
 
+        if (srv->res.sent < srv->res.len){
+            fprintf(stderr, "Sending %d bytes..\n", srv->res.len - srv->res.sent);
+            write(srv->client_sockfd, srv->res.data + srv->res.sent, srv->res.len - srv->res.sent);
+
+            srv->res.sent = srv->res.len;
+
+            srv->state = aes67_rtsp_srv_state_listening;
+
+            close(srv->client_sockfd);
+            srv->client_sockfd = -1;
+        }
+
     } //state == aes67_rtsp_srv_state_sending
 }
 
-WEAK_FUN void aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t * len, u16_t maxlen)
+WEAK_FUN u16_t aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t maxlen)
 {
     assert(false);
+
+    return AES67_RTSP_STATUS_INTERNAL_ERROR;
 }
 
 WEAK_FUN void aes67_rtsp_srv_http_handler(struct aes67_rtsp_srv * srv, const enum aes67_rtsp_srv_method method, const char * uri, const u8_t urilen, u8_t * buf, u16_t * len, u16_t maxlen, void * response_data)
