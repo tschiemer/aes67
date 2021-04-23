@@ -90,7 +90,7 @@ void aes67_rtsp_srv_deinit(struct aes67_rtsp_srv * srv)
 int aes67_rtsp_srv_start(struct aes67_rtsp_srv * srv, const enum aes67_net_ipver ipver, const u8_t *ip, u16_t port)
 {
     assert(srv);
-    assert(ipver != aes67_net_ipver_4);
+    assert(ipver == aes67_net_ipver_4);
 //    assert(ip);
     assert(port);
 

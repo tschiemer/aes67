@@ -25,6 +25,7 @@
 #if AES67_SAPD_WITH_RAV == 1
 #include "aes67/utils/mdns.h"
 #include "aes67/utils/rtsp-dsc.h"
+#include "aes67/utils/rtsp-srv.h"
 #include "aes67/rav.h"
 #include "dnmfarrell/URI-Encode-C/src/uri_encode.h"
 #endif
@@ -183,6 +184,9 @@ static void write_rav_unpublish_by(struct rav_session_st * session, struct conne
 static void cmd_rav_list(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_rav_publish(struct connection_st * con, u8_t * cmdline, size_t len);
 static void cmd_rav_unpublish(struct connection_st * con, u8_t * cmdline, size_t len);
+
+static void cmd_rav_announce(struct connection_st * con, u8_t * cmdline, size_t len);
+static void cmd_rav_unannounce(struct connection_st * con, u8_t * cmdline, size_t len);
 #endif
 
 
@@ -203,6 +207,9 @@ static struct {
     uint16_t rav_publish_delay;
     uint16_t rav_update_interval;
     bool rav_handover;
+    bool rav_server_enabled;
+    uint16_t rav_server_port;
+    bool rav_auto_announce;
 #endif// AES67_SAPD_WITH_RAV == 1
 
 } opts = {
@@ -218,7 +225,10 @@ static struct {
         .rav_auto_publish = true,
         .rav_publish_delay = RAV_PUBLISH_DELAY_DEFAULT,
         .rav_update_interval = RAV_UPDATE_INTERVAL_DEFAULT,
-        .rav_handover = true
+        .rav_handover = true,
+        .rav_server_enabled = true,
+        .rav_server_port = 9191,
+        .rav_auto_announce = true
 #endif // AES67_SAPD_WITH_RAV == 1
 };
 
@@ -231,11 +241,13 @@ static struct {
     aes67_mdns_context_t mdns_context;
     aes67_mdns_resource_t mdns_browse_res;
     struct rav_session_st * first_session;
-    struct aes67_rtsp_dsc_res_st rtsp;
+    struct aes67_rtsp_dsc_res_st rtsp_dsc;
     struct rav_session_st * rtsp_session;
     struct aes67_timer retry_timer;
     struct aes67_timer publish_timer;
     struct aes67_timer update_timer;
+
+    struct aes67_rtsp_srv rtsp_srv;
 } rav = {
     .mdns_context = NULL,
     .mdns_browse_res = NULL,
@@ -268,7 +280,9 @@ static const struct cmd_st commands[] = {
 #if AES67_SAPD_WITH_RAV == 1
         CMD_INIT(AES67_SAPD_CMD_RAV_LIST, cmd_rav_list),
         CMD_INIT(AES67_SAPD_CMD_RAV_PUBLISH, cmd_rav_publish),
-        CMD_INIT(AES67_SAPD_CMD_RAV_UNPUBLISH, cmd_rav_unpublish)
+        CMD_INIT(AES67_SAPD_CMD_RAV_UNPUBLISH, cmd_rav_unpublish),
+        CMD_INIT(AES67_SAPD_CMD_RAV_ANNOUNCE, cmd_rav_announce),
+        CMD_INIT(AES67_SAPD_CMD_RAV_UNANNOUNCE, cmd_rav_unannounce)
 #endif
 };
 
@@ -327,6 +341,13 @@ static void help(FILE * fd)
              "\t --rav-no-handover\n"
              "\t\t\t Discovered ravenna session that are also found through SAP will NOT give\n"
              "\t\t\t up local management (ie will NOT continue to announce sessions)."
+             "\t --rav-disable-server\n"
+             "\t\t\t Generally disables Ravenna service announcements and RTSP server (default enabled).\n"
+             "\t --rav-server-port <port>\n"
+             "\t\t\t Port on which to start RTSP server to server SDP files (default 9191).\n"
+             "\t --rav-no-autoannounce\n"
+             "\t\t\t Local services will not be automatically announced as ravenna services and\n"
+             "\t\t\t made available through the built in RTSP server (default enabled).\n"
  #endif
             "\nCompile time options:\n"
             "\t AES67_SAP_MIN_INTERVAL_SEC \t %d \t // +- announce time, depends on SAP traffic\n"
@@ -411,11 +432,26 @@ static void block_until_event()
             }
         }
 
-        if (rav.rtsp.state == aes67_rtsp_dsc_state_awaiting_response && rav.rtsp.sockfd != -1){
-            FD_SET(rav.rtsp.sockfd, &rfds);
-            FD_SET(rav.rtsp.sockfd, &xfds);
-            if (rav.rtsp.sockfd > nfds){
-                nfds = rav.rtsp.sockfd;
+        if (rav.rtsp_dsc.state == aes67_rtsp_dsc_state_awaiting_response && rav.rtsp_dsc.sockfd != -1){
+            FD_SET(rav.rtsp_dsc.sockfd, &rfds);
+            FD_SET(rav.rtsp_dsc.sockfd, &xfds);
+            if (rav.rtsp_dsc.sockfd > nfds){
+                nfds = rav.rtsp_dsc.sockfd;
+            }
+        }
+
+        if (opts.rav_server_enabled){
+            FD_SET(rav.rtsp_srv.listen_sockfd, &rfds);
+            FD_SET(rav.rtsp_srv.listen_sockfd, &xfds);
+            if (rav.rtsp_srv.listen_sockfd > nfds){
+                nfds = rav.rtsp_srv.listen_sockfd;
+            }
+            if (rav.rtsp_srv.client_sockfd != -1){
+                FD_SET(rav.rtsp_srv.client_sockfd, &rfds);
+                FD_SET(rav.rtsp_srv.client_sockfd, &xfds);
+                if (rav.rtsp_srv.client_sockfd > nfds){
+                    nfds = rav.rtsp_srv.client_sockfd;
+                }
             }
         }
     }
@@ -661,7 +697,7 @@ static void rav_session_delete(struct rav_session_st * session)
 
     // if currently SDP lookup is in process with given session, abort
     if (rav.rtsp_session == session){
-        aes67_rtsp_dsc_stop(&rav.rtsp);
+        aes67_rtsp_dsc_stop(&rav.rtsp_dsc);
         rav.rtsp_session = NULL;
     }
 
@@ -700,7 +736,7 @@ static int rav_setup()
         return EXIT_FAILURE;
     }
 
-    aes67_rtsp_dsc_init(&rav.rtsp, false);
+    aes67_rtsp_dsc_init(&rav.rtsp_dsc, false);
 
     aes67_timer_init(&rav.retry_timer);
     aes67_timer_init(&rav.publish_timer);
@@ -708,16 +744,33 @@ static int rav_setup()
 
     syslog(LOG_INFO, "Browsing for Ravenna sessions");
 
+    if (opts.rav_server_enabled){
+        aes67_rtsp_srv_init(&rav.rtsp_srv, false, NULL);
+
+        aes67_rtsp_srv_blocking(&rav.rtsp_srv, false);
+
+        if (aes67_rtsp_srv_start(&rav.rtsp_srv, aes67_net_ipver_4, NULL, opts.rav_server_port)){
+            syslog(LOG_ERR, "Failed to start RTSP server on port %hu", opts.rav_server_port);
+            return EXIT_FAILURE;
+        }
+
+        syslog(LOG_INFO, "Started RTSP server on port %hu", opts.rav_server_port);
+    }
+
     return EXIT_SUCCESS;
 }
 
 static void rav_teardown()
 {
+    if (opts.rav_server_enabled){
+        aes67_rtsp_srv_deinit(&rav.rtsp_srv);
+    }
+
     aes67_timer_deinit(&rav.publish_timer);
     aes67_timer_deinit(&rav.update_timer);
     aes67_timer_deinit(&rav.retry_timer);
 
-    aes67_rtsp_dsc_deinit(&rav.rtsp);
+    aes67_rtsp_dsc_deinit(&rav.rtsp_dsc);
 
     if (rav.mdns_context == NULL){
         return;
@@ -734,33 +787,33 @@ static void rav_process()
 
     //// check if rtsp sdp lookup has anything to do
     // first process pending
-    if (rav.rtsp.state == aes67_rtsp_dsc_state_awaiting_response){
+    if (rav.rtsp_dsc.state == aes67_rtsp_dsc_state_awaiting_response){
 
-        aes67_rtsp_dsc_process(&rav.rtsp);
+        aes67_rtsp_dsc_process(&rav.rtsp_dsc);
     }
     // if done
-    if (rav.rtsp.state == aes67_rtsp_dsc_state_done){
+    if (rav.rtsp_dsc.state == aes67_rtsp_dsc_state_done){
 
         // update last activity?
         rav.rtsp_session->last_activity = time(NULL);
 
         // checking for some meaningful min-length
-        if (rav.rtsp.statuscode == AES67_RTSP_STATUS_OK && rav.rtsp.contentlen > 32){
+        if (rav.rtsp_dsc.statuscode == AES67_RTSP_STATUS_OK && rav.rtsp_dsc.contentlen > 32){
 
-            u8_t *sdp = (u8_t*)aes67_rtsp_dsc_content(&rav.rtsp);
+            u8_t *sdp = (u8_t*)aes67_rtsp_dsc_content(&rav.rtsp_dsc);
             assert(sdp != NULL); // should not occur
 
             // get origin (o=..) offset v=0\r\n
             u8_t * o = sdp[4] == '\n' ? &sdp[5] : &sdp[4];
 
-            sdp[rav.rtsp.contentlen] = '\0';
+            sdp[rav.rtsp_dsc.contentlen] = '\0';
 
 //            printf("%s\n", o);
 //            printf("origin %c%c%c %d\n", o[0], o[1] ,o[2], rav.rtsp.contentlen - (o - sdp));
 
             struct aes67_sdp_originator origin;
 
-            if (aes67_sdp_origin_fromstr(&origin, o, rav.rtsp.contentlen - (o - sdp)) == AES67_SDP_ERROR){
+            if (aes67_sdp_origin_fromstr(&origin, o, rav.rtsp_dsc.contentlen - (o - sdp)) == AES67_SDP_ERROR){
                 if (rav.rtsp_session->state == rav_state_sdp_available || rav.rtsp_session->state == rav_state_sdp_published){
                     // if prior sdp retrieved, ignore error, assume a temporary fail
                     //TODO anything to consider? if device went offline, the rtsp start operation will fail
@@ -793,13 +846,13 @@ static void rav_process()
                 // update SDP info
                 memcpy(&rav.rtsp_session->origin, &origin, sizeof(struct aes67_sdp_originator));
 
-                rav.rtsp_session->sdp = malloc(rav.rtsp.contentlen + 1);
+                rav.rtsp_session->sdp = malloc(rav.rtsp_dsc.contentlen + 1);
 
                 assert(rav.rtsp_session->sdp != NULL);
 
-                memcpy(rav.rtsp_session->sdp, sdp, rav.rtsp.contentlen);
-                rav.rtsp_session->sdp[rav.rtsp.contentlen] = '\0'; // not needed, but in case dumping
-                rav.rtsp_session->sdplen = rav.rtsp.contentlen;
+                memcpy(rav.rtsp_session->sdp, sdp, rav.rtsp_dsc.contentlen);
+                rav.rtsp_session->sdp[rav.rtsp_dsc.contentlen] = '\0'; // not needed, but in case dumping
+                rav.rtsp_session->sdplen = rav.rtsp_dsc.contentlen;
 
 
                 if (rav.rtsp_session->state == rav_state_discovered || (!opts.rav_auto_publish && rav.rtsp_session->state == rav_state_sdp_available)){
@@ -820,10 +873,10 @@ static void rav_process()
 
         // make available for next describe operation
         rav.rtsp_session = NULL;
-        rav.rtsp.state = aes67_rtsp_dsc_state_bored;
+        rav.rtsp_dsc.state = aes67_rtsp_dsc_state_bored;
     }
     // if actually nothing to do
-    if (rav.rtsp.state == aes67_rtsp_dsc_state_bored){
+    if (rav.rtsp_dsc.state == aes67_rtsp_dsc_state_bored){
 
         struct rav_session_st * session = rav.first_session;
         struct rav_session_st * oldest = NULL;
@@ -867,7 +920,7 @@ static void rav_process()
             char uri[256];
             snprintf(uri, sizeof(uri), "/by-name/%s", name);
 
-            if (aes67_rtsp_dsc_start(&rav.rtsp, session->addr.ipver, session->addr.ip, session->addr.port, uri)){
+            if (aes67_rtsp_dsc_start(&rav.rtsp_dsc, session->addr.ipver, session->addr.ip, session->addr.port, uri)){
 
                 //TODO what can a start fail signify?
                 // - a device gone offline without telling anyone
@@ -953,7 +1006,13 @@ static void rav_process()
         u32_t wait_sec = opts.rav_publish_delay - (time(NULL) - oldest->last_activity);
         aes67_timer_set(&rav.publish_timer, 1000 * wait_sec);
     }
+
+
+    if (opts.rav_server_enabled){
+        aes67_rtsp_srv_process(&rav.rtsp_srv);
+    }
 }
+
 static void rav_publish_by(struct rav_session_st * session, struct connection_st * con)
 {
     syslog(LOG_INFO, "Publishing through SAP: %s", session->name);
@@ -2118,6 +2177,27 @@ static void cmd_rav_unpublish(struct connection_st * con, u8_t * cmdline, size_t
     }
 
 }
+
+static void cmd_rav_announce(struct connection_st * con, u8_t * cmdline, size_t len)
+{
+    if (!opts.rav_enabled || !opts.rav_server_enabled){
+        write_error(con, AES67_SAPD_ERR_NOTENABLED, NULL);
+        return;
+    }
+
+    //TODO
+}
+
+static void cmd_rav_unannounce(struct connection_st * con, u8_t * cmdline, size_t len)
+{
+    if (!opts.rav_enabled || !opts.rav_server_enabled){
+        write_error(con, AES67_SAPD_ERR_NOTENABLED, NULL);
+        return;
+    }
+
+    //TODO
+}
+
 #endif
 
 int main(int argc, char * argv[]){
@@ -2153,6 +2233,9 @@ int main(int argc, char * argv[]){
                 {"rav-no-autopub", no_argument, 0, 18},
 #endif
                 {"sdp-dir", required_argument, 0, 19},
+                {"rav-disable-server", no_argument, 0, 20},
+                {"rav-no-autoannounce", no_argument, 0, 21},
+                {"rav-server-port", required_argument, 0, 22},
                 {0,         0,                 0,  0 }
         };
 
@@ -2249,6 +2332,22 @@ int main(int argc, char * argv[]){
                 opts.rav_auto_publish = false;
                 break;
             }
+
+            case 20: // -- rav-disable-server
+                opts.rav_server_enabled = false;
+                break;
+
+            case 21: // --rav-no-autoannounce
+                opts.rav_auto_announce = false;
+                break;
+
+            case 22:
+                opts.rav_server_port = atoi(optarg);
+                if (!opts.rav_server_port){
+                    fprintf(stderr, "invalid port for RTSP service: %s\n", optarg);
+                    return EXIT_FAILURE;
+                }
+                break;
 #endif
 
             case 19: // --sdp-dir
