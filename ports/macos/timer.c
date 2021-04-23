@@ -38,6 +38,7 @@ static void timer_event_handler(struct aes67_timer * timer)
 void aes67_timer_init_system(void)
 {
     queue = dispatch_queue_create("timerQueue", 0);
+    assert(queue);
 }
 
 void aes67_timer_deinit_system(void)
