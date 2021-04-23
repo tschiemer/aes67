@@ -42,7 +42,8 @@ void aes67_timer_init_system(void)
 
 void aes67_timer_deinit_system(void)
 {
-    dispatch_release(queue);
+    if (queue)
+        dispatch_release(queue);
 }
 
 void aes67_timer_init(struct aes67_timer *timer)
