@@ -271,7 +271,7 @@ int aes67_sapsrv_leave_mcast_group(int sockfd, u32_t scope, unsigned int ipv6_if
 {
     assert(sockfd>0);
     // only
-    assert( ((scope & AES67_SAPSRV_SCOPE_IPv4) == AES67_SAPSRV_SCOPE_IPv4) + ((scope & AES67_SAPSRV_SCOPE_IPv6) == AES67_SAPSRV_SCOPE_IPv6) == 1);
+    assert( !!(scope & AES67_SAPSRV_SCOPE_IPv4) + !!(scope & AES67_SAPSRV_SCOPE_IPv6)  == 1);
 
     int proto;
     int optname;
