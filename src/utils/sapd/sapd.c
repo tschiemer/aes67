@@ -142,7 +142,7 @@ static void rav_publish_by(struct rav_session_st * session, struct connection_st
 static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context);
 #endif //AES67_SAPD_WITH_RAV == 1
 
-
+static int load_sdp_file(char * fname);
 static int load_sdp_dir(const char * dname);
 
 static struct connection_st * connection_new(int sockfd, struct sockaddr_un * addr, socklen_t socklen);
@@ -196,6 +196,7 @@ static struct {
     u32_t send_scopes;
     s32_t port;
     unsigned int ipv6_if;
+    char * sdp_dir;
 #if AES67_SAPD_WITH_RAV == 1
     bool rav_enabled;
     bool rav_auto_publish;
@@ -211,6 +212,7 @@ static struct {
         .send_scopes = 0,
         .port = AES67_SAP_PORT,
         .ipv6_if = 0,
+        .sdp_dir = NULL,
 #if AES67_SAPD_WITH_RAV == 1
         .rav_enabled = false,
         .rav_auto_publish = true,
@@ -311,6 +313,7 @@ static void help(FILE * fd)
             "\t\t\t Default listen: 4a\n"
             "\t\t\t Default send: 4a\n"
             "\t --ipv6-if\t IPv6 interface to listen on (default interface can fail)\n"
+            "\t --sdp-dir <path>\t Load all .sdp files from given directory on startup (equal to dynamically adding them)\n"
  #if AES67_SAPD_WITH_RAV == 1
             "\t --rav\t\t Enable Ravenna session lookups\n"
             "\t --rav-no-autopub\n"
@@ -1026,26 +1029,116 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
 }
 #endif //AES67_SAPD_WITH_RAV == 1
 
+static int load_sdp_file(char * fname)
+{
+    if (access(fname, F_OK) != 0){
+        fprintf(stderr, "ERROR file exists? %d %d %s\n", access(fname, F_OK), errno, fname);
+        return EXIT_FAILURE;
+    }
+    struct stat st;
+
+    if (stat(fname, &st)){
+        fprintf(stderr, "stat(): %s\n", fname);
+        return EXIT_FAILURE;
+    }
+
+    if (st.st_size > AES67_SAPSRV_SDP_MAXLEN){
+        fprintf(stderr, "sdp file too big (%lld bytes, AES67_SAPSRV_SDP_MAXLEN %d) %s\n", st.st_size, AES67_SAPSRV_SDP_MAXLEN, fname);
+        return EXIT_FAILURE;
+    }
+
+    int fd = open(fname, O_RDONLY);
+    if (fd == -1){
+        fprintf(stderr, "open() %s\n", fname);
+        return EXIT_FAILURE;
+    }
+
+    u8_t sdpdata[AES67_SAPSRV_SDP_MAXLEN+1];
+    ssize_t sdplen = read(fd, sdpdata, st.st_size);
+
+    close(fd);
+
+    if (sdplen != st.st_size){
+        fprintf(stderr, "ERROR failed to read file?? %s\n", fname);
+        return EXIT_FAILURE;
+    }
+
+    struct aes67_sdp sdp;
+
+    int r = aes67_sdp_fromstr(&sdp, (u8_t*)sdpdata, sdplen, NULL);
+    if (r != AES67_SDP_OK){
+        fprintf(stderr, "ERROR failed to parse SDP %s\n", fname);
+        return EXIT_FAILURE;
+    }
+
+//    if (sdp.name.length == 0){
+//        fprintf(stderr, "ERROR SDP %s does not contain a session name! (required)\n", fname);
+//        return EXIT_FAILURE;
+//    }
+
+    struct aes67_net_addr addr;
+
+    if (aes67_net_str2addr(&addr, sdp.originator.address.data, sdp.originator.address.length) == false){
+        fprintf(stderr, "ERROR SDP %s: origin must be an ip!\n", fname);
+        return EXIT_FAILURE;
+    }
+
+    sdpdata[sdplen] = '\0';
+
+    u16_t hash = rand(); //atoi((char*)origin.session_id.data);
+
+    aes67_sapsrv_session_t session = aes67_sapsrv_session_add(sapsrv, hash, addr.ipver, addr.ip, sdpdata, sdplen);
+
+    if (!session){
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
 static int load_sdp_dir(const char * dname)
 {
     DIR *d;
     struct dirent *dir;
+    size_t ld = strlen(dname);
     d = opendir(dname);
 
     if (d == NULL){
-        syslog(LOG_NOTICE, "SDP directory %s does not exist, skipping", dname);
+        syslog(LOG_NOTICE, "sdp-dir %s does not exist, skipping", dname);
         return EXIT_SUCCESS;
     }
 
     while ((dir = readdir(d)) != NULL) {
-        u8_t l = strlen(dir->d_name);
-        if (l >= sizeof(".sdp") && strcmp(&dir->d_name[l - sizeof(".sdp")], ".sdp")){
-            printf("%s\n", dir->d_name);
+        size_t l = strlen(dir->d_name);
+        if (l >= sizeof(".sdp") && strcmp(&dir->d_name[l - sizeof(".sdp") + 1], ".sdp") == 0){
+//            printf("%s\n", dir->d_name);
+
+            char fullpath[256];
+
+            assert( ld + l + 2 < sizeof(fullpath) );
+
+            strcpy(fullpath, dname);
+            // make sure there's a folder separator
+            if (fullpath[ld-1] != '/'){
+                fullpath[ld++] = '/';
+            }
+            strcpy(fullpath + ld, dir->d_name);
+
+            if (load_sdp_file(fullpath)){
+                syslog(LOG_ERR, "load_sdp_file(): %s", fullpath);
+                goto load_sdp_dir_fail;
+            }
         }
     }
     closedir(d);
 
     return EXIT_SUCCESS;
+
+load_sdp_dir_fail:
+
+    closedir(d);
+
+    return EXIT_FAILURE;
 }
 
 
@@ -2059,6 +2152,7 @@ int main(int argc, char * argv[]){
                 {"rav-no-handover", no_argument, 0, 17},
                 {"rav-no-autopub", no_argument, 0, 18},
 #endif
+                {"sdp-dir", required_argument, 0, 19},
                 {0,         0,                 0,  0 }
         };
 
@@ -2156,6 +2250,28 @@ int main(int argc, char * argv[]){
                 break;
             }
 #endif
+
+            case 19: // --sdp-dir
+
+                if (access(optarg, F_OK) != 0) {
+                    fprintf(stderr, "sdp-dir does not exist? %s\n", optarg);
+                    return EXIT_FAILURE;
+                }
+
+                struct stat st;
+
+                if (stat(optarg, &st)){
+                    fprintf(stderr, "stat(): %s\n", optarg);
+                    return EXIT_FAILURE;
+                }
+                if ((st.st_mode & S_IFMT) != S_IFDIR){
+                    fprintf(stderr, "sdp-dir is not a directory: %s\n", optarg);
+                    return EXIT_FAILURE;
+                }
+
+                opts.sdp_dir = optarg;
+                break;
+
             case 'd':
                 opts.daemonize = true;
                 break;
@@ -2216,7 +2332,7 @@ int main(int argc, char * argv[]){
         goto sapd_stop;
     }
 
-    if (load_sdp_dir(AES67_SAPD_ETC_DIR)){
+    if (opts.sdp_dir && load_sdp_dir(opts.sdp_dir)){
         goto sapd_stop;
     }
 
