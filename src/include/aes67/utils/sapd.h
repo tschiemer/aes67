@@ -36,7 +36,7 @@ extern "C" {
 
 
 #define AES67_SAPD_NAME        "sapd.d"
-#define AES67_SAPD_VERSION     "0.1.0"
+#define AES67_SAPD_VERSION     "0.2.0"
 
 #define AES67_SAPD_NAME_LONG   AES67_SAPD_NAME "-" AES67_SAPD_VERSION
 
@@ -46,8 +46,8 @@ extern "C" {
 #define AES67_SAPD_SYSLOG_OPTION    0
 #define AES67_SAPD_SYSLOG_FACILITY  LOG_DAEMON
 
-//#define AES67_SAPD_LOCAL_SOCK     "/var/run/sapd.sock"
-#define AES67_SAPD_LOCAL_SOCK      "sapd.sock"
+#define AES67_SAPD_LOCAL_SOCK     "/var/run/sapd.sock"
+//#define AES67_SAPD_LOCAL_SOCK      "sapd.sock"
 #define AES67_SAPD_LOCAL_LISTEN_BACKLOG    3
 #define AES67_SAPD_LOCAL_MAX_CONNECTIONS   10
 
