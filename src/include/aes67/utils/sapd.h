@@ -172,13 +172,13 @@ extern "C" {
 /**
  * RAVLIST known ravenna sessions
  *
- * Command: ravls [SPACE <return-sdp> [SPACE <session-name>]] NL
+ * Command: ravls [<return-sdp> [<session-name>]] NL
  *  <return-sdp>    0 (default) do not return, 1 do return -> if 0 implies returned <sdp-len> = 0
  *  <origin>        If given will only return matching session
  *
  * On success returns a series of RAVLS items (see below) terminated by an OK (NL)
  *
- * RAVLS SPACE <state> SPACE <last-activity> SPACE <sdp-len> SPACE <hosttarget> SPACE <port> SPACE <ipv4> SPACE <session-name> NL [<sdp>]
+ * RAVLS <state> <last-activity> <sdp-len> <hosttarget> <port> <ipv4-str> <session-name> NL [<sdp>]
  *
  *  <state>             (also see enum rav_state in sapd.c)
  *                          0   error (inactive)
@@ -187,6 +187,7 @@ extern "C" {
  *                          3   published through SAP
  *                          (4  published + updated (note, this is an transitory state and should be treated like 3)
  *                          5   not published (ie inactive), most likely because was announced through SAP by another host
+ *                          6   self-hosted (ravenna sessions as made available/announced by daemon)
  *  <last-activity>     typical timestamp in sec from last update
  *  <sdp-len>           length of sdp payload which follows terminating NL
  *  <hosttarget>        hostname as discovered through mdns
@@ -200,12 +201,27 @@ extern "C" {
 #define AES67_SAPD_RESULT_RAV_LIST      "RAVLS"
 #define AES67_SAPD_RESULT_RAV_LIST_FMT  "RAVLS %d %lu %u %s %hu %s %s"
 
-
+/**
+ * RAVPUB / RAVUNPUB
+ * Publish / Unpublish a discovered ravenna service through / from SAP server
+ *
+ * Command: ravpub/ravunpub <session-name>
+ */
 #define AES67_SAPD_CMD_RAV_PUBLISH      "ravpub"
 #define AES67_SAPD_CMD_RAV_PUBLISH_FMT  "ravpub %s"
 #define AES67_SAPD_CMD_RAV_UNPUBLISH    "ravunpub"
 #define AES67_SAPD_CMD_RAV_UNPUBLISH_FMT "ravunpub %s"
 
+/**
+ * RAVAN / RAVUNAN
+ * Announce / unannounce a locally managed service as ravenna session (publishing mdns service and providing
+ * SDP file lookup service through RTSP)
+ *
+ * Command: ravan/ravunan <origin> NL
+ *
+ * Note: announcing a ravenna session will add the given service to the ravls-able ravenna sessions (with a particular
+ * state)
+ */
 #define AES67_SAPD_CMD_RAV_ANNOUNCE     "ravan"
 #define AES67_SAPD_CMD_RAV_UNANNOUNCE     "ravunan"
 
