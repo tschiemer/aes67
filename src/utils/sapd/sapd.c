@@ -73,6 +73,7 @@ enum rav_state {
     rav_state_sdp_published,
     rav_state_sdp_updated,
     rav_state_sdp_not_published,
+    rav_state_sdp_hosted,
 };
 struct rav_session_st {
     char * name;
@@ -87,6 +88,8 @@ struct rav_session_st {
     enum rav_state state;
     time_t last_activity;
     u8_t error_count;
+
+    aes67_mdns_resource_t * mdns_service;
 
     struct rav_session_st * next;
 };
@@ -132,15 +135,23 @@ static void sapsrv_teardown();
 static void sapsrv_callback(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, enum aes67_sapsrv_event event, const struct aes67_sdp_originator * origin, u8_t * payload, u16_t payloadlen, void * user_data);
 
 #if AES67_SAPD_WITH_RAV == 1
+// local rav session object management
 static struct rav_session_st * rav_session_find_by_name(const char * name);
 static struct rav_session_st * rav_session_find_by_origin(struct aes67_sdp_originator * origin);
 static struct rav_session_st * rav_session_new(const char * name, const char * hosttarget, enum aes67_net_ipver ipver, const u8_t * ip, u16_t port, u32_t ttl);
 static void rav_session_delete(struct rav_session_st * session);
+// rav core functions
 static int rav_setup();
 static void rav_teardown();
 static void rav_process();
+// lookup
 static void rav_publish_by(struct rav_session_st * session, struct connection_st * con);
 static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char * type, const char * name, const char * hosttarget, u16_t port, u16_t txtlen, const u8_t * txt, enum aes67_net_ipver ipver, const u8_t * ip, u32_t ttl, void * context);
+// announce self hosted
+static void rav_announce_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char *type, const char *name, const char *domain, void * context);
+static int rav_announce(aes67_sapsrv_session_t session);
+static int rav_unannounce(aes67_sapsrv_session_t session);
+u16_t aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t maxlen);
 #endif //AES67_SAPD_WITH_RAV == 1
 
 static int load_sdp_file(char * fname);
@@ -648,7 +659,7 @@ static struct rav_session_st * rav_session_find_by_origin(struct aes67_sdp_origi
 static struct rav_session_st * rav_session_new(const char * name, const char * hosttarget, enum aes67_net_ipver ipver, const u8_t * ip, u16_t port, u32_t ttl)
 {
     assert(name != NULL);
-    assert(hosttarget != NULL);
+//    assert(hosttarget != NULL);
     assert(AES67_NET_IPVER_ISVALID(ipver));
     assert(ip != NULL);
 
@@ -657,8 +668,12 @@ static struct rav_session_st * rav_session_new(const char * name, const char * h
     session->name = calloc(1, strlen(name)+1);
     strcpy(session->name, name);
 
-    session->hosttarget = calloc(1, strlen(hosttarget)+1);
-    strcpy(session->hosttarget, hosttarget);
+    if (hosttarget) {
+        session->hosttarget = calloc(1, strlen(hosttarget) + 1);
+        strcpy(session->hosttarget, hosttarget);
+    } else {
+        session->hosttarget = NULL;
+    }
 
     session->addr.ipver = ipver;
     memcpy(session->addr.ip, ip, AES67_NET_IPVER_SIZE(ipver));
@@ -720,7 +735,9 @@ static void rav_session_delete(struct rav_session_st * session)
     }
 
     free(session->name);
-    free(session->hosttarget);
+    if (session->hosttarget) {
+        free(session->hosttarget);
+    }
     free(session);
 }
 
@@ -755,6 +772,17 @@ static int rav_setup()
         }
 
         syslog(LOG_INFO, "Started RTSP server on port %hu", opts.rav_server_port);
+
+        if (opts.rav_auto_announce){
+            aes67_sapsrv_session_t session = aes67_sapsrv_session_first(sapsrv);
+            while(session){
+                if (rav_announce(session)){
+                    syslog(LOG_ERR, "Failed to register ravenna session");
+                    return EXIT_FAILURE;
+                }
+                session = aes67_sapsrv_session_next(session);
+            }
+        }
     }
 
     return EXIT_SUCCESS;
@@ -1086,6 +1114,181 @@ static void rav_resolve_callback(aes67_mdns_resource_t res, enum aes67_mdns_resu
 
     }
 }
+
+u16_t aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t maxlen)
+{
+    assert(srv);
+    assert(sdpref);
+    assert(buf);
+    assert(maxlen);
+
+    struct rav_session_st * rav_session = sdpref;
+
+    aes67_sapsrv_session_t session = aes67_sapsrv_session_by_origin(sapsrv, &rav_session->origin);
+
+    if (!session){
+        return 0;
+    }
+
+    u16_t sdplen = 0;
+    u8_t * sdp = aes67_sapsrv_session_get_sdp(session, &sdplen);
+
+    assert(sdp);
+
+    u16_t len = snprintf((char*)buf, maxlen, "Content-Length: %u\r\n\r\n", sdplen);
+
+    if (sdplen + len > maxlen){
+        fprintf(stderr, "sdp file too big for compiled in buffer size");
+        return 0;
+    }
+
+    memcpy(buf + len, sdp, sdplen);
+
+    return len + sdplen;
+
+//
+//    sdpres_t * sdpres = sdpref;
+//
+//    fprintf(stderr, "serving rtsp describe for uri %s\n", sdpres->name);
+//
+//
+    return 0;
+}
+
+static void rav_announce_callback(aes67_mdns_resource_t res, enum aes67_mdns_result result, const char *type, const char *name, const char *domain, void * context)
+{
+    assert(result == aes67_mdns_result_error || result == aes67_mdns_result_registered);
+
+    if (result == aes67_mdns_result_error){
+        fprintf(stderr, "Failed to register service %s._ravenna_session._sub._rtsp._tcp.%s\n", name, domain);
+    } else {
+        fprintf(stderr, "Registered service %s._ravenna_session._sub._rtsp._tcp.%s\n", name, domain);
+    }
+}
+
+static int rav_announce(aes67_sapsrv_session_t session)
+{
+    assert(session);
+
+    u16_t sdplen = 0;
+    u8_t * sdpstr = aes67_sapsrv_session_get_sdp(session, &sdplen);
+
+    assert(sdpstr);
+    assert(sdplen);
+
+    struct aes67_sdp sdp;
+
+    int r = aes67_sdp_fromstr(&sdp, sdpstr, sdplen, NULL);
+    if (r != AES67_SDP_OK){
+        fprintf(stderr, "rav_announce(): failed to parse SDP\n");
+        return EXIT_FAILURE;
+    }
+
+    if (sdp.name.length == 0){
+        fprintf(stderr, "rav_announce(): session name required\n");
+        return EXIT_FAILURE;
+    }
+
+    if (sdp.streams.count != 1){
+        fprintf(stderr, "rav_announce(): invalid stream count\n");
+        return EXIT_FAILURE;
+    }
+
+    struct aes67_net_addr addr;
+
+    if (aes67_net_str2addr(&addr, sdp.originator.address.data, sdp.originator.address.length) == false || addr.ipver != aes67_net_ipver_4){
+        fprintf(stderr, "ERROR origin must be an ip(v4)\n");
+        return EXIT_FAILURE;
+    }
+
+    // this isn't really so pretty, but let's do it anyways
+    sdp.name.data[sdp.name.length] = '\0';
+
+    struct rav_session_st * rav_session = rav_session_find_by_name((char*)sdp.name.data);
+
+    if (rav_session){
+        // session already announced
+        if (rav_session->state == rav_state_sdp_hosted){
+            return EXIT_SUCCESS;
+        }
+
+        fprintf(stderr, "rav_announce(): session name already exists by other source\n");
+        return EXIT_FAILURE;
+    }
+
+
+    struct aes67_sdp_stream * stream = aes67_sdp_get_stream(&sdp, 0);
+    struct aes67_sdp_connection * con = aes67_sdp_get_connection(&sdp, 0);
+
+    assert(stream);
+    assert(con);
+
+    rav_session = rav_session_new((char*)sdp.name.data, NULL, addr.ipver, addr.ip, stream->port, con->ttl);
+    rav_session->state = rav_state_sdp_hosted;
+    memcpy(&rav_session->origin, &sdp.originator, sizeof(struct aes67_sdp_originator));
+
+
+    char uri[256];
+    u16_t urilen = sizeof("/by-name");
+
+    memcpy(uri, "/by-name/", sizeof("/by-name"));
+
+    sdp.name.data[sdp.name.length] = '\0';
+
+    urilen += uri_encode((char*)sdp.name.data, sdp.name.length, &uri[urilen], sizeof(uri) - urilen - 1);
+    uri[urilen] = '\0';
+
+    struct aes67_rtsp_srv_resource * rtsp_res = aes67_rtsp_srv_sdp_add(&rav.rtsp_srv, uri, urilen, rav_session);
+
+    if (rtsp_res == NULL){
+        rav_session_delete(rav_session);
+        fprintf(stderr, "rav_announce(): failed to add session to RTSP server %d [%s]\n", urilen, uri);
+        return EXIT_FAILURE;
+    }
+
+    rav_session->mdns_service = aes67_mdns_service_start(rav.mdns_context, AES67_RAV_MDNS_SESSION, (char*)sdp.name.data, NULL, NULL, opts.rav_server_port, 0, NULL, rav_announce_callback, rav_session);
+
+    if (!rav_session->mdns_service){
+        aes67_rtsp_srv_sdp_remove(&rav.rtsp_srv, rav_session);
+        rav_session_delete(rav_session);
+        fprintf(stderr, "rav_announce(): failed to start mdns service for: %s\n", sdp.name.data);
+        return EXIT_FAILURE;
+    }
+
+    rav_session->mdns_service = aes67_mdns_service_commit(rav.mdns_context, rav_session->mdns_service);
+
+    if (!rav_session->mdns_service){
+        rav_session_delete(rav_session);
+        fprintf(stderr, "rav_announce(): failed to commit mdns service for: %s\n", sdp.name.data);
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
+}
+
+static int rav_unannounce(aes67_sapsrv_session_t session)
+{
+    assert(session);
+
+    struct aes67_sdp_originator * origin = aes67_sapsrv_session_get_origin(session);
+
+    assert(origin);
+
+    struct rav_session_st * rav_session = rav_session_find_by_origin(origin);
+
+    if (!rav_session){
+        return EXIT_SUCCESS;
+    }
+
+    if (rav_session->state != rav_state_sdp_hosted){
+        return EXIT_FAILURE;
+    }
+
+    aes67_mdns_stop(rav_session->mdns_service);
+
+    return EXIT_SUCCESS;
+}
+
 #endif //AES67_SAPD_WITH_RAV == 1
 
 static int load_sdp_file(char * fname)
@@ -2185,7 +2388,38 @@ static void cmd_rav_announce(struct connection_st * con, u8_t * cmdline, size_t 
         return;
     }
 
-    //TODO
+
+    if (len < sizeof(AES67_SAPD_CMD_UNSET " o=- 1 1 IN IP4 1.2.3.4")){
+        write_error(con, AES67_SAPD_ERR_SYNTAX, NULL);
+        return;
+    }
+
+    // try to parse given originator
+    struct aes67_sdp_originator origin;
+    // note sizeof(..) gives length of string + 1 (terminating null)
+    if (aes67_sdp_origin_fromstr(&origin, &cmdline[sizeof(AES67_SAPD_CMD_TAKEOVER)], len - sizeof(AES67_SAPD_CMD_TAKEOVER)) == AES67_SDP_ERROR){
+        write_error(con, AES67_SAPD_ERR_SYNTAX, "Invalid origin");
+        return;
+    }
+
+    // lookup session
+    aes67_sapsrv_session_t session = aes67_sapsrv_session_by_origin(sapsrv, &origin);
+    if (session == NULL){
+        write_error(con, AES67_SAPD_ERR_UNKNOWN, NULL);
+        return;
+    }
+
+    if (aes67_sapsrv_session_get_managedby(session) != AES67_SAPSRV_MANAGEDBY_REMOTE){
+        write_error(con, AES67_SAPD_ERR, "Not a remotely managed service");
+        return;
+    }
+
+    if (rav_announce(session)){
+        write_error(con, AES67_SAPD_ERR, "Failed to register service");
+        return;
+    }
+
+    write_ok(con);
 }
 
 static void cmd_rav_unannounce(struct connection_st * con, u8_t * cmdline, size_t len)
@@ -2195,7 +2429,37 @@ static void cmd_rav_unannounce(struct connection_st * con, u8_t * cmdline, size_
         return;
     }
 
-    //TODO
+    if (len < sizeof(AES67_SAPD_CMD_UNSET " o=- 1 1 IN IP4 1.2.3.4")){
+        write_error(con, AES67_SAPD_ERR_SYNTAX, NULL);
+        return;
+    }
+
+    // try to parse given originator
+    struct aes67_sdp_originator origin;
+    // note sizeof(..) gives length of string + 1 (terminating null)
+    if (aes67_sdp_origin_fromstr(&origin, &cmdline[sizeof(AES67_SAPD_CMD_TAKEOVER)], len - sizeof(AES67_SAPD_CMD_TAKEOVER)) == AES67_SDP_ERROR){
+        write_error(con, AES67_SAPD_ERR_SYNTAX, "Invalid origin");
+        return;
+    }
+
+    // lookup session
+    aes67_sapsrv_session_t session = aes67_sapsrv_session_by_origin(sapsrv, &origin);
+    if (session == NULL){
+        write_error(con, AES67_SAPD_ERR_UNKNOWN, NULL);
+        return;
+    }
+
+    if (aes67_sapsrv_session_get_managedby(session) != AES67_SAPSRV_MANAGEDBY_REMOTE){
+        write_error(con, AES67_SAPD_ERR, "Not a remotely managed service");
+        return;
+    }
+
+    if (rav_unannounce(session)){
+        write_error(con, AES67_SAPD_ERR, "Failed to unregister service");
+        return;
+    }
+
+    write_ok(con);
 }
 
 #endif
@@ -2437,7 +2701,7 @@ int main(int argc, char * argv[]){
 
 #if AES67_SAPD_WITH_RAV == 1
     if (opts.rav_enabled && rav_setup()){
-        syslog(LOG_ERR, "Failed to start mdns resolver");
+        syslog(LOG_ERR, "Failed to setup ravenna services (mdns/rtsp)");
         goto sapd_stop;
     }
 #endif //AES67_SAPD_WITH_RAV == 1
