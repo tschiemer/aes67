@@ -1286,6 +1286,10 @@ static int rav_unannounce(aes67_sapsrv_session_t session)
 
     aes67_mdns_stop(rav_session->mdns_service);
 
+    aes67_rtsp_srv_sdp_remove(&rav.rtsp_srv, rav_session);
+
+    rav_session_delete(rav_session);
+
     return EXIT_SUCCESS;
 }
 
@@ -2389,7 +2393,7 @@ static void cmd_rav_announce(struct connection_st * con, u8_t * cmdline, size_t 
     }
 
 
-    if (len < sizeof(AES67_SAPD_CMD_UNSET " o=- 1 1 IN IP4 1.2.3.4")){
+    if (len < sizeof(AES67_SAPD_CMD_RAV_ANNOUNCE " o=- 1 1 IN IP4 1.2.3.4")){
         write_error(con, AES67_SAPD_ERR_SYNTAX, NULL);
         return;
     }
@@ -2397,7 +2401,7 @@ static void cmd_rav_announce(struct connection_st * con, u8_t * cmdline, size_t 
     // try to parse given originator
     struct aes67_sdp_originator origin;
     // note sizeof(..) gives length of string + 1 (terminating null)
-    if (aes67_sdp_origin_fromstr(&origin, &cmdline[sizeof(AES67_SAPD_CMD_TAKEOVER)], len - sizeof(AES67_SAPD_CMD_TAKEOVER)) == AES67_SDP_ERROR){
+    if (aes67_sdp_origin_fromstr(&origin, &cmdline[sizeof(AES67_SAPD_CMD_RAV_ANNOUNCE)], len - sizeof(AES67_SAPD_CMD_RAV_ANNOUNCE)) == AES67_SDP_ERROR){
         write_error(con, AES67_SAPD_ERR_SYNTAX, "Invalid origin");
         return;
     }
@@ -2409,13 +2413,13 @@ static void cmd_rav_announce(struct connection_st * con, u8_t * cmdline, size_t 
         return;
     }
 
-    if (aes67_sapsrv_session_get_managedby(session) != AES67_SAPSRV_MANAGEDBY_REMOTE){
-        write_error(con, AES67_SAPD_ERR, "Not a remotely managed service");
+    if (aes67_sapsrv_session_get_managedby(session) != AES67_SAPSRV_MANAGEDBY_LOCAL){
+        write_error(con, AES67_SAPD_ERR, "Not a locally managed service");
         return;
     }
 
     if (rav_announce(session)){
-        write_error(con, AES67_SAPD_ERR, "Failed to register service");
+        write_error(con, AES67_SAPD_ERR, "Failed to announce service");
         return;
     }
 
@@ -2429,7 +2433,7 @@ static void cmd_rav_unannounce(struct connection_st * con, u8_t * cmdline, size_
         return;
     }
 
-    if (len < sizeof(AES67_SAPD_CMD_UNSET " o=- 1 1 IN IP4 1.2.3.4")){
+    if (len < sizeof(AES67_SAPD_CMD_RAV_UNANNOUNCE " o=- 1 1 IN IP4 1.2.3.4")){
         write_error(con, AES67_SAPD_ERR_SYNTAX, NULL);
         return;
     }
@@ -2437,7 +2441,7 @@ static void cmd_rav_unannounce(struct connection_st * con, u8_t * cmdline, size_
     // try to parse given originator
     struct aes67_sdp_originator origin;
     // note sizeof(..) gives length of string + 1 (terminating null)
-    if (aes67_sdp_origin_fromstr(&origin, &cmdline[sizeof(AES67_SAPD_CMD_TAKEOVER)], len - sizeof(AES67_SAPD_CMD_TAKEOVER)) == AES67_SDP_ERROR){
+    if (aes67_sdp_origin_fromstr(&origin, &cmdline[sizeof(AES67_SAPD_CMD_RAV_UNANNOUNCE)], len - sizeof(AES67_SAPD_CMD_RAV_UNANNOUNCE)) == AES67_SDP_ERROR){
         write_error(con, AES67_SAPD_ERR_SYNTAX, "Invalid origin");
         return;
     }
@@ -2449,13 +2453,13 @@ static void cmd_rav_unannounce(struct connection_st * con, u8_t * cmdline, size_
         return;
     }
 
-    if (aes67_sapsrv_session_get_managedby(session) != AES67_SAPSRV_MANAGEDBY_REMOTE){
-        write_error(con, AES67_SAPD_ERR, "Not a remotely managed service");
+    if (aes67_sapsrv_session_get_managedby(session) != AES67_SAPSRV_MANAGEDBY_LOCAL){
+        write_error(con, AES67_SAPD_ERR, "Not a locally managed service");
         return;
     }
 
     if (rav_unannounce(session)){
-        write_error(con, AES67_SAPD_ERR, "Failed to unregister service");
+        write_error(con, AES67_SAPD_ERR, "Failed to unannounce service");
         return;
     }
 
