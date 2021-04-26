@@ -121,6 +121,7 @@ aes67_sapsrv_session_t aes67_sapsrv_session_next(aes67_sapsrv_session_t current)
 
 void aes67_sapsrv_session_get_payload(aes67_sapsrv_session_t session, u8_t ** payload, u16_t * len);
 struct aes67_sdp_originator * aes67_sapsrv_session_get_origin(aes67_sapsrv_session_t session);
+u8_t * aes67_sapsrv_session_get_sdp(aes67_sapsrv_session_t session, u16_t * sdplen);
 time_t aes67_sapsrv_session_get_lastactivity(aes67_sapsrv_session_t session);
 u8_t aes67_sapsrv_session_get_managedby(aes67_sapsrv_session_t session);
 void aes67_sapsrv_session_set_managedby(aes67_sapsrv_t sapserver, aes67_sapsrv_session_t sapsession, u8_t managed_by);

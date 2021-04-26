@@ -966,6 +966,12 @@ struct aes67_sdp_originator * aes67_sapsrv_session_get_origin(aes67_sapsrv_sessi
     return &((sapsrv_session_t*)session)->origin;
 }
 
+u8_t * aes67_sapsrv_session_get_sdp(aes67_sapsrv_session_t session, u16_t * sdplen)
+{
+    assert(session != NULL);
+    *sdplen = ((sapsrv_session_t*)session)->payloadlen;
+    return ((sapsrv_session_t*)session)->payload;
+}
 
 time_t aes67_sapsrv_session_get_lastactivity(aes67_sapsrv_session_t session)
 {
