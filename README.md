@@ -256,13 +256,14 @@ Usage: ./sapd [-h|-?] | [-d] [-p <port>] [--l <mcast-scope>] [--s <mcast-scope>]
 Starts an (SDP-only) SAP server that maintains incoming SDPs, informs about updates and keeps announcing
 specified SDPs on network.
 Communicates through local port (/var/run/sapd.sock)
-Logs to syslog (identity sapd)
+Logs to syslog (identity sapd.d)
 
 Options:
 	 -h,-?		 Prints this info.
 	 -d,--daemonize	 Daemonize
 	 -v		 Also print syslog to STDERR
-	 -p,--port <port>	 Listen on this port (default 9875)
+	 -p,--port <port>
+			 Listen/send on this port (default 9875)
 	 --l<mcast-scope>, --s<mcast-scope>
 			 Listens, sends respectively on these IPv4/6 multicast scopes (multiple possible). Scopes:
 				 4g	 IPv4 SAP global (224.2.127.254)
@@ -271,9 +272,10 @@ Options:
 				 6ip4	 IPv6 SAP ip4 scope local (FF03::2:7FFE)
 				 6al	 IPv6 SAP admin local (FF04::2:7FFE)
 				 6sl	 IPv6 SAP site local (FF05::2:7FFE)
-			 Default listen: 4g + 4a + 6ll
+			 Default listen: 4a
 			 Default send: 4a
 	 --ipv6-if	 IPv6 interface to listen on (default interface can fail)
+	 --sdp-dir <path>	 Load all .sdp files from given directory on startup (equal to dynamically adding them)
 	 --rav		 Enable Ravenna session lookups
 	 --rav-no-autopub
 			 Disable automatic publishing of discovered ravenna sessions
@@ -284,16 +286,26 @@ Options:
 			 Wait for this many seconds checking for SDP change of already published
 			 ravenna device (0 .. 360, default 0)
 	 --rav-no-handover
-			 Discovered ravenna session that are also found through SAP will give NOT
-			 up local management (assuming another source, possibly the originating device)
-			 will actually handle this).
+			 Discovered ravenna session that are also found through SAP will NOT give
+			 up local management (ie will NOT continue to announce sessions).	 --rav-disable-server
+			 Generally disables Ravenna service announcements and RTSP server (default enabled).
+	 --rav-server-port <port>
+			 Port on which to start RTSP server to server SDP files (default 9191).
+	 --rav-no-autoannounce
+			 Local services will not be automatically announced as ravenna services and
+			 made available through the built in RTSP server (default enabled).
+
 Compile time options:
 	 AES67_SAP_MIN_INTERVAL_SEC 	 30 	 // +- announce time, depends on SAP traffic
 	 AES67_SAP_MIN_TIMEOUT_SEC 	 600
 	 AES67_SAPD_WITH_RAV 		 1 	 // Ravenna sessions supported?
 
 Examples:
-sudo ./sapd -v --ipv6-if en7 & socat - UNIX-CONNECT:/var/run/sapd.sock,keepalive
+sudo ./sapd -v --ipv6-if en7
+sudo ./sapd -v --sdp-dir /usr/local/my-sdp-files
+sudo ./sapd -v --sdp-dir /usr/local/my-sdp-files --rav
+sudo ./sapd -v --rav --rav-no-autopub --rav-no-autoannounce # rav sessions managed through local sock
+socat - UNIX-CONNECT:/var/run/sapd.sock,keepalive # to connect to local sock
 ```
 A SAP daemon with a local client interface that supports local registration of sessions
 aswell as lookup and injection of ravenna based sessions - somewhat like [RAV2SAP](https://www.ravenna-network.com/aes67/rav2sap/).

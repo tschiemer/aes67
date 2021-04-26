@@ -359,13 +359,19 @@ static void help(FILE * fd)
              "\t --rav-no-autoannounce\n"
              "\t\t\t Local services will not be automatically announced as ravenna services and\n"
              "\t\t\t made available through the built in RTSP server (default enabled).\n"
- #endif
+ #endif //AES67_SAPD_WITH_RAV == 1
             "\nCompile time options:\n"
             "\t AES67_SAP_MIN_INTERVAL_SEC \t %d \t // +- announce time, depends on SAP traffic\n"
             "\t AES67_SAP_MIN_TIMEOUT_SEC \t %d \n"
             "\t AES67_SAPD_WITH_RAV \t\t %d \t // Ravenna sessions supported?\n"
              "\nExamples:\n"
-             "sudo %s -v --ipv6-if en7 & socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive\n"
+             "sudo %s -v --ipv6-if en7\n"
+             "sudo %s -v --sdp-dir /usr/local/my-sdp-files\n"
+ #if AES67_SAPD_WITH_RAV == 1
+             "sudo %s -v --sdp-dir /usr/local/my-sdp-files --rav\n"
+             "sudo %s -v --rav --rav-no-autopub --rav-no-autoannounce # rav sessions managed through local sock\n"
+ #endif //AES67_SAPD_WITH_RAV == 1
+             "socat - UNIX-CONNECT:" AES67_SAPD_LOCAL_SOCK ",keepalive # to connect to local sock\n"
             , argv0,
             (u16_t)AES67_SAP_PORT,
             RAV_PUBLISH_DELAY_MAX, RAV_PUBLISH_DELAY_DEFAULT,
@@ -373,7 +379,7 @@ static void help(FILE * fd)
             AES67_SAP_MIN_INTERVAL_SEC,
             AES67_SAP_MIN_TIMEOUT_SEC,
             AES67_SAPD_WITH_RAV,
-            argv0);
+            argv0,argv0,argv0,argv0);
 }
 
 static void sig_int(int sig)
