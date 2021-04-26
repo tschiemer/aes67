@@ -48,14 +48,11 @@ static struct aes67_rtsp_srv_resource * rtsp_resource_by_uri(struct aes67_rtsp_s
     struct aes67_rtsp_srv_resource * res = srv->first_res;
 
     while(res != NULL){
-
         if (res->urilen == urilen && aes67_memcmp(res->uri, uri, urilen) == 0){
             return res;
         }
-
         res = res->next;
     }
-
     return NULL;
 }
 
@@ -184,9 +181,8 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
         return;
     }
     if (srv->state == aes67_rtsp_srv_state_listening) {
-
         socklen_t socklen;
-        if ((srv->client_sockfd = accept(srv->listen_sockfd, (struct sockaddr *) &srv->client_sockfd,
+        if ((srv->client_sockfd = accept(srv->listen_sockfd, (struct sockaddr *) &srv->client_addr,
                                          &socklen)) != -1) {
 
             srv->state = aes67_rtsp_srv_state_receiving;
