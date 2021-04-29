@@ -758,6 +758,8 @@ void aes67_rtsp_srv_process(struct aes67_rtsp_srv * srv)
 WEAK_FUN u16_t aes67_rtsp_srv_sdp_getter(struct aes67_rtsp_srv * srv, void * sdpref, u8_t * buf, u16_t maxlen)
 {
     assert(false);
+
+    return 0;
 }
 
 WEAK_FUN void aes67_rtsp_srv_http_handler(struct aes67_rtsp_srv * srv, const enum aes67_rtsp_srv_method method, char * uri, u8_t urilen, u8_t * buf, u16_t * len, u16_t maxlen, bool * more, void ** response_state)
