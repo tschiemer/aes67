@@ -27,6 +27,7 @@ https://github.com/tschiemer/aes67
   - [x] SDP
   - [ ] SIP ? (for unicast management according to standard, but most systems use multicast only..)
   - [ ] RTSP ? (meaningful for system with Ravenna-based components if no RAV2SAP)
+    - [ ] make utility implementation embedded friendly
   - [ ] [AES70/OCA](https://github.com/tschiemer/ocac) *work in progress*
     - [x] [mDNS / DNS-SD](https://github.com/tschiemer/minimr)
 
@@ -42,8 +43,8 @@ https://github.com/tschiemer/aes67
     - [ ] [sapd](#sapd): SAP daemon (with Ravenna support)
       - [x] SAP server
       - [x] RAV lookup + pass to SAP server
-      - [ ] publish SDP files from config dir
-      - [ ] RAV publish of locally managed sessions 
+      - [x] publish SDP files from config dir
+      - [x] RAV publish of locally managed sessions 
   - SDP
     - [x] [sdp-parse](#sdp-parse): parse SDP(s)
     - [x] [sdp-gen](#sdp-gen): generate SDP
@@ -53,7 +54,7 @@ https://github.com/tschiemer/aes67
   - RAVENNA
     - [ ] ~~RAV2SAP~~ -> [sapd](#sapd)
     - [x] [rav-lookup](#rav-lookup): browse for sessions/devices
-    - [ ] [rav-publish](#rav-publish): publish sessions and optionally serve SDP files
+    - [x] [rav-publish](#rav-publish): publish sessions and optionally serve SDP files
   - PTP
     - [ ] ptp-monitor? -> [ptptrackhound](https://www.ptptrackhound.com/) & [ptpmonkey](https://github.com/martim01/ptpmonkey)
     - [ ] ptp-server?
@@ -61,7 +62,7 @@ https://github.com/tschiemer/aes67
     - [ ] rtp-send: send RTP (from STDIN)
     - [ ] rtp-recv: receive RTP (to STDOUT)
   - Support
-    - mDNS (abstraction for mdns service)
+    - [x] mDNS (abstraction for mdns service)
       - [x] dns-sd
       - [x] avahi (to be tested further)
     - [x] RTSP describe client + server
