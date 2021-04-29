@@ -259,6 +259,8 @@ static void resource_delete(context_t * context, resource_t * res)
         avahi_service_resolver_free(res->res);
     }
     else if ((res->type == restype_publish_service_pending || res->type == restype_publish_service_done) && res->res){
+//        avahi_entry_group_reset(res->res);
+//        avahi_entry_group
         avahi_entry_group_free(res->res);
     }
 
@@ -540,6 +542,10 @@ void aes67_mdns_delete(aes67_mdns_context_t ctx)
     assert(ctx != NULL);
 
     context_t * context = ctx;
+
+    while(context->first_resource){
+        aes67_mdns_stop(context->first_resource);
+    }
 
     if (context->client){
         avahi_client_free(context->client);
@@ -887,6 +893,13 @@ void aes67_mdns_stop(aes67_mdns_resource_t res)
     assert(res);
 
     resource_t * r = res;
+
+    // note avahi does not terminate the service even if it's deleted etc
+    // bbut avahi-service behaves the same way..
+//    if ((r->type == restype_publish_service_pending || r->type == restype_publish_service_done) && r->res) {
+//        avahi_entry_group_reset(r->res);
+//        avahi_entry_group_commit(r->res);
+//    }
 
     resource_delete(r->context, r);
 }

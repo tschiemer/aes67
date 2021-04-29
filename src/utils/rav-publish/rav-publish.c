@@ -42,6 +42,7 @@ typedef struct sdpres_st {
     struct aes67_net_addr addr;
     char * data;
     u32_t len;
+    aes67_mdns_resource_t service;
     struct sdpres_st * next;
 } sdpres_t;
 
@@ -131,7 +132,7 @@ static void publish_callback(aes67_mdns_resource_t res, enum aes67_mdns_result r
 
 static void block_until_event(){
 
-    int nfds;
+    int nfds = 0;
     fd_set rfds, xfds;
 //    sigset_t sigmask;
 
@@ -170,7 +171,6 @@ static void block_until_event(){
 
 static int mdns_setup()
 {
-
     mdns = aes67_mdns_new();
 
     sdpres_t * sdpres = first_sdpres;
@@ -206,12 +206,14 @@ static int mdns_setup()
                 return EXIT_FAILURE;
             }
 
-            if (aes67_mdns_service_commit(mdns, service) == NULL){
-                fprintf(stderr, "error committing service\n");
-                return EXIT_FAILURE;
-            }
-
         }
+
+        if (aes67_mdns_service_commit(mdns, service) == NULL){
+            fprintf(stderr, "error committing service\n");
+            return EXIT_FAILURE;
+        }
+
+        sdpres->service = service;
 
         sdpres = sdpres->next;
     }
@@ -445,7 +447,7 @@ void aes67_rtsp_srv_http_handler(struct aes67_rtsp_srv * srv, const enum aes67_r
     *len = snprintf((char*)buf, maxlen,
                     "HTTP/1.1 200 OK\r\n"
                     "Connection: close\r\n"
-                    "Content-Length: %lld\r\n"
+                    "Content-Length: %ld\r\n"
                     "\r\n"
                     , st.st_size
     );
@@ -484,7 +486,7 @@ static int load_sdpres(char * fname, size_t maxlen)
     }
 
     if (st.st_size > maxlen){
-        fprintf(stderr, "ERROR file too big (%lld bytes, max %zu) %s\n", st.st_size, maxlen, fname);
+        fprintf(stderr, "ERROR file too big (%ld bytes, max %zu) %s\n", st.st_size, maxlen, fname);
         return EXIT_FAILURE;
     }
 
