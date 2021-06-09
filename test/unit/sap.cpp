@@ -974,9 +974,8 @@ TEST(SAP_TestGroup, sap_announcement_timer)
     aes67_sap_service_init(&sap);
     expected_user_data = gl_user_data;
 
-    CHECK_FALSE(aes67_sap_service_announcement_timer_state(&sap));
+    CHECK_EQUAL(aes67_timer_state_unset,aes67_sap_service_announcement_timer_state(&sap));
     CHECK_EQUAL(0, sap.announcement_sec);
-    CHECK_FALSE(aes67_sap_service_announcement_timer_state(&sap));
 
 
     // as there is no prior announcement, timer will not be set
