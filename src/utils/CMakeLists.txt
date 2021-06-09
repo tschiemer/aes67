@@ -16,4 +16,6 @@ add_subdirectory(rtsp-describe)
 add_subdirectory(rav-lookup)
 add_subdirectory(rav-publish)
 
+add_subdirectory(rtp-send)
+
 
