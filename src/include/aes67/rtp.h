@@ -107,7 +107,7 @@ struct aes67_rtp_packet {
 } PACK_STRUCT;
 
 /**
- * The data buffer herein is assumed be to interleaved (as L16/24 would have it).
+ * The data buffer herein is assumed to be interleaved (as L16/24 would have it).
  */
 struct aes67_rtp_buffer {
     size_t nchannels;
@@ -199,7 +199,7 @@ inline ptime_t aes67_rtp_packet2nsamples(void * packet, u16_t len, u32_t nchanne
  *
  *  It generally is assumed that all sources and sinks are synchronized which implies that
  *  all samples are generally produced and consumed at the same rate - which is why there is no guard
- *  against overflowing buffers (to keep complexitly lower). A certain degree of asynchronicity is possible.
+ *  against overflowing buffers (to keep complexity lower). A certain degree of asynchronicity is possible.
  *
  *  Single, serial and block-wise sample buffers operations are available.
  *

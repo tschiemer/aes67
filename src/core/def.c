@@ -267,6 +267,23 @@ u8_t aes67_xor8(u8_t * buf, size_t count)
     return (xor8 ^ 0xff) + 1;
 }
 
+
+u16_t aes67_16bit_ones_complement_sum(u8_t * bytes, size_t u16_count, u16_t initial_value)
+{
+    u32_t sum = initial_value;
+    while(u16_count--){
+        sum += *(bytes++) << 8;
+        sum += *(bytes++);
+    }
+
+    sum = (sum & 0xffff) + (sum >> 16);
+    sum = (sum & 0xffff) + (sum >> 16);
+
+    sum = (~sum) & 0xffff;
+
+    return sum;
+}
+
 #ifndef aes67_crc32
 // https://stackoverflow.com/questions/21001659/crc32-algorithm-implementation-in-c-without-a-look-up-table-and-with-a-public-li
 

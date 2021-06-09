@@ -72,6 +72,7 @@ extern "C" {
 #define AES67_IPV4_HEADER_DATA_OFFSET               20  // assuming IHL == 5 (ie no extra headers)
 
 #define AES67_IPV4_HEADER_VERSION_4                 0x40
+#define AES67_IPV4_HEADER_VERSION_6                 0x60
 #define AES67_IPV4_HEADER_IHL_BASIC                 0x05
 
 #define AES67_IPV4_HEADER_DSCP_DEFAULT              0
@@ -148,7 +149,10 @@ struct aes67_udp_ipv4_pseudoheader {
     struct aes67_udp_packet udp;
 };
 
+
 u16_t aes67_ipv4_header_checksum(u8_t * header);
+
+u16_t aes67_udp_checksum(u8_t * ip_header);
 
 #ifdef __cplusplus
 }
