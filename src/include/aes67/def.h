@@ -161,6 +161,7 @@ s32_t aes67_atoi(u8_t * str, size_t len, s32_t base, u16_t * readlen);
 u8_t aes67_xor8(u8_t * buf, size_t count);
 
 #ifndef aes67_crc32
+#define AES67_CRC32_VERIFY_VALUE 0x2144DF1C
 u32_t aes67_crc32(u8_t * buf, size_t count);
 #endif
 

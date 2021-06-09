@@ -33,7 +33,8 @@ https://github.com/tschiemer/aes67
 
 
 - Stream
-  - [ ] RTP/RTCP
+  - [ ] RTP
+  - [ ] RTCP
 
   
 - Command line / developer utilities
