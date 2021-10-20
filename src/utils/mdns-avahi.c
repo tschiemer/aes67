@@ -324,6 +324,8 @@ static void resolve_callback(
 
     char * txtstr = NULL;
     uint16_t txtlen = 0;
+    enum aes67_net_ipver ipver = aes67_net_ipver_undefined;
+    const uint8_t * ip = NULL;
 
     enum aes67_mdns_result result = aes67_mdns_result_error;
 
@@ -342,19 +344,18 @@ static void resolve_callback(
                 result = aes67_mdns_result_discovered;
             }
             txtstr = avahi_string_list_to_raw(txt, &txtlen);
+
+            if (address){
+                if (address->proto == AVAHI_PROTO_INET){
+                    ipver = aes67_net_ipver_4;
+                    ip = (uint8_t*)&address->data.ipv4.address;
+                } else if (address->proto == AVAHI_PROTO_INET6){
+                    ipver = aes67_net_ipver_6;
+                    ip = address->data.ipv6.address;
+                }
+            }
             break;
         }
-    }
-
-
-    enum aes67_net_ipver ipver = aes67_net_ipver_undefined;
-    const uint8_t * ip = NULL;
-    if (address->proto == AVAHI_PROTO_INET){
-        ipver = aes67_net_ipver_4;
-        ip = (uint8_t*)&address->data.ipv4.address;
-    } else if (address->proto == AVAHI_PROTO_INET6){
-        ipver = aes67_net_ipver_6;
-        ip = address->data.ipv6.address;
     }
 
     uint16_t ttl = 0;
