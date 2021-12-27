@@ -1391,17 +1391,17 @@ u32_t aes67_sdp_fromstr(struct aes67_sdp *sdp, u8_t *str, u32_t len, void *user_
 
     u32_t pos = 3;
 
-    // abort if no line termination
-    if (!IS_CRNL(str[pos])){
-        return AES67_SDP_ERROR;
-    }
-
-    pos++;
-
-    // if only NL skip (ie 2 chars for newline CRNL)
-    if (IS_NL(str[pos])) {
+    // skip to \n
+    while (pos < len && str[pos] != NL){
         pos++;
     }
+    // sanity check not beyond given string
+    if (pos >= len){
+        return AES67_SDP_ERROR;
+    }
+    // move position beyond newline
+    pos++;
+
 
     // reset
     aes67_sdp_init(sdp);
