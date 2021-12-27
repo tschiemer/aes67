@@ -1619,5 +1619,23 @@ TEST(SDP_TestGroup, sdp_fromstr)
     CHECK_EQUAL(2, sdp.streams.count);
 
     CHECK_EQUAL(unhandled.expected, unhandled.seen);
+
+    // check for "v=0  " with trailing spaces
+    uint8_t s5[] = "v=0  \r\n"
+                   "o=- 123 45678 IN IP4 ipaddr1\r\n"
+                   "s= \r\n"
+                   "c=IN IP4 ipaddr2/44/36\r\n"
+                   "t=0 0\r\n"
+                   "m=audio 5000 RTP/AVP 96\r\n"
+                   "a=recvonly\r\n"
+                   "a=rtpmap:96 L16/48000/2\r\n"
+                   "a=ts-refclk:ptp=IEEE1588-2008:39-A7-94-FF-FE-07-CB-D0:2\r\n"
+                   "a=mediaclk:direct=963214424\r\n"
+    ;
+
+
+    std::memset(&sdp, 0, sizeof(struct aes67_sdp));
+    CHECK_EQUAL(AES67_SDP_OK, aes67_sdp_fromstr(&sdp, s5, sizeof(s5) - 1, NULL));
+
 }
 
