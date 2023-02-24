@@ -212,6 +212,24 @@ static int generate_packet(u8_t * payload, size_t plen, size_t typelen)
     return EXIT_SUCCESS;
 }
 
+int set_stdin_blocking(bool enabled)
+{
+  int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+
+  if (enabled){ // blocking
+      if (fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK) == -1){
+          fprintf(stderr, "Couldn't block stdin\n");
+          return EXIT_FAILURE;
+      }
+  } else { // non-blocking
+    if (fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK) == -1){
+        fprintf(stderr, "Couldn't nonblock stdin\n");
+        return EXIT_FAILURE;
+    }
+  }
+  return EXIT_SUCCESS;
+}
+
 int main(int argc, char * argv[])
 {
     argv0 = argv[0];
@@ -321,11 +339,7 @@ int main(int argc, char * argv[])
 
 
     // set non-blocking stdin
-    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-    if (fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK) == -1){
-        fprintf(stderr, "Couldn't nonblock stdin\n");
-        return EXIT_FAILURE;
-    }
+    set_stdin_blocking(false);
 
     u8_t * payload = &inbuf[typelen];
 
@@ -343,6 +357,10 @@ int main(int argc, char * argv[])
         if (r == -1){
             if (len > 0){
                 generate_packet(inbuf, len, typelen);
+                len = 0;
+
+                // set blocking stdin
+                set_stdin_blocking(true);
             }
         }
         if (r > 0) {
